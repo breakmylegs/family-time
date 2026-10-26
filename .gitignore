@@ -1,24 +1,27 @@
 # Secrets and local config. Never commit these.
-secrets/
+/secrets/
 .env
 .env.*
 !.env.example
 *.key
 *.pem
 
-# Build output and dependencies
+# Build output and dependencies. dist/, node_modules/ and .turbo/ are ignored at any depth on
+# purpose. Everything else is anchored to the root, so a source folder that happens to be called
+# data/ or cache/ is never silently left out.
 node_modules/
 dist/
-build/
 .turbo/
-coverage/
-out/
-cache/
-broadcast/
+/coverage/
+/contracts/out/
+/contracts/cache/
+/contracts/broadcast/
 
-# Local data volumes
-data/
-backups/
+# Local data and deploy state on the server
+/data/
+/backups/
+/.deploy/
+/deploy/.state/
 
 # OS and editor
 .DS_Store
