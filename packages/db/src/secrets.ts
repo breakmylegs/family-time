@@ -11,7 +11,7 @@ export function readSecret(name: string, env: NodeJS.ProcessEnv = process.env): 
     try {
       value = readFileSync(file, 'utf8').trim();
     } catch (err) {
-      throw new Error(`${name}_FILE points at ${file}, which cannot be read: ${(err as Error).message}`);
+      throw new Error(`${name}_FILE points at ${file}, which cannot be read: ${(err as Error).message}`, { cause: err });
     }
     if (!value) throw new Error(`${name}_FILE points at ${file}, which is empty`);
     return value;
