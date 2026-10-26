@@ -10,7 +10,7 @@ Wants=network-online.target
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=/opt/family-time
-ExecStart=/usr/bin/docker compose --env-file deploy/.state/image.env -f deploy/compose.yml up -d --wait --wait-timeout 180
+ExecStart=/usr/bin/docker compose --env-file deploy/.state/image.env -f deploy/compose.yml up -d
 ExecStop=/usr/bin/docker compose --env-file deploy/.state/image.env -f deploy/compose.yml stop
 TimeoutStartSec=300
 

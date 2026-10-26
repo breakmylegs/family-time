@@ -216,7 +216,7 @@ deploy() {
 
   # 9 start and 10 verify. From here a failure rolls back.
   log "9/11 start"
-  if ! IMAGE_TAG=$tag run_logged compose up -d --wait --wait-timeout 180 api worker; then
+  if ! start_and_wait "$tag"; then
     roll_back "$previous" "$tag" "the new version did not become healthy"
   fi
 
@@ -240,6 +240,37 @@ deploy() {
   log "deployed $tag"
 }
 
+# start_and_wait TAG: starts the api and worker on TAG, then polls the api's own health check
+# (which calls /readyz) until it is healthy, unhealthy, or three minutes pass. Not `up --wait`,
+# whose handling of a one-shot dependency like migrate has changed between Compose versions.
+start_and_wait() {
+  local tag=$1 api worker status i
+  IMAGE_TAG=$tag run_logged compose up -d api worker || return 1
+  api=$(IMAGE_TAG=$tag compose ps -q api 2>>"$FT_LOG" || true)
+  worker=$(IMAGE_TAG=$tag compose ps -q worker 2>>"$FT_LOG" || true)
+  if [ -z "$api" ] || [ -z "$worker" ]; then
+    log "the api or worker container did not start"
+    return 1
+  fi
+  for i in $(seq 1 90); do
+    status=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$api" 2>>"$FT_LOG" || echo missing)
+    case $status in
+      healthy) break ;;
+      unhealthy|missing) log "api is $status"; return 1 ;;
+      # No health check is never a pass.
+      none) log "the api container has no health check"; return 1 ;;
+    esac
+    [ $((i % 10)) = 0 ] && log "waiting for the api to be healthy ($((i * 2))s)"
+    sleep 2
+  done
+  [ "$status" = healthy ] || { log "api not healthy after 180s (last status: $status)"; return 1; }
+  if [ "$(docker inspect -f '{{.State.Running}}' "$worker" 2>>"$FT_LOG")" != true ]; then
+    log "the worker is not running"
+    return 1
+  fi
+  return 0
+}
+
 # roll_back PREVIOUS_TAG FAILED_TAG REASON: puts the previous images back. Never touches the
 # database: the migrations are additive, so the previous version runs on the new schema.
 roll_back() {
@@ -251,7 +282,7 @@ roll_back() {
     exit "$EXIT_FIRST_FAILED"
   fi
   log "rolling back to $previous"
-  if IMAGE_TAG=$previous run_logged compose up -d --wait --wait-timeout 180 api worker; then
+  if start_and_wait "$previous"; then
     log "rolled back to $previous, which is healthy"
     run_logged docker image rm "family-time:$failed" "family-time:test-$failed" || true
     exit "$EXIT_ROLLED_BACK"

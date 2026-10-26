@@ -106,7 +106,7 @@ expect_call "run --rm --network none family-time:test-$tag"
 expect_call "compose.test.yml up .*IMAGE_TAG=$tag"
 expect_call "compose.test.yml down"
 expect_call "run --rm migrate .*IMAGE_TAG=$tag"
-expect_call "up -d --wait .*IMAGE_TAG=$tag"
+expect_call "up -d api worker .*IMAGE_TAG=$tag"
 expect_out "no running database yet"
 expect_state current "$tag"
 expect_state image.env "IMAGE_TAG=$tag"
@@ -129,7 +129,7 @@ new_case "gate failure stops before anything live changes"
 run_update SHIM_FAIL=gate
 expect_rc 14
 expect_no_call "run --rm migrate"
-expect_no_call "up -d"
+expect_no_call "up -d api worker"
 [ ! -e "$H/deploy/.state/current" ] || fail_check "state was written"
 expect_no_lock
 end_case
@@ -153,7 +153,7 @@ new_case "migration failure leaves the running version alone"
 set_deployed "aaaaaaaaaaaa"
 run_update SHIM_FAIL=migrate
 expect_rc 17
-expect_no_call "up -d"
+expect_no_call "up -d api worker"
 expect_state current "aaaaaaaaaaaa"
 end_case
 
@@ -162,7 +162,7 @@ set_deployed "aaaaaaaaaaaa"
 tag=$(head12 "$H")
 run_update SHIM_FAIL=up-new
 expect_rc 21
-expect_call "up -d --wait .*IMAGE_TAG=aaaaaaaaaaaa"
+expect_call "up -d api worker .*IMAGE_TAG=aaaaaaaaaaaa"
 expect_call "image rm family-time:$tag family-time:test-$tag"
 expect_state current "aaaaaaaaaaaa"
 expect_out "ROLLED BACK"
