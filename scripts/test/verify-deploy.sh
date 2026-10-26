@@ -96,185 +96,234 @@ end_case() {
 make_template
 echo "verify-deploy: update.sh scenarios"
 
-new_case "first deploy succeeds and records the tag"
-tag=$(head12 "$H")
-run_update
-expect_rc 0
-expect_call "build --target test -t family-time:test-$tag"
-expect_call "build-arg GIT_COMMIT=$tag"
-expect_call "run --rm --network none family-time:test-$tag"
-expect_call "compose.test.yml up .*IMAGE_TAG=$tag"
-expect_call "compose.test.yml down"
-expect_call "run --rm migrate .*IMAGE_TAG=$tag"
-expect_call "up -d api worker .*IMAGE_TAG=$tag"
-expect_out "no running database yet"
-expect_state current "$tag"
-expect_state image.env "IMAGE_TAG=$tag"
-expect_no_lock
-end_case
+case_1() {
+  new_case "first deploy succeeds and records the tag"
+  tag=$(head12 "$H")
+  run_update
+  expect_rc 0
+  expect_call "build --target test -t family-time:test-$tag"
+  expect_call "build-arg GIT_COMMIT=$tag"
+  expect_call "run --rm --network none family-time:test-$tag"
+  expect_call "compose.test.yml up .*IMAGE_TAG=$tag"
+  expect_call "compose.test.yml down"
+  expect_call "run --rm migrate .*IMAGE_TAG=$tag"
+  expect_call "up -d api worker .*IMAGE_TAG=$tag"
+  expect_out "no running database yet"
+  expect_state current "$tag"
+  expect_state image.env "IMAGE_TAG=$tag"
+  expect_no_lock
+  end_case
+}
 
-new_case "second deploy dumps the database, then moves current to previous"
-old=$(head12 "$H"); set_deployed "$old"
-push_commit
-run_update SHIM_PG_RUNNING=1
-new=$(head12 "$H")
-expect_rc 0
-[ "$new" != "$old" ] || fail_check "the pull did not move HEAD"
-ls "$H"/backups/pre-deploy/*-before-"$new".dump > /dev/null 2>&1 || fail_check "no pre-deploy dump"
-expect_state current "$new"
-expect_state previous "$old"
-end_case
+case_2() {
+  new_case "second deploy dumps the database, then moves current to previous"
+  old=$(head12 "$H"); set_deployed "$old"
+  push_commit
+  run_update SHIM_PG_RUNNING=1
+  new=$(head12 "$H")
+  expect_rc 0
+  [ "$new" != "$old" ] || fail_check "the pull did not move HEAD"
+  ls "$H"/backups/pre-deploy/*-before-"$new".dump > /dev/null 2>&1 || fail_check "no pre-deploy dump"
+  expect_state current "$new"
+  expect_state previous "$old"
+  end_case
+}
 
-new_case "gate failure stops before anything live changes"
-run_update SHIM_FAIL=gate
-expect_rc 14
-expect_no_call "run --rm migrate"
-expect_no_call "up -d api worker"
-[ ! -e "$H/deploy/.state/current" ] || fail_check "state was written"
-expect_no_lock
-end_case
+case_3() {
+  new_case "gate failure stops before anything live changes"
+  run_update SHIM_FAIL=gate
+  expect_rc 14
+  expect_no_call "run --rm migrate"
+  expect_no_call "up -d api worker"
+  [ ! -e "$H/deploy/.state/current" ] || fail_check "state was written"
+  expect_no_lock
+  end_case
+}
 
-new_case "real-Postgres test failure stops, and the test project is still removed"
-run_update SHIM_FAIL=pgtests
-expect_rc 15
-expect_call "compose.test.yml down -v"
-expect_no_call "run --rm migrate"
-end_case
+case_4() {
+  new_case "real-Postgres test failure stops, and the test project is still removed"
+  run_update SHIM_FAIL=pgtests
+  expect_rc 15
+  expect_call "compose.test.yml down -v"
+  expect_no_call "run --rm migrate"
+  end_case
+}
 
-new_case "a dump that is too small stops before migrating, and is deleted"
-set_deployed "aaaaaaaaaaaa"
-run_update SHIM_PG_RUNNING=1 SHIM_FAIL=dump
-expect_rc 16
-expect_no_call "run --rm migrate"
-! ls "$H"/backups/pre-deploy/*.dump > /dev/null 2>&1 || fail_check "the bad dump was kept"
-end_case
+case_5() {
+  new_case "a dump that is too small stops before migrating, and is deleted"
+  set_deployed "aaaaaaaaaaaa"
+  run_update SHIM_PG_RUNNING=1 SHIM_FAIL=dump
+  expect_rc 16
+  expect_no_call "run --rm migrate"
+  ! ls "$H"/backups/pre-deploy/*.dump > /dev/null 2>&1 || fail_check "the bad dump was kept"
+  end_case
+}
 
-new_case "migration failure leaves the running version alone"
-set_deployed "aaaaaaaaaaaa"
-run_update SHIM_FAIL=migrate
-expect_rc 17
-expect_no_call "up -d api worker"
-expect_state current "aaaaaaaaaaaa"
-end_case
+case_6() {
+  new_case "migration failure leaves the running version alone"
+  set_deployed "aaaaaaaaaaaa"
+  run_update SHIM_FAIL=migrate
+  expect_rc 17
+  expect_no_call "up -d api worker"
+  expect_state current "aaaaaaaaaaaa"
+  end_case
+}
 
-new_case "unhealthy new version rolls back to the previous tag"
-set_deployed "aaaaaaaaaaaa"
-tag=$(head12 "$H")
-run_update SHIM_FAIL=up-new
-expect_rc 21
-expect_call "up -d api worker .*IMAGE_TAG=aaaaaaaaaaaa"
-expect_call "image rm family-time:$tag family-time:test-$tag"
-expect_state current "aaaaaaaaaaaa"
-expect_out "ROLLED BACK"
-expect_no_lock
-end_case
+case_7() {
+  new_case "unhealthy new version rolls back to the previous tag"
+  set_deployed "aaaaaaaaaaaa"
+  tag=$(head12 "$H")
+  run_update SHIM_FAIL=up-new
+  expect_rc 21
+  expect_call "up -d api worker .*IMAGE_TAG=aaaaaaaaaaaa"
+  expect_call "image rm family-time:$tag family-time:test-$tag"
+  expect_state current "aaaaaaaaaaaa"
+  expect_out "ROLLED BACK"
+  expect_no_lock
+  end_case
+}
 
-new_case "a failed rollback says the site is down"
-set_deployed "aaaaaaaaaaaa"
-run_update SHIM_FAIL=up-new,up-rollback
-expect_rc 22
-expect_out "ROLLBACK FAILED"
-end_case
+case_8() {
+  new_case "a failed rollback says the site is down"
+  set_deployed "aaaaaaaaaaaa"
+  run_update SHIM_FAIL=up-new,up-rollback
+  expect_rc 22
+  expect_out "ROLLBACK FAILED"
+  end_case
+}
 
-new_case "an unhealthy first deploy stops the stack"
-run_update SHIM_FAIL=up-new
-expect_rc 23
-expect_call "compose -f deploy/compose.yml stop api worker"
-[ ! -e "$H/deploy/.state/current" ] || fail_check "state was written"
-end_case
+case_9() {
+  new_case "an unhealthy first deploy stops the stack"
+  run_update SHIM_FAIL=up-new
+  expect_rc 23
+  expect_call "compose -f deploy/compose.yml stop api worker"
+  [ ! -e "$H/deploy/.state/current" ] || fail_check "state was written"
+  end_case
+}
 
-new_case "a /version that names another commit rolls back"
-set_deployed "aaaaaaaaaaaa"
-run_update SHIM_FAIL=version
-expect_rc 21
-expect_out "does not report"
-end_case
+case_10() {
+  new_case "a /version that names another commit rolls back"
+  set_deployed "aaaaaaaaaaaa"
+  run_update SHIM_FAIL=version
+  expect_rc 21
+  expect_out "does not report"
+  end_case
+}
 
-new_case "a second deploy is refused while one holds the lock, and the lock is left alone"
-mkdir -p "$H/.deploy/lock"; echo "pid 1" > "$H/.deploy/lock/owner"
-run_update
-expect_rc 11
-[ "$(cat "$H/.deploy/lock/owner" 2>/dev/null)" = "pid 1" ] || fail_check "the other deploy's lock was touched"
-expect_no_call "build"
-end_case
+case_11() {
+  new_case "a second deploy is refused while one holds the lock, and the lock is left alone"
+  mkdir -p "$H/.deploy/lock"; echo "pid 1" > "$H/.deploy/lock/owner"
+  run_update
+  expect_rc 11
+  [ "$(cat "$H/.deploy/lock/owner" 2>/dev/null)" = "pid 1" ] || fail_check "the other deploy's lock was touched"
+  expect_no_call "build"
+  end_case
+}
 
-new_case "local changes are refused before the lock is taken"
-echo dirty >> "$H/deploy/compose.yml"
-run_update
-expect_rc 10
-expect_out "local changes"
-[ ! -e "$H/.deploy/lock" ] || fail_check "a lock was taken"
-end_case
+case_12() {
+  new_case "local changes are refused before the lock is taken"
+  echo dirty >> "$H/deploy/compose.yml"
+  run_update
+  expect_rc 10
+  expect_out "local changes"
+  [ ! -e "$H/.deploy/lock" ] || fail_check "a lock was taken"
+  end_case
+}
 
-new_case "a detached HEAD is refused"
-git -C "$H" checkout -q --detach
-run_update
-expect_rc 10
-expect_out "detached HEAD"
-end_case
+case_13() {
+  new_case "a detached HEAD is refused"
+  git -C "$H" checkout -q --detach
+  run_update
+  expect_rc 10
+  expect_out "detached HEAD"
+  end_case
+}
 
-new_case "missing secrets are refused"
-rm -rf "$H/secrets"
-run_update
-expect_rc 10
-expect_out "init.sh"
-end_case
+case_14() {
+  new_case "missing secrets are refused"
+  rm -rf "$H/secrets"
+  run_update
+  expect_rc 10
+  expect_out "init.sh"
+  end_case
+}
 
-new_case "a missing proxy network is refused, with the command to create it"
-run_update SHIM_FAIL=nonet
-expect_rc 10
-expect_out "docker network create proxy_net"
-end_case
+case_15() {
+  new_case "a missing proxy network is refused, with the command to create it"
+  run_update SHIM_FAIL=nonet
+  expect_rc 10
+  expect_out "docker network create proxy_net"
+  end_case
+}
 
-new_case "TERM during the build stops, releases the lock and changes nothing"
-(cd "$H" && env PATH="$SHIMS:$PATH" SHIM_LOG="$C/calls.log" SHIM_SLOW=build bash scripts/update.sh -f > "$C/out.log" 2>&1) &
-pid=$!
-for _ in $(seq 1 600); do grep -q "build --build-arg" "$C/calls.log" 2>/dev/null && break; sleep 0.2; done
-kill -TERM "$pid" 2>/dev/null
-RC=0; wait "$pid" || RC=$?
-expect_rc 143
-expect_no_call "run --rm migrate"
-expect_no_lock
-end_case
+case_16() {
+  new_case "TERM during the build stops, releases the lock and changes nothing"
+  (cd "$H" && exec env PATH="$SHIMS:$PATH" SHIM_LOG="$C/calls.log" SHIM_SLOW=build bash scripts/update.sh -f > "$C/out.log" 2>&1) &
+  pid=$!
+  for _ in $(seq 1 600); do grep -q "build --build-arg" "$C/calls.log" 2>/dev/null && break; sleep 0.2; done
+  # $pid is update.sh itself (the subshell execs it), so the signal reaches its trap.
+  kill -TERM "$pid" 2>/dev/null
+  RC=0; wait "$pid" || RC=$?
+  expect_rc 143
+  expect_no_call "run --rm migrate"
+  expect_no_lock
+  end_case
+}
 
-new_case "a pull that changes update.sh runs the new script, once"
-push_commit "scripts/update.sh" "# a change to the deploy script"
-run_update
-expect_rc 0
-expect_out "running the new version"
-[ "$(grep -c '3/11 pull' "$C/out.log")" = 2 ] || fail_check "expected the pull step twice (old script, then new)"
-[ "$(grep -c 'skipping pull' "$C/out.log")" = 1 ] || fail_check "the new script pulled again"
-expect_no_lock
-end_case
+case_17() {
+  new_case "a pull that changes update.sh runs the new script, once"
+  push_commit "scripts/update.sh" "# a change to the deploy script"
+  run_update
+  expect_rc 0
+  expect_out "running the new version"
+  [ "$(grep -c '3/11 pull' "$C/out.log")" = 2 ] || fail_check "expected the pull step twice (old script, then new)"
+  [ "$(grep -c 'skipping pull' "$C/out.log")" = 1 ] || fail_check "the new script pulled again"
+  expect_no_lock
+  end_case
+}
 
-new_case "the drill builds a never-ready image under its own tag and rolls back"
-tag=$(head12 "$H"); set_deployed "$tag"
-run_update FT_DRILL=1 FT_NO_PULL=1 SHIM_FAIL=up-new
-expect_rc 21
-expect_call "build-arg FT_DRILL_UNREADY=1 -t family-time:$tag-drill"
-expect_state current "$tag"
-end_case
+case_18() {
+  new_case "the drill builds a never-ready image under its own tag and rolls back"
+  tag=$(head12 "$H"); set_deployed "$tag"
+  run_update FT_DRILL=1 FT_NO_PULL=1 SHIM_FAIL=up-new
+  expect_rc 21
+  expect_call "build-arg FT_DRILL_UNREADY=1 -t family-time:$tag-drill"
+  expect_state current "$tag"
+  end_case
+}
 
-new_case "a good deploy prunes every image except current and previous"
-set_deployed "aaaaaaaaaaaa"
-tag=$(head12 "$H")
-run_update SHIM_IMAGES="$tag aaaaaaaaaaaa bbbbbbbbbbbb test-$tag"
-expect_rc 0
-expect_call "image rm family-time:bbbbbbbbbbbb"
-expect_call "image rm family-time:test-$tag"
-expect_no_call "image rm family-time:aaaaaaaaaaaa"
-expect_no_call "image rm family-time:$tag "
-end_case
+case_19() {
+  new_case "a good deploy prunes every image except current and previous"
+  set_deployed "aaaaaaaaaaaa"
+  tag=$(head12 "$H")
+  run_update SHIM_IMAGES="$tag aaaaaaaaaaaa bbbbbbbbbbbb test-$tag"
+  expect_rc 0
+  expect_call "image rm family-time:bbbbbbbbbbbb"
+  expect_call "image rm family-time:test-$tag"
+  expect_no_call "image rm family-time:aaaaaaaaaaaa"
+  expect_no_call "image rm family-time:$tag "
+  end_case
+}
+
+ALL_CASES=$(seq 1 19)
+# FT_CASES="6 7 8" runs only those cases. On the Windows laptop a full run can exhaust the process
+# table, so run it there in batches; on Linux run all of them.
+SELECTED=${FT_CASES:-$ALL_CASES}
+expected=0
+for n in $SELECTED; do
+  expected=$((expected + 1))
+  "case_$n"
+done
 
 total=$((passed + failed))
 echo
 # Floor: if the cases stop running (a typo above, an early exit), say so rather than pass on nothing.
-if [ "$total" -lt 19 ]; then
-  echo "verify-deploy: only $total cases ran, expected 19. Refusing to pass."
+if [ "$total" -ne "$expected" ] || [ "$total" -lt 1 ]; then
+  echo "verify-deploy: $total cases ran, expected $expected. Refusing to pass."
   exit 2
 fi
 if [ "$failed" -gt 0 ]; then
   echo "verify-deploy: $failed of $total cases FAILED"
   exit 1
 fi
-echo "verify-deploy: all $total cases passed"
+echo "verify-deploy: all $total selected cases passed (cases: $(echo $SELECTED))"
