@@ -157,27 +157,58 @@ No sibling has a probe of a running app; their "verify" scripts test `update.sh`
 
 Drizzle migrations and the "never edit an applied migration" hook; pg-boss jobs; passkeys; invite links; PWA, service worker and Web Push; SSE; AdGuard; Besu, Foundry and viem; the control engine; the help panel system; AI spend in money; multi-arch builds; memory limits; systemd; restic; a live verify script. Each gets an ADR where the decision is hard to reverse.
 
+## How this project is built and tested
+
+This machine cannot run containers, and it cannot reach your servers. Every sibling app has the same split: code and tests run here, and containers are built and tested only on the server, by `scripts/update.sh`, which you run. Sources: my notes on P.E.T.E.R., Reckoner, Brightline, Estimatrix, CX AI Foundry (ADAPT) and TripBoard; `estimatrix/Dockerfile:115` and `muster/Dockerfile:73` (`test` stage); `tripboard/scripts/gate.mjs`; `tripboard/deploy/README.md`.
+
+**On this laptop (me, every change)**
+
+| What | How | Precedent |
+|---|---|---|
+| Lint, typecheck, unit and property tests, builds | `pnpm gate`, one script that stops at the first failure and typechecks last | TripBoard `scripts/gate.mjs` |
+| Database code and migrations | PGlite (open question 1) | none; P.E.T.E.R. and ClauseWorks had no database here at all |
+| AdGuard client | Generated from the pinned OpenAPI spec, with unit tests against recorded responses | Contract tests against the real container run on the server |
+| `update.sh`, `backup.sh`, `restore.sh` logic | Shimmed `docker` and `git` in Git Bash, one temp repo per scenario, expected exit codes, including the forced-failure rollback | Muster `scripts/verify-deploy.sh`, Reckoner `scripts/lib/prove-deploy.sh` |
+| Parent app and kiosk screens | Vite dev server against a stub API in the scratchpad, captured with the Playwright and browsers already in `C:\dev\capture-tool`, WebKit at 390 by 844 and Chromium at 1280 by 800 | Reckoner and P.E.T.E.R. capture recipes |
+| Solidity | `forge test` if Foundry is allowed here (open question 2) | none |
+
+**On the server (you, once per phase)**
+
+- Clone over HTTPS with a token, never SSH. Then `./scripts/init.sh` once, and `./scripts/update.sh` from then on. I give you only those commands, never raw `docker compose`.
+- `update.sh` builds a `test` stage and runs the **whole gate in a container with no network** before it touches anything live, as Estimatrix and Brightline do. It then runs the AdGuard contract tests and the Postgres tests against real containers in a throwaway Compose project. Any failure stops the deploy with the live stack untouched.
+- Then migrate, start, health gate on `/readyz`, check `/version` against the commit, and roll back the images automatically on failure.
+- Phase 0's rollback proof is a one-off drill script that plants a failing readiness check, runs `update.sh`, and checks the rollback. You run it once and paste me the output.
+- You paste me the output of each run. That is how I verify the phase exit criteria.
+
+**What this changes in the brief**
+
+- Phase 0 exit "stack comes up healthy, rolls back on a forced failure, CI green" becomes: the gate passes here, the shimmed script tests pass here, and your run of `update.sh` and the rollback drill on the VM both pass.
+- "AdGuard contract tests in CI" becomes "in the `update.sh` test stage on the server".
+- `docs/setup/server.md` covers the VM, Docker, the HTTPS token and the systemd unit, written for you to follow.
+
 ## Conflicts I found
 
-1. **No Docker, pnpm or Foundry on this machine.** This is a Windows work laptop without Docker. Phase 0's exit criteria (stack comes up healthy, `update.sh` rolls back on a forced failure) and the AdGuard contract tests need a Linux Docker host. See question 1.
-2. **CI.** The brief says CI runs everything and nothing merges red. Your other projects have Actions switched off and use a local gate script. See question 2.
-3. **Branches.** The brief says one branch per phase. Your standing rule elsewhere is push straight to main. For this project I will follow the brief (branch per phase, merged after your approval) unless you say otherwise.
-4. **Preact.** The brief says Preact 10. Preact 11.0.2 is now the latest. I recommend pinning **10.29.8**: it is what the research assessed, and an old Fire WebView is the wrong place to take on a new major. I will look at 11 again in Phase 6.
-5. **Allow "Until tomorrow" runs through bedtime.** In the mock, Allow Roblox "Until tomorrow, until 07:00 Tue" sits above bed in precedence (parent override beats schedule), so Roblox would work all night. The brief's precedence agrees, so this is not a bug in the mock, but it cuts against "protect sleep first". I recommend the Allow sheet keeps the four options but "Until tomorrow" ends at the next bedtime unless the parent turns on a separate "Through bedtime" switch. Your call.
-6. **"Count it in his weekly time" defaults to off.** In the mock, an Allow is extra time by default. The help topic for Allow, Block and Normal warns against allowing extra time most days. I recommend default **on**, so extra time is a deliberate choice. Your call.
-7. **Kiosk progress bar.** The kiosk "Right now" card shows a draining bar for the current session. The brief says no countdown anxiety. I will keep it as shown, because it shows time used rather than counting down, and I will check it in the Phase 6 UX review.
-8. **gitleaks.** Your global instructions ban it. Secret scanning will be a small script in the repo.
+1. **Containers cannot run on this machine.** The brief assumes they can (Compose in Phase 0, AdGuard contract tests in CI). They run only on the server, the way every sibling app does it. See "How this project is built and tested" below.
+2. **CI.** The brief says CI runs everything and nothing merges red. No sibling app has a GitHub Actions workflow; CX AI Foundry's was switched off when the Actions spending limit was hit. The brief's CI becomes the local gate plus the test stage inside `update.sh`, below.
+3. **Multi-arch builds.** The brief asks for `docker buildx` amd64 and arm64 images. With no registry and no CI, each host builds its own image natively, as TripBoard does on the arm64 Oracle VM. I will keep the Dockerfiles multi-arch clean and prove the arm64 build once per phase on an arm64 host. Pushed multi-arch images are a V2 release task.
+4. **Branches.** The brief says one branch per phase. Your standing rule elsewhere is push straight to main. For this project I will follow the brief (branch per phase, merged after your approval) unless you say otherwise.
+5. **Preact.** The brief says Preact 10. Preact 11.0.2 is now the latest. I recommend pinning **10.29.8**: it is what the research assessed, and an old Fire WebView is the wrong place to take on a new major. I will look at 11 again in Phase 6.
+6. **Allow "Until tomorrow" runs through bedtime.** In the mock, Allow Roblox "Until tomorrow, until 07:00 Tue" sits above bed in precedence (parent override beats schedule), so Roblox would work all night. The brief's precedence agrees, so this is not a bug in the mock, but it cuts against "protect sleep first". I recommend the Allow sheet keeps the four options but "Until tomorrow" ends at the next bedtime unless the parent turns on a separate "Through bedtime" switch. Your call.
+7. **"Count it in his weekly time" defaults to off.** In the mock, an Allow is extra time by default. The help topic for Allow, Block and Normal warns against allowing extra time most days. I recommend default **on**, so extra time is a deliberate choice. Your call.
+8. **Kiosk progress bar.** The kiosk "Right now" card shows a draining bar for the current session. The brief says no countdown anxiety. I will keep it as shown, because it shows time used rather than counting down, and I will check it in the Phase 6 UX review.
+9. **gitleaks.** Your global instructions ban it. Secret scanning will be a small script in the repo.
 
 Versions checked on npm today, all consistent with Part 17 except Preact: ai 7.0.153, @ai-sdk/mcp 2.0.84, @modelcontextprotocol/server and client 2.4.0, Fastify 5.12.7, Zod 4.6.7, drizzle-orm 0.45.4 with drizzle-kit 0.31.11, pg-boss 12.38.0, Vite 8.3.5, Tailwind 4.3.3, Vitest 5.0.5, vite-plugin-pwa 2.0.0 (supports Vite 8, so injectManifest mode is fine), React 19.3.1, @simplewebauthn/server 14.0.3, openid-client 6.8.8, web-push 3.6.7, viem 2.57.11, Playwright 1.64.1, Turborepo 2.11.10, pnpm 12.15.0, OpenZeppelin Contracts 5.6.1, fast-check 4.10.2. AdGuard Home and Besu image tags (and Besu arm64) get checked when Docker is available. All pinned in `docs/versions.md` in Phase 0.
 
 ## Open questions
 
-1. **Where do I build and test containers?** Options: Docker Desktop on this laptop if your employer allows it; a dev Linux VM on the Proxmox host that I reach over SSH; or GitHub Actions. I recommend a dev VM on Proxmox, the same machine type as production.
-2. **CI: GitHub Actions or a local gate script?** I recommend a local `scripts/gate.sh` that runs everything, as in your other projects, and Actions only if you want them here.
-3. **GitHub repo.** There is no remote yet. Name and visibility? I suggest `breakmylegs/family-time`, private.
-4. **Which sibling repos do you personally own**, if any, so I know where copying code would be allowed? Until you say, I copy nothing.
-5. **Work laptop.** This session runs on an employer laptop, and V2 is a public release. You may want to check that building a personal product on this machine does not give your employer a claim on it. If so, the build could move to the dev VM.
-6. **VALUES still placeholders**, defaults used: `PUBLIC_HOSTNAME` (needs your domain), `KIOSK_LAN_URL` (server LAN IP and port), `CHILD_NAME` (the mock's "Ollie" until then; it is stored data, not code), `SCHEDULE_WEEKEND` (I will seed free from 08:00, wind-down 20:00, bed 21:00 until you set it). `REMOTE_ACCESS` caddy-public and `OWNER_SSO` none as given.
-7. **Mock questions 5 and 6 above**: "Until tomorrow" through bedtime, and the default for "Count it in his weekly time".
-8. **Kiosk statics.** I plan for the api to serve the parent and kiosk builds (one image, one origin for cookies and SSE, the kiosk on a second LAN-only listener). Separate static containers add little at home. I will write this up as an ADR in Phase 0.
-9. **Skills.** The brief asks me to install Emil Kowalski's skills with `npx skills@latest`. Impeccable is already available in this environment. OK to install Emil's into the project in Phase 0?
+1. **Postgres on the laptop.** OK to add PGlite (Postgres compiled to WebAssembly, an npm package) as a dev and test dependency? It is not in Part 17. Without it, nothing that touches the database can be tested here, and every migration and query bug waits for your next run of `update.sh`.
+2. **Foundry on the laptop.** Foundry has a native Windows build. OK to install it (`foundryup` from Git Bash), so `forge test` and `anvil` run here in Phase 5? If not, contract tests run only in the server's test stage.
+3. **Staging.** Should the first runs of `update.sh` go to a separate staging VM on Proxmox, or straight to the production VM? Until Phase 2 nothing touches the network, so I recommend one VM, with AdGuard staying off your router until Phase 2.
+4. **GitHub repo.** There is no remote yet. Name and visibility? I suggest `breakmylegs/family-time`, private.
+5. **Which sibling repos do you personally own**, if any, so I know where copying code would be allowed? Until you say, I copy nothing.
+6. **Work laptop.** This session runs on an employer laptop, and V2 is a public release. You may want to check that building a personal product on this machine does not give your employer a claim on it. If so, the build could move to the dev VM.
+7. **VALUES still placeholders**, defaults used: `PUBLIC_HOSTNAME` (needs your domain), `KIOSK_LAN_URL` (server LAN IP and port), `CHILD_NAME` (the mock's "Ollie" until then; it is stored data, not code), `SCHEDULE_WEEKEND` (I will seed free from 08:00, wind-down 20:00, bed 21:00 until you set it). `REMOTE_ACCESS` caddy-public and `OWNER_SSO` none as given.
+8. **Mock questions 6 and 7 above**: "Until tomorrow" through bedtime, and the default for "Count it in his weekly time".
+9. **Kiosk statics.** I plan for the api to serve the parent and kiosk builds (one image, one origin for cookies and SSE, the kiosk on a second LAN-only listener). Separate static containers add little at home. I will write this up as an ADR in Phase 0.
+10. **Skills.** The brief asks me to install Emil Kowalski's skills with `npx skills@latest`. Impeccable is already available in this environment. OK to install Emil's into the project in Phase 0?
