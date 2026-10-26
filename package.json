@@ -14,7 +14,8 @@
     "lint": "eslint .",
     "check:dashes": "node scripts/check-dashes.mjs",
     "check:secrets": "node scripts/check-secrets.mjs",
-    "test:deploy": "bash scripts/test/verify-deploy.sh"
+    "test:deploy": "bash scripts/test/verify-deploy.sh",
+    "gate:full": "node scripts/gate.mjs --with-deploy"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

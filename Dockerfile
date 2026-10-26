@@ -30,6 +30,10 @@ RUN pnpm exec turbo run build
 # The gate: the same script as on the laptop. update.sh runs this image with no network, before
 # anything live changes. Built only with --target test, so production never carries it.
 FROM build AS test
+# git for the update.sh scenario tests, which make throwaway repositories.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends git ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
 CMD ["node", "scripts/gate.mjs", "--in-image"]
 
 FROM manifests AS prod-deps
