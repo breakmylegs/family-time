@@ -1,0 +1,18 @@
+# Starts the stack at boot with the image update.sh last deployed.
+# Install: see docs/setup/server.md.
+[Unit]
+Description=Family time stack
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/family-time
+ExecStart=/usr/bin/docker compose --env-file deploy/.state/image.env -f deploy/compose.yml up -d --wait --wait-timeout 180
+ExecStop=/usr/bin/docker compose --env-file deploy/.state/image.env -f deploy/compose.yml stop
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

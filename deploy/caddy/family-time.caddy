@@ -1,0 +1,24 @@
+# Family time: the parent app and /mcp. Add this block to the Caddyfile your Caddy container
+# reads, replace the hostname with PUBLIC_HOSTNAME, then reload Caddy.
+#
+# Caddy terminates TLS here and gets its certificate automatically. The api is reached by its
+# alias on the shared proxy network, so it publishes no port. The kiosk is not served here: it is
+# LAN only (Phase 6).
+
+family.example.com {
+	encode zstd gzip
+
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000"
+		X-Robots-Tag "noindex, nofollow"
+	}
+
+	# Server-Sent Events must not be buffered (Phase 3).
+	@events path /api/events /api/events/*
+	reverse_proxy @events family-time-api:3000 {
+		flush_interval -1
+	}
+
+	reverse_proxy family-time-api:3000
+}

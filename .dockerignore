@@ -1,0 +1,13 @@
+# The test stage runs the whole gate, so it needs scripts/ and docs/ (the dash check reads them).
+# Before adding a folder here, check no test or check reads it.
+.git
+**/node_modules
+**/dist
+**/.turbo
+secrets
+backups
+deploy/.state
+.deploy
+docs/design/screenshots
+docs/screens
+*.log
