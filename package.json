@@ -1,0 +1,34 @@
+{
+  "name": "family-time",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.34.9",
+  "engines": {
+    "node": ">=24.15.0 <25"
+  },
+  "scripts": {
+    "gate": "node scripts/gate.mjs",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "lint": "eslint .",
+    "check:dashes": "node scripts/check-dashes.mjs",
+    "check:secrets": "node scripts/check-secrets.mjs",
+    "test:deploy": "bash scripts/test/verify-deploy.sh"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "24.19.2",
+    "eslint": "10.13.0",
+    "globals": "17.13.0",
+    "turbo": "2.11.10",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.0",
+    "vitest": "5.0.5"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}
