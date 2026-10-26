@@ -16,8 +16,14 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 
-const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({
+/**
+ * node-postgres writes a Buffer as bytea but turns a plain Uint8Array (what SimpleWebAuthn gives
+ * us) into text. Convert on the way in, and hand back a plain Uint8Array on the way out.
+ */
+const bytea = customType<{ data: Uint8Array; driverData: Buffer | Uint8Array }>({
   dataType: () => 'bytea',
+  toDriver: (value) => Buffer.from(value),
+  fromDriver: (value) => new Uint8Array(value),
 });
 
 const createdAt = () => timestamp('created_at', { withTimezone: true }).notNull().defaultNow();
