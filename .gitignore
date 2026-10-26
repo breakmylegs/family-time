@@ -1,0 +1,26 @@
+# Secrets and local config. Never commit these.
+secrets/
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Build output and dependencies
+node_modules/
+dist/
+build/
+.turbo/
+coverage/
+out/
+cache/
+broadcast/
+
+# Local data volumes
+data/
+backups/
+
+# OS and editor
+.DS_Store
+.idea/
+.vscode/
