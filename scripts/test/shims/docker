@@ -19,8 +19,8 @@ case "$args" in
   *" build --target test "*) slow build-test; fails build-test && exit 1; exit 0 ;;
   *" build "*) slow build; fails build && exit 1; exit 0 ;;
   *" run --rm --network none "*) fails gate && exit 1; exit 0 ;;
-  *" compose.test.yml up "*) fails pgtests && exit 1; exit 0 ;;
-  *" compose.test.yml down "*) exit 0 ;;
+  *"compose.test.yml up "*) fails pgtests && exit 1; exit 0 ;;
+  *"compose.test.yml down "*) exit 0 ;;
   *" ps --status running -q postgres "*) [ "${SHIM_PG_RUNNING:-0}" = 1 ] && echo 3f2a1b; exit 0 ;;
   *" exec -T postgres pg_dump "*)
     if fails dump; then printf 'short'; else head -c 4096 /dev/zero | tr '\0' 'x'; fi

@@ -11,7 +11,7 @@ REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 SHIMS="$REPO/scripts/test/shims"
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
-GIT=(git -c user.name=test -c user.email=test@example.invalid -c init.defaultBranch=main -c advice.detachedHead=false)
+GIT=(git -c user.name=test -c user.email=test@example.invalid -c init.defaultBranch=main -c advice.detachedHead=false -c core.autocrlf=false)
 
 passed=0
 failed=0
@@ -26,12 +26,12 @@ make_template() {
   cp "$REPO/scripts/update.sh" "$t/seed/scripts/"
   cp "$REPO/scripts/lib/deploy-lib.sh" "$t/seed/scripts/lib/"
   cp "$REPO/deploy/compose.yml" "$REPO/deploy/compose.test.yml" "$t/seed/deploy/"
-  cp "$REPO/.gitignore" "$t/seed/"
+  cp "$REPO/.gitignore" "$REPO/.gitattributes" "$t/seed/"
   "${GIT[@]}" -C "$t/seed" init -q
   "${GIT[@]}" -C "$t/seed" add -A
   "${GIT[@]}" -C "$t/seed" commit -q -m seed
   "${GIT[@]}" -C "$t/seed" push -q "$t/origin.git" HEAD:main
-  "${GIT[@]}" clone -q "$t/origin.git" "$t/host"
+  "${GIT[@]}" clone -q -c core.autocrlf=false "$t/origin.git" "$t/host"
   mkdir -p "$t/host/secrets"
   echo pw > "$t/host/secrets/postgres_password"
 }
@@ -78,6 +78,11 @@ expect_state() { [ "$(cat "$H/deploy/.state/$1" 2>/dev/null)" = "$2" ] || fail_c
 expect_no_lock() { [ ! -e "$H/.deploy/lock" ] || fail_check "the lock was left behind"; }
 
 end_case() {
+  # A call the fake docker has no rule for means the case tested the fake, not update.sh.
+  if grep -q "fake docker: no rule" "$C/out.log" "$H"/.deploy/logs/*.log 2>/dev/null; then
+    fail_check "update.sh made a docker call the fake has no rule for:"
+    grep -h "fake docker: no rule" "$H"/.deploy/logs/*.log 2>/dev/null | sort -u | sed 's/^/        /'
+  fi
   if [ "$CASE_OK" = 1 ]; then
     passed=$((passed + 1))
     echo "  PASS  $CASE_NAME"
