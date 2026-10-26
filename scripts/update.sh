@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Deploys the newest commit on origin/main to this server. The only way to deploy.
+# Deploys the newest commit of the checked-out branch from origin. The only way to deploy.
+# The server tracks main; during a phase it may track that phase's branch until it is merged.
 #
 #   cd /opt/family-time && ./scripts/update.sh
 #
@@ -7,9 +8,9 @@
 # path and follows it; Ctrl-C stops the following, not the deploy. `-f` runs in the foreground.
 #
 # Steps
-#   1  preflight   right branch, clean tree, secrets present, Docker and the proxy network there
+#   1  preflight   on a branch with an upstream, clean tree, secrets, Docker and the proxy network
 #   2  lock        one deploy at a time
-#   3  pull        fast-forward to origin/main; if this script changed, re-run the new one
+#   3  pull        fast-forward to origin/<branch>; if this script changed, re-run the new one
 #   4  build       the test image and the runtime image, tagged with the commit
 #   5  gate        the whole gate inside the test image, with no network
 #   6  pg tests    the real-Postgres tests in a throwaway Compose project
@@ -22,7 +23,7 @@
 # Nothing live changes before step 8. Exit codes are listed in scripts/lib/deploy-lib.sh.
 #
 # Environment (for the rollback drill and the tests, not for everyday use):
-#   FT_BRANCH  branch to deploy (main)       FT_NO_PULL=1  deploy what is checked out
+#   FT_NO_PULL=1  deploy what is checked out, without pulling
 #   FT_DRILL=1 build an image that is never ready, to prove the rollback
 
 # Everything runs inside main(), which bash reads in full before running any of it. Without that,
@@ -109,7 +110,7 @@ fail() {
 }
 
 deploy() {
-  local branch=${FT_BRANCH:-main}
+  local branch
   local drill=${FT_DRILL:-0}
 
   # 1 preflight
@@ -117,10 +118,9 @@ deploy() {
   command -v docker >/dev/null || fail "$EXIT_PREFLIGHT" "docker is not installed"
   docker compose version >/dev/null 2>&1 || fail "$EXIT_PREFLIGHT" "docker compose v2 is not available"
   git rev-parse --git-dir >/dev/null 2>&1 || fail "$EXIT_PREFLIGHT" "$PWD is not a git checkout"
-  local current_branch
-  current_branch=$(git symbolic-ref --quiet --short HEAD || true)
-  [ -n "$current_branch" ] || fail "$EXIT_PREFLIGHT" "the checkout is on a detached HEAD. Run: git checkout $branch"
-  [ "$current_branch" = "$branch" ] || fail "$EXIT_PREFLIGHT" "the checkout is on $current_branch, not $branch"
+  branch=$(git symbolic-ref --quiet --short HEAD || true)
+  [ -n "$branch" ] || fail "$EXIT_PREFLIGHT" "the checkout is on a detached HEAD. Run: git checkout main"
+  [ "$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null)" = "origin/$branch" ] || fail "$EXIT_PREFLIGHT" "branch $branch does not track origin/$branch. Run: git branch --set-upstream-to=origin/$branch"
   [ -z "$(git status --porcelain --untracked-files=no)" ] || fail "$EXIT_PREFLIGHT" "the checkout has local changes. Deploy only what is on origin: git status"
   [ -s secrets/postgres_password ] || fail "$EXIT_PREFLIGHT" "secrets are missing. Run ./scripts/init.sh first"
   local proxy_net=${PROXY_NETWORK:-proxy_net}

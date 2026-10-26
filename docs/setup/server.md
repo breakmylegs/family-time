@@ -12,10 +12,10 @@ For the owner. Run these on the Proxmox VM (Ubuntu 24.04), as root (`sudo su -`)
 
 ## First install
 
-Clone. Git asks for a username (your GitHub name) and a password (paste the token).
+Clone the branch being tested. While a phase is under review that is its branch (now `phase-0`); after you approve it, the server moves to `main` (below). Git asks for a username (your GitHub name) and a password (paste the token). `credential.helper=store` saves the token for this repository in root's `~/.git-credentials`, because `update.sh` pulls in the background, where nothing can type it.
 
 ```bash
-git clone https://github.com/<owner>/family-time.git /opt/family-time
+git clone -b phase-0 -c credential.helper=store https://github.com/breakmylegs/family-time.git /opt/family-time
 ```
 
 Create the secrets, then deploy. The first build takes several minutes. `update.sh` runs in the background, so a dropped SSH session does not stop it; it shows the log as it goes.
@@ -44,8 +44,18 @@ cp /opt/family-time/deploy/systemd/family-time.service /etc/systemd/system/ && s
 
 ## Every later deploy
 
+`update.sh` deploys the newest commit of whichever branch the server has checked out.
+
 ```bash
 cd /opt/family-time && ./scripts/update.sh
+```
+
+## Moving to main after a phase is approved
+
+Once a phase is merged, switch the server back to `main`, then deploy.
+
+```bash
+cd /opt/family-time && git checkout main && ./scripts/update.sh
 ```
 
 ## If something goes wrong

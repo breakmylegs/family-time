@@ -60,6 +60,17 @@ push_commit() {
   "${GIT[@]}" -C "$C/seed" push -q "$C/origin.git" HEAD:main
 }
 
+# push_commit_to BRANCH: a new commit on that origin branch.
+push_commit_to() {
+  "${GIT[@]}" -C "$C/seed" fetch -q "$C/origin.git" "$1"
+  "${GIT[@]}" -C "$C/seed" checkout -q -B "$1" FETCH_HEAD
+  printf 'change
+' >> "$C/seed/PHASE"
+  "${GIT[@]}" -C "$C/seed" add -A
+  "${GIT[@]}" -C "$C/seed" commit -q -m "change on $1"
+  "${GIT[@]}" -C "$C/seed" push -q "$C/origin.git" "HEAD:$1"
+}
+
 set_deployed() { mkdir -p "$H/deploy/.state"; echo "$1" > "$H/deploy/.state/current"; }
 
 # run_update [ENV=VALUE...]: runs update.sh in the foreground with the fake docker. Sets RC.
@@ -305,7 +316,30 @@ case_19() {
   end_case
 }
 
-ALL_CASES=$(seq 1 19)
+case_20() {
+  new_case "a branch with no upstream is refused, with the command to fix it"
+  git -C "$H" checkout -q -b local-only
+  run_update
+  expect_rc 10
+  expect_out "does not track origin/local-only"
+  expect_no_call "build"
+  end_case
+}
+
+case_21() {
+  new_case "a phase branch deploys from its own origin branch"
+  "${GIT[@]}" -C "$C/seed" push -q "$C/origin.git" HEAD:phase-1
+  git -C "$H" fetch -q origin
+  git -C "$H" checkout -q -b phase-1 --track origin/phase-1
+  push_commit_to phase-1
+  run_update
+  expect_rc 0
+  [ "$(git -C "$H" rev-parse HEAD)" = "$(git -C "$C/origin.git" rev-parse phase-1)" ] || fail_check "the server is not at origin/phase-1"
+  expect_state current "$(head12 "$H")"
+  end_case
+}
+
+ALL_CASES=$(seq 1 21)
 # FT_CASES="6 7 8" runs only those cases. On the Windows laptop a full run can exhaust the process
 # table, so run it there in batches; on Linux run all of them.
 SELECTED=${FT_CASES:-$ALL_CASES}
