@@ -1,0 +1,110 @@
+# The production stack. Run it through scripts/update.sh, which sets IMAGE_TAG, or through the
+# systemd unit, which reads the tag update.sh last deployed from deploy/.state/image.env.
+# Memory limits are sized so the whole stack, with AdGuard and Besu added later, fits a Pi 5 with 8 GB.
+name: family-time
+
+x-app: &app
+  image: family-time:${IMAGE_TAG:?IMAGE_TAG is set by scripts/update.sh}
+  restart: unless-stopped
+  read_only: true
+  tmpfs:
+    - /tmp
+    - /run/app-secrets:mode=0700
+  # Root only in the entrypoint, to copy secrets and drop to `node`.
+  cap_drop: [ALL]
+  cap_add: [CHOWN, FOWNER, SETUID, SETGID]
+  security_opt: ["no-new-privileges:true"]
+  environment:
+    PGHOST: postgres
+    PGUSER: family_time
+    PGDATABASE: family_time
+    PGPASSWORD_FILE: /run/app-secrets/postgres_password
+    LOG_LEVEL: info
+    TZ: Europe/London
+  secrets: [postgres_password]
+  logging: &logging
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "5"
+
+services:
+  postgres:
+    image: postgres:18.6-trixie
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: family_time
+      POSTGRES_DB: family_time
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets: [postgres_password]
+    volumes:
+      # Postgres 18 keeps its data in a versioned folder under this path.
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U family_time -d family_time"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [internal]
+    mem_limit: 512m
+    shm_size: 128m
+    logging: *logging
+
+  migrate:
+    <<: *app
+    restart: "no"
+    command: ["node", "packages/db/dist/migrate.js"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [internal]
+    mem_limit: 256m
+
+  api:
+    <<: *app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/readyz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 40s
+    networks:
+      internal: {}
+      proxy:
+        aliases: [family-time-api]
+    mem_limit: 384m
+
+  worker:
+    <<: *app
+    command: ["node", "apps/worker/dist/index.js"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    networks: [internal]
+    mem_limit: 256m
+
+  # Added in later phases: adguard (Phase 2), besu under profile ledger-besu (Phase 5),
+  # ollama under profile ai-local (Phase 7).
+
+networks:
+  # No route out. Postgres and the worker are reachable only from inside the stack.
+  internal:
+    internal: true
+  # Caddy's network. Only the api joins it.
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK:-proxy_net}
+
+secrets:
+  postgres_password:
+    file: ../secrets/postgres_password
+
+volumes:
+  pgdata:

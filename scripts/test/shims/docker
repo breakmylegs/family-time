@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Fake docker for scripts/test/verify-deploy.sh. Records every call in $SHIM_LOG and behaves as
+# the scenario asks through $SHIM_FAIL, a comma-separated list of steps that should fail:
+#   build-test build gate pgtests dump migrate up-new up-rollback version nonet
+# $SHIM_PG_RUNNING=1 makes the live database look like it is running.
+# $SHIM_PREV_TAG is the tag running before the deploy: `up` with it is the rollback. The tag last
+# started is kept in $SHIM_LOG.running, so the health answer matches what is running.
+# $SHIM_IMAGES lists the family-time image tags `image ls` reports.
+# $SHIM_SLOW=<step> makes that step sleep, so a test can interrupt it.
+set -u
+echo "docker $* [IMAGE_TAG=${IMAGE_TAG:-}]" >> "$SHIM_LOG"
+
+fails() { [[ ",${SHIM_FAIL:-}," == *",$1,"* ]]; }
+slow() { [ "${SHIM_SLOW:-}" = "$1" ] && sleep 4; return 0; }
+args=" $* "
+
+case "$args" in
+  " compose version ") exit 0 ;;
+  *" network inspect "*) fails nonet && exit 1; exit 0 ;;
+  *" build --target test "*) slow build-test; fails build-test && exit 1; exit 0 ;;
+  *" build "*) slow build; fails build && exit 1; exit 0 ;;
+  *" run --rm --network none "*) fails gate && exit 1; exit 0 ;;
+  *"compose.test.yml up "*) fails pgtests && exit 1; exit 0 ;;
+  *"compose.test.yml down "*) exit 0 ;;
+  *" ps --status running -q postgres "*) [ "${SHIM_PG_RUNNING:-0}" = 1 ] && echo 3f2a1b; exit 0 ;;
+  *" exec -T postgres pg_dump "*)
+    if fails dump; then printf 'short'; else head -c 4096 /dev/zero | tr '\0' 'x'; fi
+    exit 0 ;;
+  *" run --rm migrate "*) fails migrate && exit 1; exit 0 ;;
+  *" up -d api worker "*) printf '%s' "${IMAGE_TAG:-}" > "$SHIM_LOG.running"; exit 0 ;;
+  *" ps -q api "*) echo api0000; exit 0 ;;
+  *" ps -q worker "*) echo wrk0000; exit 0 ;;
+  *" inspect -f {{.State.Running}} "*) echo true; exit 0 ;;
+  *" inspect -f {{if .State.Health}}"*)
+    running=$(cat "$SHIM_LOG.running" 2>/dev/null)
+    if [ -n "${SHIM_PREV_TAG:-}" ] && [ "$running" = "$SHIM_PREV_TAG" ]; then
+      fails up-rollback && { echo unhealthy; exit 0; }
+    else
+      fails up-new && { echo unhealthy; exit 0; }
+    fi
+    echo healthy; exit 0 ;;
+  *" exec -T api node "*)
+    if fails version; then printf '{"app":"family-time","commit":"000000000000"}'; else
+      printf '{"app":"family-time","commit":"%s","builtAt":"x","schema":"0000_foundations"}' "${IMAGE_TAG%-drill}"; fi
+    exit 0 ;;
+  *" compose -f deploy/compose.yml stop "*) exit 0 ;;
+  *" image ls "*) printf '%s\n' ${SHIM_IMAGES:-}; exit 0 ;;
+  *" image rm "*) exit 0 ;;
+esac
+echo "fake docker: no rule for: $*" >&2
+exit 99
