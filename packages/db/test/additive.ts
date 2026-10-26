@@ -6,8 +6,9 @@ const FORBIDDEN: [RegExp, string][] = [
   [/\bALTER\s+COLUMN\s+"?\w+"?\s+(SET\s+DATA\s+)?TYPE\b/i, 'changes a column type'],
   [/\bRENAME\b/i, 'renames something'],
   [/\bSET\s+NOT\s+NULL\b/i, 'makes an existing column NOT NULL'],
-  [/\bTRUNCATE\b/i, 'truncates a table'],
-  [/\bDELETE\s+FROM\b/i, 'deletes rows'],
+  // A TRUNCATE statement, not a trigger that guards against one (`BEFORE TRUNCATE ON x`).
+  [/(^|;|\n)\s*TRUNCATE\b/i, 'truncates a table'],
+  [/(^|;|\n)\s*DELETE\s+FROM\b/i, 'deletes rows'],
 ];
 
 export function additiveProblems(sql: string): string[] {

@@ -8,6 +8,20 @@
       "when": 1793016850375,
       "tag": "0000_foundations",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793045876720,
+      "tag": "0001_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793045887314,
+      "tag": "0002_account_triggers",
+      "breakpoints": true
     }
   ]
 }
