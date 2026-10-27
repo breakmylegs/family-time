@@ -123,6 +123,8 @@ deploy() {
   [ "$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null)" = "origin/$branch" ] || fail "$EXIT_PREFLIGHT" "branch $branch does not track origin/$branch. Run: git branch --set-upstream-to=origin/$branch"
   [ -z "$(git status --porcelain --untracked-files=no)" ] || fail "$EXIT_PREFLIGHT" "the checkout has local changes. Deploy only what is on origin: git status"
   [ -s secrets/postgres_password ] || fail "$EXIT_PREFLIGHT" "secrets are missing. Run ./scripts/init.sh first"
+  # Added in later versions; init.sh is safe to run again and only adds what is missing.
+  [ -s secrets/adguard_password ] && [ -s deploy/.state/network.env ]     || fail "$EXIT_PREFLIGHT" "this version needs new setup (the AdGuard password and the LAN address). Run ./scripts/init.sh again"
   local proxy_net=${PROXY_NETWORK:-proxy_net}
   docker network inspect "$proxy_net" >/dev/null 2>&1 \
     || fail "$EXIT_PREFLIGHT" "Docker network $proxy_net does not exist. It is the network your Caddy uses: docker network create $proxy_net"

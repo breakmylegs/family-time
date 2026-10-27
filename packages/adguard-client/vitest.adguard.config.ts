@@ -7,5 +7,6 @@ export default defineConfig({
     include: ['test/contract.test.ts'],
     maxWorkers: 1,
     testTimeout: 60_000,
+    hookTimeout: 120_000,
   },
 });

@@ -9,6 +9,7 @@ Every version is pinned exactly. Checked on the registry on 26 October 2026 unle
 | Node.js | 24.15.0 | `.node-version`, `engines`, and the base image |
 | Base image | `node:24.15.0-trixie-slim` | Official, publishes linux/amd64 and linux/arm64 |
 | PostgreSQL | `postgres:18.6-trixie` | Data under `/var/lib/postgresql` (Postgres 18 layout) |
+| AdGuard Home | `adguard/adguardhome:v0.107.79` | Newest stable 0.107 on 27 Oct 2026 (v0.108 and v1.0 are betas). Spec vendored in `packages/adguard-client/spec/` |
 | pnpm | 10.34.9 | Through corepack. pnpm 12.15.0 is current, but did not start through corepack on the laptop. Revisit |
 
 ## Packages
@@ -39,7 +40,8 @@ Every version is pinned exactly. Checked on the registry on 26 October 2026 unle
 | tailwindcss, @tailwindcss/vite | 4.3.3 | parent (dev) | yes (Phase 1) |
 | @types/react, @types/react-dom | 19.3.0 | parent (dev) | types only |
 | @playwright/test | 1.64.1 | root (dev) | yes (Phase 1). Uses Chromium 1248 and WebKit 2370, already in the laptop's browser cache |
-| fast-check | 4.10.2 | root (dev) | yes (Phase 1, first property tests in Phase 2) |
+| fast-check | 4.10.2 | root (dev) | yes. Property tests in `packages/domain` |
+| pg-boss | 12.38.0 | api | yes. The api queues a reconcile after each change |
 | tsx | 4.23.15 | api (dev) | approved in Phase 0; runs `apps/api/dev/server.ts` |
 
 ## Checked for later phases, not installed yet
@@ -56,7 +58,7 @@ Every version is pinned exactly. Checked on the registry on 26 October 2026 unle
 | @ai-sdk/mcp | 2.0.84 | 7 |
 | @modelcontextprotocol/server, client | 2.4.0 | 7 |
 
-AdGuard Home and Besu image tags, including arm64 for Besu, are checked in Phases 2 and 5.
+The Besu image tag, including arm64, is checked in Phase 5.
 
 ## Tooling
 

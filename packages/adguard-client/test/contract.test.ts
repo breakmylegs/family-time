@@ -19,8 +19,17 @@ beforeAll(async () => {
     fake = new FakeAdGuard({ configured: false });
     baseUrl = await fake.start();
   }
+  // A fresh container takes a moment to listen. Wait for it, up to 60 seconds.
+  const setup = new AdGuard({ baseUrl, username: USER, password: PASS, timeoutMs: 2_000 });
+  for (let i = 0; i < 60; i++) {
+    try {
+      await fetch(new URL('/', baseUrl), { signal: AbortSignal.timeout(2_000), redirect: 'manual' });
+      break;
+    } catch {
+      await new Promise((r) => setTimeout(r, 1_000));
+    }
+  }
   // A fresh AdGuard starts in its install wizard: configure it the way ft.sh adguard-setup does.
-  const setup = new AdGuard({ baseUrl, username: USER, password: PASS });
   try {
     await setup.installAddresses();
     await setup.configure({ web: { ip: '0.0.0.0', port: 3000 }, dns: { ip: '0.0.0.0', port: 53 }, username: USER, password: PASS });

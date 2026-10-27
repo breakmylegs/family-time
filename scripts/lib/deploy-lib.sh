@@ -59,8 +59,17 @@ run_logged() {
   return "$rc"
 }
 
+# The production stack. LAN_IP (where AdGuard publishes port 53) comes from the file init.sh writes.
 compose() {
-  docker compose -f deploy/compose.yml "$@"
+  (
+    if [ -f deploy/.state/network.env ]; then
+      set -a
+      # shellcheck source=/dev/null
+      . deploy/.state/network.env
+      set +a
+    fi
+    docker compose -f deploy/compose.yml "$@"
+  )
 }
 
 compose_test() {

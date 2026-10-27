@@ -2,6 +2,14 @@
 
 Release notes the app shows on its System page (from Phase 8). One plain line per change, newest first.
 
+## 0.3.0 (Phase 2, control engine and AdGuard)
+
+- Family time works out what each child can use right now, why, and until when, from the schedule, the family's rules and any parent's Allow, Block or Pause.
+- An Allow stops at bedtime unless you choose Through bedtime.
+- Changes reach the child's devices through AdGuard within a minute, and the app only says it is working once AdGuard has confirmed it.
+- If a device stops using home DNS for 30 minutes outside bedtime, it is marked quiet.
+- About how many minutes each app was used today, from the home DNS log. Only per-minute counts are kept.
+
 ## 0.2.0 (Phase 1, accounts)
 
 - Sign in with a passkey: one tap, then Face ID. No passwords.

@@ -19,14 +19,28 @@ services:
       retries: 30
     networks: [test]
 
+  # A fresh AdGuard Home v0.107.79, still in its first-install wizard, for the contract tests.
+  # No route out and no published port: the tests only talk to its API.
+  adguard:
+    image: adguard/adguardhome:v0.107.79
+    tmpfs:
+      - /opt/adguardhome/work
+      - /opt/adguardhome/conf
+    networks: [test]
+
   tests:
     image: family-time:test-${IMAGE_TAG:?IMAGE_TAG is set by scripts/update.sh}
     command: ["node", "scripts/test-pg.mjs"]
     environment:
       DATABASE_URL: postgres://family_time:throwaway@postgres:5432/family_time
+      ADGUARD_URL: http://adguard:3000
+      ADGUARD_USER: familytime
+      ADGUARD_PASSWORD: contract-test-password
     depends_on:
       postgres:
         condition: service_healthy
+      adguard:
+        condition: service_started
     networks: [test]
 
 networks:

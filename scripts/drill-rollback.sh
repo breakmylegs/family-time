@@ -10,6 +10,12 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
+if [ -f deploy/.state/network.env ]; then
+  set -a
+  . deploy/.state/network.env
+  set +a
+fi
+
 current=$(cat deploy/.state/current 2>/dev/null || true)
 if [ -z "$current" ]; then
   echo "drill: nothing is deployed yet. Run ./scripts/update.sh first." >&2

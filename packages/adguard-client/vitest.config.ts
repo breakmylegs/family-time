@@ -7,5 +7,6 @@ export default defineConfig({
     include: ['test/**/*.test.ts'],
     maxWorkers: 3,
     testTimeout: 30_000,
+    hookTimeout: 30_000,
   },
 });

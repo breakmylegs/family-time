@@ -18,7 +18,9 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/api/package.json apps/api/
 COPY apps/worker/package.json apps/worker/
 COPY apps/parent/package.json apps/parent/
+COPY packages/adguard-client/package.json packages/adguard-client/
 COPY packages/db/package.json packages/db/
+COPY packages/domain/package.json packages/domain/
 COPY packages/schemas/package.json packages/schemas/
 COPY packages/tokens/package.json packages/tokens/
 
@@ -53,6 +55,8 @@ ENV NODE_ENV=production \
     FT_DRILL_UNREADY=$FT_DRILL_UNREADY
 COPY --from=prod-deps /app /app
 COPY --from=build /app/packages/schemas/dist packages/schemas/dist
+COPY --from=build /app/packages/domain/dist packages/domain/dist
+COPY --from=build /app/packages/adguard-client/dist packages/adguard-client/dist
 COPY --from=build /app/packages/db/dist packages/db/dist
 COPY --from=build /app/packages/db/migrations packages/db/migrations
 COPY --from=build /app/apps/api/dist apps/api/dist

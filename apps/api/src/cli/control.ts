@@ -272,13 +272,11 @@ export interface AdGuardSetupStep {
 export async function adguardSetup(db: Db, adguard: AdGuard, credentials: { username: string; password: string }, apply: boolean): Promise<AdGuardSetupStep[]> {
   const hh = await household(db);
   const steps: AdGuardSetupStep[] = [];
-  let fresh = false;
-  try {
-    await adguard.installAddresses();
-    fresh = true;
-  } catch {
-    fresh = false;
-  }
+  // Before first-time setup, AdGuard answers this without credentials; afterwards it refuses.
+  const fresh = await adguard.installAddresses().then(
+    () => true,
+    () => false,
+  );
   if (fresh) {
     steps.push({ what: 'AdGuard first-time setup', from: 'not set up', to: `admin user ${credentials.username}, DNS on port 53, admin API on the internal network only` });
     if (apply) await adguard.configure({ web: { ip: '0.0.0.0', port: 3000 }, dns: { ip: '0.0.0.0', port: 53 }, ...credentials });
