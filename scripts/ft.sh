@@ -12,5 +12,11 @@ if [ ! -s deploy/.state/image.env ]; then
   exit 1
 fi
 
+if [ -f deploy/.state/network.env ]; then
+  set -a
+  . deploy/.state/network.env
+  set +a
+fi
+
 exec docker compose --env-file deploy/.state/image.env -f deploy/compose.yml \
   run --rm --no-deps -T api node apps/api/dist/cli.js "$@"

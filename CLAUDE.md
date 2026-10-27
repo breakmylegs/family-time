@@ -34,7 +34,7 @@ This laptop cannot run containers and cannot reach the servers. Containers are b
 
 ## Layout
 
-`apps/api` Fastify, `apps/worker` pg-boss jobs, `packages/db` Drizzle schema and migrations (PGlite in tests), `packages/schemas` Zod, `deploy/` Compose, Caddy, systemd, `scripts/` gate, init, update, drill.
+`apps/api` Fastify routes and the server CLI, `apps/worker` pg-boss jobs (heartbeat, reconciler, usage), `apps/parent` React app, `packages/domain` the control engine (pure), `packages/db` Drizzle schema, migrations and the rules loader (PGlite in tests), `packages/adguard-client` client, rules block, fake AdGuard, `packages/schemas` Zod, `packages/tokens` design tokens, `deploy/` Compose, Caddy, systemd, `scripts/` gate, init, update, drill, ft.sh.
 
 ## Traps already hit here
 

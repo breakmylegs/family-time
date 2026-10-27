@@ -1,5 +1,6 @@
-// Real-Postgres tests, in order: the db package migrates first, then the api and the worker run
-// against the migrated database. Runs inside the deploy's throwaway test project only.
+// Real-infrastructure tests, in order: the db package migrates first, then the api and the worker
+// run against the migrated database, then the AdGuard contract tests against a fresh AdGuard.
+// Runs inside the deploy's throwaway test project only.
 import { spawnSync } from 'node:child_process';
 
 if (!process.env.DATABASE_URL) {
@@ -7,9 +8,16 @@ if (!process.env.DATABASE_URL) {
   process.exit(2);
 }
 
-for (const pkg of ['@family-time/db', '@family-time/api', '@family-time/worker']) {
-  console.log(`\n== test-pg: ${pkg}`);
-  const r = spawnSync('pnpm', ['--filter', pkg, 'run', 'test:pg'], { stdio: 'inherit' });
+const suites = [
+  ['@family-time/db', 'test:pg'],
+  ['@family-time/api', 'test:pg'],
+  ['@family-time/worker', 'test:pg'],
+  // The contract tests that run against the fake on the laptop, here against the real AdGuard.
+  ...(process.env.ADGUARD_URL ? [['@family-time/adguard-client', 'test:adguard']] : []),
+];
+for (const [pkg, script] of suites) {
+  console.log(`\n== test-pg: ${pkg} ${script}`);
+  const r = spawnSync('pnpm', ['--filter', pkg, 'run', script], { stdio: 'inherit' });
   if (r.status !== 0) {
     console.error(`== test-pg FAILED in ${pkg} (exit ${r.status ?? r.signal})`);
     process.exit(r.status || 1);

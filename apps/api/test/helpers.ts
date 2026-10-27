@@ -3,6 +3,7 @@ import { recordHeartbeat } from '@family-time/db';
 import { testDb, type TestDb } from '@family-time/db/testing';
 import type { FastifyInstance } from 'fastify';
 import { readBuildInfo, type BuildInfo } from '../src/build.js';
+import type { QueryLogEntry } from '../src/routes/control.js';
 import { buildServer } from '../src/server.js';
 
 export const NOW = new Date('2026-10-26T18:32:00Z');
@@ -24,13 +25,30 @@ export interface Harness {
 }
 
 export async function harness(
-  options: { migrated?: boolean; heartbeat?: boolean; build?: Partial<BuildInfo>; logLevel?: string } = {},
+  options: {
+    migrated?: boolean;
+    heartbeat?: boolean;
+    build?: Partial<BuildInfo>;
+    logLevel?: string;
+    now?: Date;
+    notifyChange?: () => Promise<void>;
+    readQuerylog?: (limit: number) => Promise<QueryLogEntry[]>;
+  } = {},
 ): Promise<Harness> {
   const handle = await testDb({ migrated: options.migrated ?? true });
   if (options.heartbeat ?? true) await recordHeartbeat(handle.db, 'abc123', new Date(NOW.getTime() - 10_000));
   const logs = new LogSink();
   const build = { ...readBuildInfo({ GIT_COMMIT: 'abc123', BUILD_TIME: '2026-10-26T18:00:00Z' }), ...options.build };
-  const app = await buildServer({ db: handle.db, build, now: () => NOW, logStream: logs, logLevel: options.logLevel ?? 'debug' });
+  const at = options.now ?? NOW;
+  const app = await buildServer({
+    db: handle.db,
+    build,
+    now: () => at,
+    logStream: logs,
+    logLevel: options.logLevel ?? 'debug',
+    ...(options.notifyChange ? { notifyChange: options.notifyChange } : {}),
+    ...(options.readQuerylog ? { readQuerylog: options.readQuerylog } : {}),
+  });
   return {
     app,
     handle,

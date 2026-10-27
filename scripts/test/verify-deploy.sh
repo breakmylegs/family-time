@@ -32,8 +32,10 @@ make_template() {
   "${GIT[@]}" -C "$t/seed" commit -q -m seed
   "${GIT[@]}" -C "$t/seed" push -q "$t/origin.git" HEAD:main
   "${GIT[@]}" clone -q -c core.autocrlf=false "$t/origin.git" "$t/host"
-  mkdir -p "$t/host/secrets"
+  mkdir -p "$t/host/secrets" "$t/host/deploy/.state"
   echo pw > "$t/host/secrets/postgres_password"
+  echo pw > "$t/host/secrets/adguard_password"
+  echo LAN_IP=192.0.2.10 > "$t/host/deploy/.state/network.env"
 }
 
 # new_case NAME: a fresh copy of the template. Sets C (case dir) and H (server checkout).
@@ -259,6 +261,16 @@ case_14() {
   end_case
 }
 
+case_22() {
+  new_case "an install from before AdGuard is told to run init.sh again"
+  rm -f "$H/secrets/adguard_password"
+  run_update
+  expect_rc 10
+  expect_out "Run ./scripts/init.sh again"
+  expect_no_call "build"
+  end_case
+}
+
 case_15() {
   new_case "a missing proxy network is refused, with the command to create it"
   run_update SHIM_FAIL=nonet
@@ -339,7 +351,7 @@ case_21() {
   end_case
 }
 
-ALL_CASES=$(seq 1 21)
+ALL_CASES=$(seq 1 22)
 # FT_CASES="6 7 8" runs only those cases. On the Windows laptop a full run can exhaust the process
 # table, so run it there in batches; on Linux run all of them.
 SELECTED=${FT_CASES:-$ALL_CASES}

@@ -8,6 +8,7 @@ import type { RateLimiter } from './auth/ratelimit.js';
 import { readiness } from './health.js';
 import { HEALTH_PATHS, loggerOptions, logPath } from './logging.js';
 import { authRoutes } from './routes/auth.js';
+import { controlRoutes, type QueryLogEntry } from './routes/control.js';
 import { peopleRoutes } from './routes/people.js';
 import { registerStatic } from './static.js';
 
@@ -23,6 +24,10 @@ export interface ServerDeps {
   staticDir?: string;
   /** Injected so tests can share or inspect it. */
   limiter?: RateLimiter;
+  /** Wakes the reconciler after a change. A no-op in tests that do not care. */
+  notifyChange?: () => Promise<void>;
+  /** Read-only access to AdGuard's query log, for the discovery helper. */
+  readQuerylog?: (limit: number) => Promise<QueryLogEntry[]>;
 }
 
 export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
@@ -85,6 +90,12 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
 
   await authRoutes(app, { db: deps.db, now });
   await peopleRoutes(app, { db: deps.db, now });
+  await controlRoutes(app, {
+    db: deps.db,
+    now,
+    notifyChange: deps.notifyChange ?? (async () => undefined),
+    ...(deps.readQuerylog ? { readQuerylog: deps.readQuerylog } : {}),
+  });
   if (deps.staticDir) registerStatic(app, deps.staticDir);
 
   return app;
