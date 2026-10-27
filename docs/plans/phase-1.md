@@ -27,7 +27,7 @@ People sign in with a passkey (Face ID on an iPhone), are invited by link, and h
 | 10 | Rate limits on auth routes, in memory, keyed on the real client address. Proven by driving requests to a 429 | One api process at home; Redis would add a container for nothing |
 | 11 | A minimal parent app now: sign in, join from an invite, recover, a signed-in home, and People (invite and remove). React 19, Vite 8, Tailwind 4, tokens from the mock. The full Control screen is Phase 3 | The Phase 1 exit needs a screen to sign in on |
 | 12 | The api serves the parent build itself (ADR 0003), with a small static handler instead of a new dependency | |
-| 13 | Optional owner OIDC with `openid-client` is built last in this phase, off by default (`OWNER_SSO = none`). It only signs the owner in; roles stay local | Brief Part 8. Untestable here without an Authentik instance, so it is tested against a stub issuer |
+| 13 | Optional owner OIDC is DEFERRED. `OWNER_SSO` is `none`, so nothing uses it, and there is no Authentik here to test against. It comes back when you switch it on. The `people.oidc_subject` column is already there for it | Untested sign-in code is worse than none. Brief Part 8 lists it as optional |
 | 14 | Invite QR codes wait for Phase 3. A QR library is not in Part 17, and the link works now | Avoids a dependency for a convenience |
 
 ## Dependencies

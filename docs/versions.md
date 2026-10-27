@@ -25,28 +25,31 @@ Every version is pinned exactly. Checked on the registry on 26 October 2026 unle
 | turbo | 2.11.10 | root (dev) | yes |
 | vitest | 5.0.5 | root (dev) | yes |
 | typescript | 6.0.3 | root (dev) | approved. 7.0.2 is current, but typescript-eslint does not support it yet |
-| tsx | 4.23.15 | not installed yet | approved, add when first needed |
 | eslint | 10.13.0 | root (dev) | approved |
 | @eslint/js | 10.0.1 | root (dev) | approved |
 | typescript-eslint | 8.72.0 | root (dev) | approved |
 | globals | 17.13.0 | root (dev) | comes with the ESLint setup |
 | @types/node | 24.19.2 | root (dev) | types only |
 | @types/pg | 8.23.1 | db, api, worker (dev) | types only |
+| @simplewebauthn/server | 14.0.3 | api | yes (Phase 1) |
+| @simplewebauthn/browser | 14.0.0 | parent | yes (Phase 1) |
+| react, react-dom | 19.3.1 | parent | yes (Phase 1) |
+| vite | 8.3.5 | parent (dev) | yes (Phase 1) |
+| @vitejs/plugin-react | 6.1.2 | parent (dev) | Vite's React plugin |
+| tailwindcss, @tailwindcss/vite | 4.3.3 | parent (dev) | yes (Phase 1) |
+| @types/react, @types/react-dom | 19.3.0 | parent (dev) | types only |
+| @playwright/test | 1.64.1 | root (dev) | yes (Phase 1). Uses Chromium 1248 and WebKit 2370, already in the laptop's browser cache |
+| fast-check | 4.10.2 | root (dev) | yes (Phase 1, first property tests in Phase 2) |
+| tsx | 4.23.15 | api (dev) | approved in Phase 0; runs `apps/api/dev/server.ts` |
 
 ## Checked for later phases, not installed yet
 
 | Package | Version on 26 Oct 2026 | Phase |
 |---|---|---|
-| fast-check | 4.10.2 | 2 |
-| react | 19.3.1 | 3 |
-| vite | 8.3.5 | 3 |
-| tailwindcss | 4.3.3 | 3 |
 | vite-plugin-pwa | 2.0.0 (supports Vite 8) | 3 |
 | web-push | 3.6.7 | 3 |
-| @playwright/test | 1.64.1 | 3 |
-| @simplewebauthn/server | 14.0.3 | 1 |
-| openid-client | 6.8.8 | 1 |
 | preact | 10.29.8, not 11.0.2 (see reuse report) | 6 |
+| openid-client | 6.8.8 | when owner OIDC is switched on (deferred from Phase 1) |
 | viem | 2.57.11 | 5 |
 | @openzeppelin/contracts | 5.6.1 | 5 |
 | ai | 7.0.153 | 7 |

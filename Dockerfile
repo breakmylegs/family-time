@@ -17,8 +17,10 @@ FROM base AS manifests
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/api/package.json apps/api/
 COPY apps/worker/package.json apps/worker/
+COPY apps/parent/package.json apps/parent/
 COPY packages/db/package.json packages/db/
 COPY packages/schemas/package.json packages/schemas/
+COPY packages/tokens/package.json packages/tokens/
 
 FROM manifests AS deps
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --frozen-lockfile
@@ -36,8 +38,9 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 CMD ["node", "scripts/gate.mjs", "--in-image"]
 
+# Runtime dependencies of the server side only. The parent app ships as built files.
 FROM manifests AS prod-deps
-RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --frozen-lockfile --prod
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store     pnpm install --frozen-lockfile --prod --filter @family-time/api... --filter @family-time/worker...
 
 # Runtime. The last stage, so a plain build produces it and never the test stage.
 FROM base AS runtime
@@ -54,6 +57,7 @@ COPY --from=build /app/packages/db/dist packages/db/dist
 COPY --from=build /app/packages/db/migrations packages/db/migrations
 COPY --from=build /app/apps/api/dist apps/api/dist
 COPY --from=build /app/apps/worker/dist apps/worker/dist
+COPY --from=build /app/apps/parent/dist apps/parent/dist
 COPY --chmod=0755 deploy/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 EXPOSE 3000
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

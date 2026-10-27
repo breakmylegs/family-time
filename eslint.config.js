@@ -9,7 +9,11 @@ export default tseslint.config(
   {
     languageOptions: { globals: { ...globals.node } },
     rules: {
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', destructuredArrayIgnorePattern: '^_' }],
     },
+  },
+  {
+    files: ['apps/parent/src/**'],
+    languageOptions: { globals: { ...globals.browser } },
   },
 );

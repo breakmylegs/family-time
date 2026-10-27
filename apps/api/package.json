@@ -13,7 +13,8 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
-    "test:pg": "vitest run --config vitest.pg.config.ts"
+    "test:pg": "vitest run --config vitest.pg.config.ts",
+    "dev": "tsx dev/server.ts"
   },
   "dependencies": {
     "@family-time/db": "workspace:*",
@@ -21,12 +22,12 @@
     "@simplewebauthn/server": "14.0.3",
     "drizzle-orm": "0.45.4",
     "fastify": "5.12.7",
-    "openid-client": "6.8.8",
     "pg": "8.23.1",
     "zod": "4.6.7"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.11",
-    "@types/pg": "8.23.1"
+    "@types/pg": "8.23.1",
+    "tsx": "4.23.15"
   }
 }
