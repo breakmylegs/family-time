@@ -9,6 +9,18 @@ export {
   invites,
   webauthnChallenges,
   auditEvents,
+  services,
+  serviceGroups,
+  serviceGroupMembers,
+  policies,
+  devices,
+  schedules,
+  overrides,
+  grants,
+  adguardSync,
+  usageMinutes,
+  querylogCursor,
+  DEVICE_TYPES,
   ROLES,
   INVITE_KINDS,
   type Role,
@@ -19,3 +31,4 @@ export { connectionConfig } from './connection.js';
 export { readSecret } from './secrets.js';
 export { migrationsFolder, latestMigrationTag, shippedMigrationCount, appliedMigrationCount } from './migrations.js';
 export { recordHeartbeat, readHeartbeat, heartbeatFresh, HEARTBEAT_STALE_AFTER_MS } from './heartbeat.js';
+export { loadRules } from './control.js';

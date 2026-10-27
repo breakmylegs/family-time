@@ -207,3 +207,213 @@ export const auditEvents = pgTable(
     index('audit_events_target').on(t.targetType, t.targetId),
   ],
 );
+
+// ---------------------------------------------------------------------------------------------
+// Phase 2: control. Children are people with role `child`.
+
+/** An app or site parents control: an AdGuard built-in (by its id) or our own list of domains. */
+export const services = pgTable(
+  'services',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    householdId: uuid('household_id')
+      .notNull()
+      .references(() => households.id),
+    name: text('name').notNull(),
+    icon: text('icon'),
+    source: text('source').$type<'adguard' | 'custom'>().notNull(),
+    adguardId: text('adguard_id'),
+    /** Custom services: the domains to block. Built-ins: AdGuard's own domains, for usage counts. */
+    domains: text('domains').array().notNull().default(sql`'{}'::text[]`),
+    category: text('category'),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check('services_source', sql`(${t.source} = 'adguard' and ${t.adguardId} is not null) or (${t.source} = 'custom' and ${t.adguardId} is null)`),
+    uniqueIndex('services_household_adguard').on(t.householdId, t.adguardId),
+  ],
+);
+
+export const serviceGroups = pgTable('service_groups', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  householdId: uuid('household_id')
+    .notNull()
+    .references(() => households.id),
+  name: text('name').notNull(),
+  createdAt: createdAt(),
+});
+
+export const serviceGroupMembers = pgTable(
+  'service_group_members',
+  {
+    groupId: uuid('group_id')
+      .notNull()
+      .references(() => serviceGroups.id),
+    serviceId: uuid('service_id')
+      .notNull()
+      .references(() => services.id),
+  },
+  (t) => [primaryKey({ columns: [t.groupId, t.serviceId] })],
+);
+
+/** A child's rule for one service or one group. A service rule beats a group rule. */
+export const policies = pgTable(
+  'policies',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    childId: uuid('child_id')
+      .notNull()
+      .references(() => people.id),
+    serviceId: uuid('service_id').references(() => services.id),
+    groupId: uuid('group_id').references(() => serviceGroups.id),
+    defaultState: text('default_state').$type<'blocked' | 'allowed'>().notNull().default('blocked'),
+    alwaysAllowed: boolean('always_allowed').notNull().default(false),
+    allowedDuringWindDown: boolean('allowed_during_wind_down').notNull().default(false),
+    earnable: boolean('earnable').notNull().default(true),
+    dailyCapMinutes: smallint('daily_cap_minutes'),
+    sessionCapMinutes: smallint('session_cap_minutes'),
+  },
+  (t) => [
+    check('policies_one_target', sql`(${t.serviceId} is null) <> (${t.groupId} is null)`),
+    check('policies_default', sql`${t.defaultState} in ('blocked', 'allowed')`),
+    uniqueIndex('policies_child_service').on(t.childId, t.serviceId),
+    uniqueIndex('policies_child_group').on(t.childId, t.groupId),
+  ],
+);
+
+export const DEVICE_TYPES = ['ipad', 'phone', 'console', 'laptop', 'tv', 'kiosk', 'other'] as const;
+
+export const devices = pgTable(
+  'devices',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    householdId: uuid('household_id')
+      .notNull()
+      .references(() => households.id),
+    /** Null for a shared device. */
+    childId: uuid('child_id').references(() => people.id),
+    label: text('label').notNull(),
+    type: text('type').notNull(),
+    /** The persistent client's name in AdGuard. AdGuard maps it to the identifiers below. */
+    adguardName: text('adguard_name').notNull(),
+    /** What AdGuard recognises the device by: MAC, IP or ClientID. */
+    identifiers: text('identifiers').array().notNull(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
+    quietSince: timestamp('quiet_since', { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex('devices_adguard_name').on(t.adguardName), check('devices_has_identifier', sql`cardinality(${t.identifiers}) > 0`)],
+);
+
+/** A schedule's blocks are local wall-clock times, validated by the domain package. */
+export const schedules = pgTable('schedules', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  householdId: uuid('household_id')
+    .notNull()
+    .references(() => households.id),
+  childId: uuid('child_id').references(() => people.id),
+  name: text('name').notNull(),
+  weekdays: smallint('weekdays').array().notNull(),
+  blocks: jsonb('blocks').notNull(),
+  createdAt: createdAt(),
+});
+
+/** A parent's Allow, Block or Pause. Always ends: `ends_at` is null only for "until resume" pauses. */
+export const overrides = pgTable(
+  'overrides',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    householdId: uuid('household_id')
+      .notNull()
+      .references(() => households.id),
+    childId: uuid('child_id')
+      .notNull()
+      .references(() => people.id),
+    targetKind: text('target_kind').$type<'service' | 'group' | 'everything'>().notNull(),
+    targetId: uuid('target_id'),
+    type: text('type').$type<'allow' | 'block' | 'pause'>().notNull(),
+    startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+    endsAt: timestamp('ends_at', { withTimezone: true }),
+    overridesBedtime: boolean('overrides_bedtime').notNull().default(false),
+    countsAgainstAllowance: boolean('counts_against_allowance').notNull().default(true),
+    createdBy: uuid('created_by')
+      .notNull()
+      .references(() => people.id),
+    createdAt: createdAt(),
+    /** Set when a parent taps Normal or Resume before the end. */
+    endedBy: uuid('ended_by').references(() => people.id),
+  },
+  (t) => [
+    check('overrides_type', sql`${t.type} in ('allow', 'block', 'pause')`),
+    check(
+      'overrides_target',
+      sql`(${t.targetKind} = 'everything' and ${t.targetId} is null) or (${t.targetKind} in ('service', 'group') and ${t.targetId} is not null)`,
+    ),
+    check('overrides_end', sql`${t.endsAt} is not null or ${t.type} = 'pause'`),
+    index('overrides_child_ends').on(t.childId, t.endsAt),
+  ],
+);
+
+/** Screen time the child planned or a parent approved. The ledger side arrives in Phase 4. */
+export const grants = pgTable(
+  'grants',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    householdId: uuid('household_id')
+      .notNull()
+      .references(() => households.id),
+    childId: uuid('child_id')
+      .notNull()
+      .references(() => people.id),
+    targetKind: text('target_kind').$type<'service' | 'group'>().notNull(),
+    targetId: uuid('target_id').notNull(),
+    startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+    endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
+    source: text('source').$type<'planned' | 'approved'>().notNull(),
+    status: text('status').$type<'scheduled' | 'active' | 'paused' | 'ended' | 'refunded'>().notNull().default('scheduled'),
+    approvedBy: uuid('approved_by').references(() => people.id),
+    createdAt: createdAt(),
+  },
+  (t) => [check('grants_order', sql`${t.endsAt} > ${t.startsAt}`), index('grants_child_ends').on(t.childId, t.endsAt)],
+);
+
+/** What the reconciler last did for each device's AdGuard client. */
+export const adguardSync = pgTable('adguard_sync', {
+  deviceId: uuid('device_id')
+    .primaryKey()
+    .references(() => devices.id),
+  state: text('state').$type<'pending' | 'confirmed' | 'not-confirmed'>().notNull(),
+  /** The blocked services and rules last written, so the app can show what is in force. */
+  applied: jsonb('applied'),
+  appliedAt: timestamp('applied_at', { withTimezone: true }),
+  confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+  failures: smallint('failures').notNull().default(0),
+  lastError: text('last_error'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Minutes in which a device asked for a service's domains. Aggregates only, never raw log lines. */
+export const usageMinutes = pgTable(
+  'usage_minutes',
+  {
+    deviceId: uuid('device_id')
+      .notNull()
+      .references(() => devices.id),
+    serviceId: uuid('service_id')
+      .notNull()
+      .references(() => services.id),
+    minute: timestamp('minute', { withTimezone: true }).notNull(),
+    queries: smallint('queries').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.deviceId, t.serviceId, t.minute] }), index('usage_minutes_minute').on(t.minute)],
+);
+
+/** How far the usage job has read AdGuard's query log. One row. */
+export const querylogCursor = pgTable(
+  'querylog_cursor',
+  {
+    id: smallint('id').primaryKey().default(1),
+    readUntil: timestamp('read_until', { withTimezone: true }).notNull(),
+  },
+  (t) => [check('querylog_cursor_single_row', sql`${t.id} = 1`)],
+);
