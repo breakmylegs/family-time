@@ -54,6 +54,15 @@ export const HAGEZI_BYPASS_LIST = {
   url: 'https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/doh-vpn-proxy-bypass.txt',
 };
 
+/** The household setting that switches the bypass rules on. Set only by adguard-setup. */
+export const SETTING_BYPASS_RULES = 'adguard_bypass_rules';
+
+/** The domain a built-in service rule like `||youtube.com^` names, or undefined for anything fancier. */
+export function ruleDomainOf(rule: string): string | undefined {
+  const m = /^\|\|([a-z0-9.-]+)\^$/i.exec(rule.trim());
+  return m?.[1]?.toLowerCase();
+}
+
 /** AdGuard client names we generate are plain, so they need no escaping inside `$client`. */
 const SAFE_NAME = /^ft-[a-z0-9-]{1,60}$/;
 const SAFE_DOMAIN = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;

@@ -18,11 +18,8 @@ export interface UsageDeps {
   log: Log;
 }
 
-/** The domain a service rule like `||youtube.com^` names, or undefined for anything fancier. */
-export function ruleDomain(rule: string): string | undefined {
-  const m = /^\|\|([a-z0-9.-]+)\^$/i.exec(rule.trim());
-  return m?.[1]?.toLowerCase();
-}
+/** Kept for the tests' sake: the parser lives in the AdGuard client package. */
+export { ruleDomainOf as ruleDomain } from '@family-time/adguard-client';
 
 /** The service whose domain is the queried name or one of its parents. Most specific wins. */
 export function serviceFor(name: string, domains: Map<string, string>): string | undefined {

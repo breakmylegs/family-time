@@ -4,6 +4,7 @@
 import {
   AdGuard,
   BYPASS_RULES,
+  SETTING_BYPASS_RULES,
   blockRules,
   desiredClient,
   MarkerError,
@@ -47,7 +48,7 @@ export interface ReconcileResult {
 
 /** What AdGuard should hold for every managed device, from the engine. Pure apart from reads. */
 /** Set by ./scripts/ft.sh adguard-setup, after the owner has approved the bypass rules. */
-export const SETTING_BYPASS_RULES = 'adguard_bypass_rules';
+export { SETTING_BYPASS_RULES };
 
 export async function plan(db: Db, now: Date): Promise<{ timeZone: string; devices: DevicePlan[]; bypass: boolean }> {
   const household = (await db.select({ id: households.id, timeZone: households.timezone }).from(households).limit(1))[0];
