@@ -36,6 +36,24 @@ export function withOurRules(rules: string[], ours: string[]): string[] {
   return [...before, BEGIN, ...ours, END, ...after];
 }
 
+/**
+ * Rules that stop devices getting round home DNS (brief Part 5). They sit at the top of our block,
+ * written by the reconciler like everything else, once `adguard-setup` has switched them on.
+ */
+export const BYPASS_RULES = [
+  '! Stop bypasses: iCloud Private Relay, the Firefox DoH canary and Apple DoH',
+  '||mask.icloud.com^$dnsrewrite=NXDOMAIN',
+  '||mask-h2.icloud.com^$dnsrewrite=NXDOMAIN',
+  '||use-application-dns.net^$dnsrewrite=NXDOMAIN',
+  '||doh.dns.apple.com^',
+];
+
+/** The HaGeZi list of DNS-over-HTTPS, VPN and proxy services, added once by adguard-setup. */
+export const HAGEZI_BYPASS_LIST = {
+  name: 'HaGeZi DoH, VPN, TOR and proxy bypass',
+  url: 'https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/doh-vpn-proxy-bypass.txt',
+};
+
 /** AdGuard client names we generate are plain, so they need no escaping inside `$client`. */
 const SAFE_NAME = /^ft-[a-z0-9-]{1,60}$/;
 const SAFE_DOMAIN = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;

@@ -23,7 +23,10 @@
     "drizzle-orm": "0.45.4",
     "fastify": "5.12.7",
     "pg": "8.23.1",
-    "zod": "4.6.7"
+    "zod": "4.6.7",
+    "@family-time/domain": "workspace:*",
+    "@family-time/adguard-client": "workspace:*",
+    "pg-boss": "12.38.0"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.11",

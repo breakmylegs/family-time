@@ -3,6 +3,7 @@
 // AdGuard really holds it. Runs every 60 seconds and straight after any change.
 import {
   AdGuard,
+  BYPASS_RULES,
   blockRules,
   desiredClient,
   MarkerError,
@@ -12,7 +13,7 @@ import {
   withOurRules,
   type AdGuardClientRecord,
 } from '@family-time/adguard-client';
-import { adguardSync, devices, households, loadRules, people, services, type Db } from '@family-time/db';
+import { adguardSync, devices, households, loadRules, people, services, settings, type Db } from '@family-time/db';
 import { decideAll } from '@family-time/domain';
 import { and, eq, isNotNull } from 'drizzle-orm';
 import type { Log } from './worker.js';
@@ -45,9 +46,17 @@ export interface ReconcileResult {
 }
 
 /** What AdGuard should hold for every managed device, from the engine. Pure apart from reads. */
-export async function plan(db: Db, now: Date): Promise<{ timeZone: string; devices: DevicePlan[] }> {
+/** Set by ./scripts/ft.sh adguard-setup, after the owner has approved the bypass rules. */
+export const SETTING_BYPASS_RULES = 'adguard_bypass_rules';
+
+export async function plan(db: Db, now: Date): Promise<{ timeZone: string; devices: DevicePlan[]; bypass: boolean }> {
   const household = (await db.select({ id: households.id, timeZone: households.timezone }).from(households).limit(1))[0];
-  if (!household) return { timeZone: 'Europe/London', devices: [] };
+  if (!household) return { timeZone: 'Europe/London', devices: [], bypass: false };
+  const bypassSetting = await db
+    .select({ value: settings.value })
+    .from(settings)
+    .where(and(eq(settings.householdId, household.id), eq(settings.key, SETTING_BYPASS_RULES)));
+  const bypass = bypassSetting[0]?.value === true;
   const deviceRows = await db
     .select({ id: devices.id, name: devices.adguardName, ids: devices.identifiers, childId: devices.childId })
     .from(devices)
@@ -72,20 +81,20 @@ export async function plan(db: Db, now: Date): Promise<{ timeZone: string; devic
     }
     out.push({ deviceId: d.id, name: d.name, ids: d.ids, blocked: blocked.sort(), rules: domains.length ? blockRules(d.name, domains) : [] });
   }
-  return { timeZone: household.timeZone, devices: out };
+  return { timeZone: household.timeZone, devices: out, bypass };
 }
 
 export async function reconcile(deps: ReconcileDeps): Promise<ReconcileResult> {
   const { db, adguard, log } = deps;
   const now = deps.now();
-  const { timeZone, devices: plans } = await plan(db, now);
-  if (!plans.length) return { devices: 0, confirmed: 0, failed: 0 };
+  const { timeZone, devices: plans, bypass } = await plan(db, now);
+  if (!plans.length && !bypass) return { devices: 0, confirmed: 0, failed: 0 };
 
   const failures = new Map<string, string>();
   let rulesError: string | undefined;
 
   // 1. Our rules block, for every device's custom services at once.
-  const ourRules = plans.flatMap((p) => p.rules);
+  const ourRules = [...(bypass ? BYPASS_RULES : []), ...plans.flatMap((p) => p.rules)];
   try {
     const current = await adguard.userRules();
     if (JSON.stringify(splitRules(current).ours) !== JSON.stringify(ourRules)) {

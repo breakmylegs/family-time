@@ -1,10 +1,10 @@
-import { AdGuard, BEGIN, END } from '@family-time/adguard-client';
+import { AdGuard, BEGIN, BYPASS_RULES, END } from '@family-time/adguard-client';
 import { FakeAdGuard } from '@family-time/adguard-client/fake';
-import { adguardSync, overrides } from '@family-time/db';
+import { adguardSync, overrides, settings } from '@family-time/db';
 import { testDb, type TestDb } from '@family-time/db/testing';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { NOT_CONFIRMED_AFTER, reconcile } from '../src/reconcile.js';
+import { NOT_CONFIRMED_AFTER, reconcile, SETTING_BYPASS_RULES } from '../src/reconcile.js';
 import { jsonLog } from '../src/worker.js';
 import { FREE_TIME, seedHome } from './seed.js';
 
@@ -56,6 +56,14 @@ describe('reconcile', () => {
     // And it expires back to normal on its own.
     await run(new Date(FREE_TIME.getTime() + 31 * 60_000));
     expect(client()?.blocked_services).toEqual(['roblox', 'youtube']);
+  });
+
+  it('puts the bypass rules at the top of its block once the owner has switched them on', async () => {
+    const s = await seedHome(handle.db);
+    await handle.db.insert(settings).values({ householdId: s.hh.id, key: SETTING_BYPASS_RULES, value: true });
+    await run();
+    expect(fake.userRules.slice(0, 1 + BYPASS_RULES.length)).toEqual([BEGIN, ...BYPASS_RULES]);
+    expect(fake.userRules).toContain("||minecraft.net^$client='ft-ollieipad'");
   });
 
   it('writes nothing when nothing changed', async () => {
