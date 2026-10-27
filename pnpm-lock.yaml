@@ -112,9 +112,15 @@ importers:
 
   apps/worker:
     dependencies:
+      '@family-time/adguard-client':
+        specifier: workspace:*
+        version: link:../../packages/adguard-client
       '@family-time/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@family-time/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       drizzle-orm:
         specifier: 0.45.4
         version: 0.45.4(@electric-sql/pglite@0.5.11)(@opentelemetry/api@1.10.0)(@types/pg@8.23.1)(pg@8.23.1)

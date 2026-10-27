@@ -43,6 +43,35 @@ describe('worker', () => {
   });
 });
 
+describe('control jobs', () => {
+  it('reconcile through the job queue as soon as the worker starts', async () => {
+    const { AdGuard } = await import('@family-time/adguard-client');
+    const { FakeAdGuard } = await import('@family-time/adguard-client/fake');
+    const { seedHome, FREE_TIME } = await import('./seed.js');
+    handle = await testDb();
+    await seedHome(handle.db);
+    const fake = new FakeAdGuard();
+    const adguard = new AdGuard({ baseUrl: await fake.start(), username: fake.username, password: fake.password });
+    try {
+      worker = await startWorker({
+        boss: new PgBoss({ db: fromPglite(handle.client) }),
+        db: handle.db,
+        commit: 'abc123',
+        now: () => FREE_TIME,
+        log: jsonLog('worker', 'error', () => undefined),
+        pollingIntervalSeconds: 0.5,
+        adguard,
+      });
+      const ipad = await until(async () => fake.clients.find((c) => c.name === 'ft-ollieipad'));
+      expect(ipad.blocked_services).toEqual(['roblox', 'youtube']);
+    } finally {
+      await worker?.stop();
+      worker = undefined;
+      await fake.stop();
+    }
+  });
+});
+
 describe('jsonLog', () => {
   it('writes the shared line shape and drops lines below the level', () => {
     const lines: string[] = [];
