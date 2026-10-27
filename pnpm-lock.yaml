@@ -132,6 +132,8 @@ importers:
         specifier: 8.23.1
         version: 8.23.1
 
+  packages/adguard-client: {}
+
   packages/db:
     dependencies:
       '@family-time/domain':
