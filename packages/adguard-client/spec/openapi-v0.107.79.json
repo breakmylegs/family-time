@@ -1,0 +1,4593 @@
+{
+ "components": {
+  "requestBodies": {
+   "DhcpStaticLease": {
+    "content": {
+     "application/json": {
+      "schema": {
+       "$ref": "#/components/schemas/DhcpStaticLease"
+      }
+     }
+    },
+    "required": true
+   },
+   "RewriteEntry": {
+    "content": {
+     "application/json": {
+      "schema": {
+       "$ref": "#/components/schemas/RewriteEntry"
+      }
+     }
+    },
+    "required": true
+   },
+   "RewriteSettings": {
+    "content": {
+     "application/json": {
+      "schema": {
+       "$ref": "#/components/schemas/RewriteSettings"
+      }
+     }
+    },
+    "required": true
+   },
+   "RewriteUpdate": {
+    "content": {
+     "application/json": {
+      "schema": {
+       "$ref": "#/components/schemas/RewriteUpdate"
+      }
+     }
+    },
+    "required": true
+   },
+   "TlsConfig": {
+    "content": {
+     "application/json": {
+      "schema": {
+       "$ref": "#/components/schemas/TlsConfig"
+      }
+     }
+    },
+    "description": "TLS configuration JSON",
+    "required": true
+   }
+  },
+  "schemas": {
+   "AccessList": {
+    "description": "Client and host access list.  Each of the lists should contain only unique elements.  In addition, allowed and disallowed lists cannot contain the same elements.\n",
+    "properties": {
+     "allowed_clients": {
+      "description": "The allowlist of clients: IP addresses, CIDRs, or ClientIDs.\n",
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "blocked_hosts": {
+      "description": "The blocklist of hosts.",
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "disallowed_clients": {
+      "description": "The blocklist of clients: IP addresses, CIDRs, or ClientIDs.\n",
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     }
+    },
+    "type": "object"
+   },
+   "AccessListResponse": {
+    "$ref": "#/components/schemas/AccessList"
+   },
+   "AccessSetRequest": {
+    "$ref": "#/components/schemas/AccessList"
+   },
+   "AddUrlRequest": {
+    "description": "/add_url request data",
+    "properties": {
+     "name": {
+      "type": "string"
+     },
+     "url": {
+      "description": "URL or an absolute path to the file containing filtering rules.\n",
+      "example": "https://filters.adtidy.org/windows/filters/15.txt",
+      "type": "string"
+     },
+     "whitelist": {
+      "type": "boolean"
+     }
+    },
+    "type": "object"
+   },
+   "AddressInfo": {
+    "description": "Port information",
+    "properties": {
+     "ip": {
+      "example": "127.0.0.1",
+      "type": "string"
+     },
+     "port": {
+      "example": 53,
+      "format": "uint16",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "ip",
+     "port"
+    ],
+    "type": "object"
+   },
+   "AddressesInfo": {
+    "description": "AdGuard Home addresses configuration",
+    "properties": {
+     "dns_port": {
+      "example": 53,
+      "format": "uint16",
+      "type": "integer"
+     },
+     "interfaces": {
+      "$ref": "#/components/schemas/NetInterfaces"
+     },
+     "version": {
+      "example": "v0.123.4",
+      "type": "string"
+     },
+     "web_port": {
+      "example": 80,
+      "format": "uint16",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "dns_port",
+     "interfaces",
+     "version",
+     "web_port"
+    ],
+    "type": "object"
+   },
+   "BlockedService": {
+    "properties": {
+     "group_id": {
+      "description": "The ID of the group, that the service belongs to.\n",
+      "type": "string"
+     },
+     "icon_svg": {
+      "description": "The SVG icon as a Base64-encoded string to make it easier to embed it into a data URL.\n",
+      "type": "string"
+     },
+     "id": {
+      "description": "The ID of this service.\n",
+      "type": "string"
+     },
+     "name": {
+      "description": "The human-readable name of this service.\n",
+      "type": "string"
+     },
+     "rules": {
+      "description": "The array of the filtering rules.\n",
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     }
+    },
+    "required": [
+     "icon_svg",
+     "id",
+     "name",
+     "rules"
+    ],
+    "type": "object"
+   },
+   "BlockedServicesAll": {
+    "properties": {
+     "blocked_services": {
+      "items": {
+       "$ref": "#/components/schemas/BlockedService"
+      },
+      "type": "array"
+     },
+     "groups": {
+      "items": {
+       "$ref": "#/components/schemas/ServiceGroup"
+      }
+     }
+    },
+    "required": [
+     "blocked_services",
+     "groups"
+    ],
+    "type": "object"
+   },
+   "BlockedServicesArray": {
+    "items": {
+     "type": "string"
+    },
+    "type": "array"
+   },
+   "BlockedServicesSchedule": {
+    "properties": {
+     "ids": {
+      "description": "The names of the blocked services.\n",
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "schedule": {
+      "$ref": "#/components/schemas/Schedule"
+     }
+    },
+    "type": "object"
+   },
+   "CheckConfigRequest": {
+    "description": "Configuration to be checked",
+    "properties": {
+     "dns": {
+      "$ref": "#/components/schemas/CheckConfigRequestInfo"
+     },
+     "language": {
+      "$ref": "#/components/schemas/Lang"
+     },
+     "set_static_ip": {
+      "example": false,
+      "type": "boolean"
+     },
+     "web": {
+      "$ref": "#/components/schemas/CheckConfigRequestInfo"
+     }
+    },
+    "type": "object"
+   },
+   "CheckConfigRequestInfo": {
+    "properties": {
+     "autofix": {
+      "example": false,
+      "type": "boolean"
+     },
+     "ip": {
+      "example": "127.0.0.1",
+      "type": "string"
+     },
+     "port": {
+      "example": 53,
+      "format": "uint16",
+      "type": "integer"
+     }
+    },
+    "type": "object"
+   },
+   "CheckConfigResponse": {
+    "properties": {
+     "dns": {
+      "$ref": "#/components/schemas/CheckConfigResponseInfo"
+     },
+     "language": {
+      "$ref": "#/components/schemas/CheckConfigResponseInfo"
+     },
+     "static_ip": {
+      "$ref": "#/components/schemas/CheckConfigStaticIpInfo"
+     },
+     "web": {
+      "$ref": "#/components/schemas/CheckConfigResponseInfo"
+     }
+    },
+    "required": [
+     "dns",
+     "language",
+     "static_ip",
+     "web"
+    ],
+    "type": "object"
+   },
+   "CheckConfigResponseInfo": {
+    "properties": {
+     "can_autofix": {
+      "example": false,
+      "type": "boolean"
+     },
+     "status": {
+      "default": "",
+      "type": "string"
+     }
+    },
+    "required": [
+     "status",
+     "can_autofix"
+    ],
+    "type": "object"
+   },
+   "CheckConfigStaticIpInfo": {
+    "properties": {
+     "error": {
+      "default": "",
+      "description": "Error text. Set if static=error",
+      "type": "string"
+     },
+     "ip": {
+      "default": "",
+      "description": "Current dynamic IP address. Set if static=no",
+      "example": "192.168.1.1",
+      "type": "string"
+     },
+     "static": {
+      "$ref": "#/components/schemas/CheckConfigStaticIpInfoStatic"
+     }
+    },
+    "type": "object"
+   },
+   "CheckConfigStaticIpInfoStatic": {
+    "description": "Can be: yes, no, error",
+    "enum": [
+     "yes",
+     "no",
+     "error"
+    ],
+    "example": "no",
+    "type": "string"
+   },
+   "Client": {
+    "description": "Client information.",
+    "properties": {
+     "blocked_services": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "blocked_services_schedule": {
+      "$ref": "#/components/schemas/Schedule"
+     },
+     "filtering_enabled": {
+      "type": "boolean"
+     },
+     "ids": {
+      "description": "IP, CIDR, MAC, or ClientID.",
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "ignore_querylog": {
+      "description": "NOTE: If `ignore_querylog` is not set in HTTP API `GET /clients/add`\nrequest then default value (false) will be used.\n\nIf `ignore_querylog` is not set in HTTP API `GET /clients/update`\nrequest then the existing value will not be changed.\n\nThis behaviour can be changed in the future versions.\n",
+      "type": "boolean"
+     },
+     "ignore_statistics": {
+      "description": "NOTE: If `ignore_statistics` is not set in HTTP API `GET\n/clients/add` request then default value (false) will be used.\n\nIf `ignore_statistics` is not set in HTTP API `GET /clients/update`\nrequest then the existing value will not be changed.\n\nThis behaviour can be changed in the future versions.\n",
+      "type": "boolean"
+     },
+     "name": {
+      "description": "Name",
+      "example": "localhost",
+      "type": "string"
+     },
+     "parental_enabled": {
+      "type": "boolean"
+     },
+     "safe_search": {
+      "$ref": "#/components/schemas/SafeSearchConfig"
+     },
+     "safebrowsing_enabled": {
+      "type": "boolean"
+     },
+     "safesearch_enabled": {
+      "deprecated": true,
+      "type": "boolean"
+     },
+     "tags": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "upstreams": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "upstreams_cache_enabled": {
+      "description": "NOTE: If `upstreams_cache_enabled` is not set in HTTP API\n`GET /clients/add` request then default value (false) will be used.\n\nIf `upstreams_cache_enabled` is not set in HTTP API\n`GET /clients/update` request then the existing value will not be\nchanged.\n\nThis behaviour can be changed in the future versions.\n",
+      "type": "boolean"
+     },
+     "upstreams_cache_size": {
+      "description": "NOTE: If `upstreams_cache_enabled` is not set in HTTP API\n`GET /clients/update` request then the existing value will not be\nchanged.\n\nThis behaviour can be changed in the future versions.\n",
+      "type": "integer"
+     },
+     "use_global_blocked_services": {
+      "type": "boolean"
+     },
+     "use_global_settings": {
+      "type": "boolean"
+     }
+    },
+    "type": "object"
+   },
+   "ClientAuto": {
+    "description": "Auto-Client information",
+    "properties": {
+     "ip": {
+      "description": "IP address",
+      "example": "127.0.0.1",
+      "type": "string"
+     },
+     "name": {
+      "description": "Name",
+      "example": "localhost",
+      "type": "string"
+     },
+     "source": {
+      "description": "The source of this information",
+      "example": "etc/hosts",
+      "type": "string"
+     },
+     "whois_info": {
+      "$ref": "#/components/schemas/WhoisInfo"
+     }
+    },
+    "type": "object"
+   },
+   "ClientDelete": {
+    "description": "Client delete request",
+    "properties": {
+     "name": {
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "ClientFindSubEntry": {
+    "description": "Client information.",
+    "properties": {
+     "blocked_services": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "disallowed": {
+      "description": "Whether the client's IP is blocked or not.\n",
+      "type": "boolean"
+     },
+     "disallowed_rule": {
+      "description": "The rule due to which the client is disallowed.  If disallowed is set to true, and this string is empty, then the client IP is disallowed by the \"allowed IP list\", that is it is not included in the allowed list.\n",
+      "type": "string"
+     },
+     "filtering_enabled": {
+      "type": "boolean"
+     },
+     "ids": {
+      "description": "IP, CIDR, MAC, or ClientID.",
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "ignore_querylog": {
+      "type": "boolean"
+     },
+     "ignore_statistics": {
+      "type": "boolean"
+     },
+     "name": {
+      "description": "Name",
+      "example": "localhost",
+      "type": "string"
+     },
+     "parental_enabled": {
+      "type": "boolean"
+     },
+     "safe_search": {
+      "$ref": "#/components/schemas/SafeSearchConfig"
+     },
+     "safebrowsing_enabled": {
+      "type": "boolean"
+     },
+     "safesearch_enabled": {
+      "deprecated": true,
+      "type": "boolean"
+     },
+     "upstreams": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "use_global_blocked_services": {
+      "type": "boolean"
+     },
+     "use_global_settings": {
+      "type": "boolean"
+     },
+     "whois_info": {
+      "$ref": "#/components/schemas/WhoisInfo"
+     }
+    },
+    "type": "object"
+   },
+   "ClientUpdate": {
+    "description": "Client update request",
+    "properties": {
+     "data": {
+      "$ref": "#/components/schemas/Client"
+     },
+     "name": {
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "Clients": {
+    "properties": {
+     "auto_clients": {
+      "$ref": "#/components/schemas/ClientsAutoArray"
+     },
+     "clients": {
+      "$ref": "#/components/schemas/ClientsArray"
+     },
+     "supported_tags": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     }
+    },
+    "type": "object"
+   },
+   "ClientsArray": {
+    "description": "Clients array",
+    "items": {
+     "$ref": "#/components/schemas/Client"
+    },
+    "type": "array"
+   },
+   "ClientsAutoArray": {
+    "description": "Auto-Clients array",
+    "items": {
+     "$ref": "#/components/schemas/ClientAuto"
+    },
+    "type": "array"
+   },
+   "ClientsFindEntry": {
+    "additionalProperties": {
+     "$ref": "#/components/schemas/ClientFindSubEntry"
+    },
+    "type": "object"
+   },
+   "ClientsFindResponse": {
+    "description": "Client search results.",
+    "example": [
+     {
+      "cli42": {
+       "blocked_services": [],
+       "disallowed": false,
+       "disallowed_rule": "",
+       "filtering_enabled": true,
+       "ids": [
+        "cli42"
+       ],
+       "ignore_querylog": false,
+       "ignore_statistics": false,
+       "name": "Client 42",
+       "parental_enabled": true,
+       "safe_search": {},
+       "safebrowsing_enabled": true,
+       "safesearch_enabled": true,
+       "upstreams": [],
+       "use_global_blocked_services": true,
+       "use_global_settings": true,
+       "whois_info": {}
+      }
+     },
+     {
+      "1.2.3.4": {
+       "blocked_services": [],
+       "disallowed": false,
+       "disallowed_rule": "",
+       "filtering_enabled": true,
+       "ids": [
+        "1.2.3.4"
+       ],
+       "ignore_querylog": false,
+       "ignore_statistics": false,
+       "name": "Client 1-2-3-4",
+       "parental_enabled": true,
+       "safe_search": {},
+       "safebrowsing_enabled": true,
+       "safesearch_enabled": true,
+       "upstreams": [],
+       "use_global_blocked_services": true,
+       "use_global_settings": true,
+       "whois_info": {}
+      }
+     }
+    ],
+    "items": {
+     "$ref": "#/components/schemas/ClientsFindEntry"
+    },
+    "type": "array"
+   },
+   "ClientsSearchRequest": {
+    "description": "Client search request",
+    "properties": {
+     "clients": {
+      "items": {
+       "$ref": "#/components/schemas/ClientsSearchRequestItem"
+      },
+      "type": "array"
+     }
+    },
+    "type": "object"
+   },
+   "ClientsSearchRequestItem": {
+    "properties": {
+     "id": {
+      "description": "Client IP address, CIDR, MAC address, or ClientID",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "DHCPNetInterface": {
+    "description": "DHCP network interface info",
+    "properties": {
+     "flags": {
+      "description": "Flags could be any combination of the following values, divided by the \"|\" character: \"up\", \"broadcast\", \"loopback\", \"pointtopoint\" and \"multicast\".\n",
+      "example": "up|broadcast|multicast",
+      "type": "string"
+     },
+     "gateway_ip": {
+      "description": "The IP address of the gateway.",
+      "example": "192.0.2.0",
+      "type": "string"
+     },
+     "hardware_address": {
+      "example": "52:54:00:11:09:ba",
+      "type": "string"
+     },
+     "ipv4_addresses": {
+      "description": "The addresses of the interface of v4 family.\n",
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "ipv6_addresses": {
+      "description": "The addresses of the interface of v6 family.\n",
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "name": {
+      "example": "eth0",
+      "type": "string"
+     }
+    },
+    "required": [
+     "flags",
+     "gateway_ip",
+     "hardware_address",
+     "ipv4_addresses",
+     "ipv6_addresses",
+     "name"
+    ],
+    "type": "object"
+   },
+   "DHCPNetInterfaces": {
+    "additionalProperties": {
+     "$ref": "#/components/schemas/DHCPNetInterface"
+    },
+    "description": "DHCP network interfaces dictionary, keys are interface names.\n",
+    "type": "object"
+   },
+   "DNSConfig": {
+    "description": "DNS server configuration",
+    "properties": {
+     "blocked_response_ttl": {
+      "description": "TTL for blocked responses.",
+      "minimum": 0,
+      "type": "integer"
+     },
+     "blocking_ipv4": {
+      "type": "string"
+     },
+     "blocking_ipv6": {
+      "type": "string"
+     },
+     "blocking_mode": {
+      "enum": [
+       "default",
+       "refused",
+       "nxdomain",
+       "null_ip",
+       "custom_ip"
+      ],
+      "type": "string"
+     },
+     "bootstrap_dns": {
+      "description": "Bootstrap servers, port is optional after colon.  Empty value will reset it to default values.  Comments are allowed, a comment line starts with a `#` symbol.\n",
+      "example": [
+       "8.8.8.8:53",
+       "1.1.1.1:53"
+      ],
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "cache_enabled": {
+      "description": "Enables or disables the DNS response cache.\n\nIf `cache_enabled` is `true`, the companion field `cache_size` must\nbe present and greater than 0, or the `dns.cache_size` setting in\nthe configuration file must already be greater than 0.\n",
+      "type": "boolean"
+     },
+     "cache_optimistic": {
+      "type": "boolean"
+     },
+     "cache_size": {
+      "type": "integer"
+     },
+     "cache_ttl_max": {
+      "type": "integer"
+     },
+     "cache_ttl_min": {
+      "type": "integer"
+     },
+     "disable_ipv6": {
+      "type": "boolean"
+     },
+     "dnssec_enabled": {
+      "type": "boolean"
+     },
+     "edns_cs_custom_ip": {
+      "type": "string"
+     },
+     "edns_cs_enabled": {
+      "type": "boolean"
+     },
+     "edns_cs_use_custom": {
+      "type": "boolean"
+     },
+     "fallback_dns": {
+      "description": "List of fallback DNS servers used when upstream DNS servers are not responding.  Empty value will clear the list.  Comments are allowed, a comment line starts with a `#` symbol.\n",
+      "example": [
+       "8.8.8.8",
+       "1.1.1.1:53"
+      ],
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "local_ptr_upstreams": {
+      "description": "Upstream servers, port is optional after colon.  Empty value will reset it to default values.  Comments are allowed, a comment line starts with a `#` symbol.\n",
+      "example": [
+       "tls://1.1.1.1",
+       "tls://1.0.0.1"
+      ],
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "protection_disabled_until": {
+      "description": "Protection is pause until this time.  Nullable.",
+      "example": "2018-11-26T00:02:41+03:00",
+      "type": "string"
+     },
+     "protection_enabled": {
+      "type": "boolean"
+     },
+     "ratelimit": {
+      "type": "integer"
+     },
+     "ratelimit_subnet_len_ipv4": {
+      "default": 24,
+      "description": "Length of the subnet mask for IPv4 addresses.",
+      "maximum": 32,
+      "minimum": 0,
+      "type": "integer"
+     },
+     "ratelimit_subnet_len_ipv6": {
+      "default": 56,
+      "description": "Length of the subnet mask for IPv6 addresses.",
+      "maximum": 128,
+      "minimum": 0,
+      "type": "integer"
+     },
+     "ratelimit_whitelist": {
+      "description": "List of IP addresses excluded from rate limiting.",
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "resolve_clients": {
+      "type": "boolean"
+     },
+     "upstream_dns": {
+      "description": "Upstream servers, port is optional after colon.  Empty value will reset it to default values.  Comments are allowed, a comment line starts with a `#` symbol.\n",
+      "example": [
+       "tls://1.1.1.1",
+       "tls://1.0.0.1"
+      ],
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "upstream_dns_file": {
+      "type": "string"
+     },
+     "upstream_mode": {
+      "description": "Upstream modes enumeration. The empty string value is deprecated; use `load_balance` instead.",
+      "enum": [
+       "",
+       "fastest_addr",
+       "load_balance",
+       "parallel"
+      ],
+      "type": "string"
+     },
+     "upstream_timeout": {
+      "description": "The number of seconds to wait for a response from the upstream server",
+      "minimum": 1,
+      "type": "integer"
+     },
+     "use_private_ptr_resolvers": {
+      "type": "boolean"
+     }
+    },
+    "type": "object"
+   },
+   "DayRange": {
+    "description": "The single interval within a day.  It begins at the `start` and ends before the `end`.\n",
+    "properties": {
+     "end": {
+      "description": "The number of milliseconds elapsed from the start of a day.  It is expected to be rounded to minutes.  The maximum value is `86400000` (24 hours).\n",
+      "maximum": 86400000,
+      "minimum": 0,
+      "type": "number"
+     },
+     "start": {
+      "description": "The number of milliseconds elapsed from the start of a day.  It must be less than `end` and is expected to be rounded to minutes. So the maximum value is `86340000` (23 hours and 59 minutes).\n",
+      "maximum": 86340000,
+      "minimum": 0,
+      "type": "number"
+     }
+    },
+    "type": "object"
+   },
+   "DhcpConfig": {
+    "properties": {
+     "enabled": {
+      "type": "boolean"
+     },
+     "interface_name": {
+      "type": "string"
+     },
+     "v4": {
+      "$ref": "#/components/schemas/DhcpConfigV4"
+     },
+     "v6": {
+      "$ref": "#/components/schemas/DhcpConfigV6"
+     }
+    },
+    "type": "object"
+   },
+   "DhcpConfigV4": {
+    "properties": {
+     "gateway_ip": {
+      "example": "192.168.1.1",
+      "type": "string"
+     },
+     "lease_duration": {
+      "type": "integer"
+     },
+     "range_end": {
+      "example": "192.168.10.50",
+      "type": "string"
+     },
+     "range_start": {
+      "example": "192.168.1.2",
+      "type": "string"
+     },
+     "subnet_mask": {
+      "example": "255.255.255.0",
+      "type": "string"
+     }
+    },
+    "required": [
+     "gateway_ip",
+     "subnet_mask",
+     "range_start",
+     "range_end",
+     "lease_duration"
+    ],
+    "type": "object"
+   },
+   "DhcpConfigV6": {
+    "properties": {
+     "lease_duration": {
+      "type": "integer"
+     },
+     "range_start": {
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "DhcpFindActiveReq": {
+    "description": "Request for checking for other DHCP servers in the network.\n",
+    "properties": {
+     "interface": {
+      "description": "The name of the network interface",
+      "example": "eth0",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "DhcpLease": {
+    "description": "DHCP lease information",
+    "properties": {
+     "expires": {
+      "example": "2017-07-21T17:32:28Z",
+      "type": "string"
+     },
+     "hostname": {
+      "example": "dell",
+      "type": "string"
+     },
+     "ip": {
+      "example": "192.168.1.22",
+      "type": "string"
+     },
+     "mac": {
+      "example": "00:11:09:b3:b3:b8",
+      "type": "string"
+     }
+    },
+    "required": [
+     "mac",
+     "ip",
+     "hostname",
+     "expires"
+    ],
+    "type": "object"
+   },
+   "DhcpSearchResult": {
+    "description": "Information about a DHCP server discovered in the current network.\n",
+    "properties": {
+     "v4": {
+      "$ref": "#/components/schemas/DhcpSearchV4"
+     },
+     "v6": {
+      "$ref": "#/components/schemas/DhcpSearchV6"
+     }
+    },
+    "type": "object"
+   },
+   "DhcpSearchResultOtherServer": {
+    "properties": {
+     "error": {
+      "description": "Set if found=error",
+      "example": "",
+      "type": "string"
+     },
+     "found": {
+      "description": "The result of searching the other DHCP server.\n",
+      "enum": [
+       "yes",
+       "no",
+       "error"
+      ],
+      "example": "no",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "DhcpSearchResultStaticIP": {
+    "properties": {
+     "ip": {
+      "description": "Set if static=no",
+      "example": "",
+      "type": "string"
+     },
+     "static": {
+      "description": "The result of determining static IP address.\n",
+      "enum": [
+       "yes",
+       "no",
+       "error"
+      ],
+      "example": "yes",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "DhcpSearchV4": {
+    "properties": {
+     "other_server": {
+      "$ref": "#/components/schemas/DhcpSearchResultOtherServer"
+     },
+     "static_ip": {
+      "$ref": "#/components/schemas/DhcpSearchResultStaticIP"
+     }
+    },
+    "type": "object"
+   },
+   "DhcpSearchV6": {
+    "properties": {
+     "other_server": {
+      "$ref": "#/components/schemas/DhcpSearchResultOtherServer"
+     }
+    },
+    "type": "object"
+   },
+   "DhcpStaticLease": {
+    "description": "DHCP static lease information",
+    "properties": {
+     "hostname": {
+      "example": "dell",
+      "type": "string"
+     },
+     "ip": {
+      "example": "192.168.1.22",
+      "type": "string"
+     },
+     "mac": {
+      "example": "00:11:09:b3:b3:b8",
+      "type": "string"
+     }
+    },
+    "required": [
+     "mac",
+     "ip",
+     "hostname"
+    ],
+    "type": "object"
+   },
+   "DhcpStatus": {
+    "description": "Built-in DHCP server configuration and status",
+    "properties": {
+     "enabled": {
+      "type": "boolean"
+     },
+     "interface_name": {
+      "type": "string"
+     },
+     "leases": {
+      "items": {
+       "$ref": "#/components/schemas/DhcpLease"
+      },
+      "type": "array"
+     },
+     "static_leases": {
+      "items": {
+       "$ref": "#/components/schemas/DhcpStaticLease"
+      },
+      "type": "array"
+     },
+     "v4": {
+      "$ref": "#/components/schemas/DhcpConfigV4"
+     },
+     "v6": {
+      "$ref": "#/components/schemas/DhcpConfigV6"
+     }
+    },
+    "required": [
+     "enabled",
+     "interface_name",
+     "v4",
+     "v6",
+     "leases",
+     "static_leases"
+    ],
+    "type": "object"
+   },
+   "DnsAnswer": {
+    "description": "DNS answer section",
+    "properties": {
+     "ttl": {
+      "example": 55,
+      "format": "uint32",
+      "type": "integer"
+     },
+     "type": {
+      "example": "A",
+      "type": "string"
+     },
+     "value": {
+      "example": "217.69.139.201",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "DnsQuestion": {
+    "description": "DNS question section",
+    "properties": {
+     "class": {
+      "example": "IN",
+      "type": "string"
+     },
+     "name": {
+      "example": "xn--d1abbgf6aiiy.xn--p1ai",
+      "type": "string"
+     },
+     "type": {
+      "example": "A",
+      "type": "string"
+     },
+     "unicode_name": {
+      "example": "\u043f\u0440\u0435\u0437\u0438\u0434\u0435\u043d\u0442.\u0440\u0444",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "Error": {
+    "description": "A generic JSON error response.",
+    "properties": {
+     "message": {
+      "description": "The error message, an opaque string.",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "Filter": {
+    "description": "Filter subscription info",
+    "properties": {
+     "enabled": {
+      "type": "boolean"
+     },
+     "id": {
+      "example": 1234,
+      "format": "int64",
+      "type": "integer"
+     },
+     "last_updated": {
+      "example": "2018-10-30T12:18:57+03:00",
+      "format": "date-time",
+      "type": "string"
+     },
+     "name": {
+      "example": "AdGuard Simplified Domain Names filter",
+      "type": "string"
+     },
+     "rules_count": {
+      "example": 5912,
+      "format": "uint32",
+      "type": "integer"
+     },
+     "url": {
+      "example": "https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt\n",
+      "type": "string"
+     }
+    },
+    "required": [
+     "enabled",
+     "id",
+     "name",
+     "rules_count",
+     "url"
+    ],
+    "type": "object"
+   },
+   "FilterCheckHostResponse": {
+    "description": "Check Host Result",
+    "properties": {
+     "cname": {
+      "description": "Set if reason=Rewrite",
+      "type": "string"
+     },
+     "filter_id": {
+      "deprecated": true,
+      "description": "In case if there's a rule applied to this DNS request, this is ID of the filter list that the rule belongs to.\nDeprecated: use `rules[*].filter_list_id` instead.\n",
+      "type": "integer"
+     },
+     "ip_addrs": {
+      "description": "Set if reason=Rewrite",
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "reason": {
+      "$ref": "#/components/schemas/FilteringReason"
+     },
+     "rule": {
+      "deprecated": true,
+      "description": "Filtering rule applied to the request (if any).\nDeprecated: use `rules[*].text` instead.\n",
+      "example": "||example.org^",
+      "type": "string"
+     },
+     "rules": {
+      "description": "Applied rules.",
+      "items": {
+       "$ref": "#/components/schemas/ResultRule"
+      },
+      "type": "array"
+     },
+     "service_name": {
+      "description": "Set if reason=FilteredBlockedService",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "FilterConfig": {
+    "description": "Filtering settings",
+    "properties": {
+     "enabled": {
+      "type": "boolean"
+     },
+     "interval": {
+      "type": "integer"
+     }
+    },
+    "type": "object"
+   },
+   "FilterRefreshRequest": {
+    "description": "Refresh Filters request data",
+    "properties": {
+     "whitelist": {
+      "type": "boolean"
+     }
+    },
+    "type": "object"
+   },
+   "FilterRefreshResponse": {
+    "description": "/filtering/refresh response data",
+    "properties": {
+     "updated": {
+      "type": "integer"
+     }
+    },
+    "type": "object"
+   },
+   "FilterSetUrl": {
+    "description": "Filtering URL settings",
+    "properties": {
+     "data": {
+      "$ref": "#/components/schemas/FilterSetUrlData"
+     },
+     "url": {
+      "type": "string"
+     },
+     "whitelist": {
+      "type": "boolean"
+     }
+    },
+    "type": "object"
+   },
+   "FilterSetUrlData": {
+    "description": "Filter update data",
+    "properties": {
+     "enabled": {
+      "type": "boolean"
+     },
+     "name": {
+      "example": "AdGuard Simplified Domain Names filter",
+      "type": "string"
+     },
+     "url": {
+      "example": "https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt\n",
+      "type": "string"
+     }
+    },
+    "required": [
+     "enabled",
+     "name",
+     "url"
+    ],
+    "type": "object"
+   },
+   "FilterStatus": {
+    "description": "Filtering settings",
+    "properties": {
+     "enabled": {
+      "type": "boolean"
+     },
+     "filters": {
+      "items": {
+       "$ref": "#/components/schemas/Filter"
+      },
+      "type": "array"
+     },
+     "interval": {
+      "type": "integer"
+     },
+     "user_rules": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "whitelist_filters": {
+      "items": {
+       "$ref": "#/components/schemas/Filter"
+      },
+      "type": "array"
+     }
+    },
+    "type": "object"
+   },
+   "FilteringReason": {
+    "description": "Request filtering status.",
+    "enum": [
+     "NotFilteredNotFound",
+     "NotFilteredWhiteList",
+     "NotFilteredError",
+     "FilteredBlackList",
+     "FilteredSafeBrowsing",
+     "FilteredParental",
+     "FilteredInvalid",
+     "FilteredSafeSearch",
+     "FilteredBlockedService",
+     "Rewrite",
+     "RewriteEtcHosts",
+     "RewriteRule"
+    ],
+    "type": "string"
+   },
+   "GetQueryLogConfigResponse": {
+    "description": "Query log configuration",
+    "properties": {
+     "anonymize_client_ip": {
+      "description": "Anonymize clients' IP addresses",
+      "type": "boolean"
+     },
+     "enabled": {
+      "description": "Is query log enabled",
+      "type": "boolean"
+     },
+     "ignored": {
+      "description": "List of host names, which should not be written to log",
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "ignored_enabled": {
+      "description": "If true, the host names in the `ignored` array are excluded from the query log.\n",
+      "type": "boolean"
+     },
+     "interval": {
+      "description": "Time period for query log rotation in milliseconds.\n",
+      "type": "number"
+     }
+    },
+    "required": [
+     "enabled",
+     "interval",
+     "anonymize_client_ip",
+     "ignored"
+    ],
+    "type": "object"
+   },
+   "GetStatsConfigResponse": {
+    "description": "Statistics configuration",
+    "properties": {
+     "enabled": {
+      "description": "Are statistics enabled",
+      "type": "boolean"
+     },
+     "ignored": {
+      "description": "List of host names, which should not be counted",
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "ignored_enabled": {
+      "description": "If true, the host names in the `ignored` array are excluded from the statistics.\n",
+      "type": "boolean"
+     },
+     "interval": {
+      "description": "Statistics rotation interval in milliseconds",
+      "type": "number"
+     }
+    },
+    "required": [
+     "enabled",
+     "interval",
+     "ignored"
+    ],
+    "type": "object"
+   },
+   "GetVersionRequest": {
+    "description": "/version.json request data",
+    "properties": {
+     "recheck_now": {
+      "description": "If false, server will check for a new version data only once in several hours.\n",
+      "type": "boolean"
+     }
+    },
+    "type": "object"
+   },
+   "InitialConfiguration": {
+    "description": "AdGuard Home initial configuration for the first-install wizard.\n",
+    "properties": {
+     "dns": {
+      "$ref": "#/components/schemas/AddressInfo"
+     },
+     "language": {
+      "$ref": "#/components/schemas/Lang"
+     },
+     "password": {
+      "description": "Basic auth password",
+      "example": "password",
+      "type": "string"
+     },
+     "username": {
+      "description": "Basic auth username",
+      "example": "admin",
+      "type": "string"
+     },
+     "web": {
+      "$ref": "#/components/schemas/AddressInfo"
+     }
+    },
+    "required": [
+     "dns",
+     "web",
+     "password",
+     "username"
+    ],
+    "type": "object"
+   },
+   "Lang": {
+    "description": "Language code.\n",
+    "enum": [
+     "ar",
+     "be",
+     "bg",
+     "cs",
+     "da",
+     "de",
+     "en",
+     "es",
+     "fa",
+     "fi",
+     "fr",
+     "hr",
+     "hu",
+     "id",
+     "it",
+     "ja",
+     "ko",
+     "nl",
+     "no",
+     "pl",
+     "pt-br",
+     "pt-pt",
+     "ro",
+     "ru",
+     "si-lk",
+     "sk",
+     "sl",
+     "sr-cs",
+     "sv",
+     "th",
+     "tr",
+     "uk",
+     "vi",
+     "zh-cn",
+     "zh-hk",
+     "zh-tw"
+    ],
+    "type": "string"
+   },
+   "LanguageSettings": {
+    "description": "Language settings object.",
+    "properties": {
+     "language": {
+      "$ref": "#/components/schemas/Lang"
+     }
+    },
+    "required": [
+     "language"
+    ],
+    "type": "object"
+   },
+   "Login": {
+    "description": "Login request data",
+    "properties": {
+     "name": {
+      "description": "User name",
+      "type": "string"
+     },
+     "password": {
+      "description": "Password",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "NetInterface": {
+    "description": "Network interface info",
+    "properties": {
+     "flags": {
+      "description": "Flags could be any combination of the following values, divided by the \"|\" character: \"up\", \"broadcast\", \"loopback\", \"pointtopoint\" and \"multicast\".\n",
+      "example": "up|broadcast|multicast",
+      "type": "string"
+     },
+     "hardware_address": {
+      "example": "52:54:00:11:09:ba",
+      "type": "string"
+     },
+     "ip_addresses": {
+      "description": "The addresses of the interface.\n",
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "mtu": {
+      "description": "MTU value of the interface.",
+      "example": 1500,
+      "type": "integer"
+     },
+     "name": {
+      "example": "eth0",
+      "type": "string"
+     }
+    },
+    "required": [
+     "flags",
+     "hardware_address",
+     "ip_addresses",
+     "mtu",
+     "name"
+    ],
+    "type": "object"
+   },
+   "NetInterfaces": {
+    "additionalProperties": {
+     "$ref": "#/components/schemas/NetInterface"
+    },
+    "description": "Network interfaces dictionary, keys are interface names.\n",
+    "type": "object"
+   },
+   "ProfileInfo": {
+    "description": "Information about the current user",
+    "properties": {
+     "language": {
+      "$ref": "#/components/schemas/Lang"
+     },
+     "name": {
+      "type": "string"
+     },
+     "theme": {
+      "description": "Interface theme",
+      "enum": [
+       "auto",
+       "dark",
+       "light"
+      ],
+      "type": "string"
+     }
+    },
+    "required": [
+     "name",
+     "language",
+     "theme"
+    ],
+    "type": "object"
+   },
+   "PutQueryLogConfigUpdateRequest": {
+    "$ref": "#/components/schemas/GetQueryLogConfigResponse"
+   },
+   "PutStatsConfigUpdateRequest": {
+    "$ref": "#/components/schemas/GetStatsConfigResponse"
+   },
+   "QueryLog": {
+    "description": "Query log",
+    "properties": {
+     "data": {
+      "items": {
+       "$ref": "#/components/schemas/QueryLogItem"
+      },
+      "type": "array"
+     },
+     "oldest": {
+      "example": "2018-11-26T00:02:41+03:00",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "QueryLogConfig": {
+    "description": "Query log configuration",
+    "properties": {
+     "anonymize_client_ip": {
+      "description": "Anonymize clients' IP addresses",
+      "type": "boolean"
+     },
+     "enabled": {
+      "description": "Is query log enabled",
+      "type": "boolean"
+     },
+     "interval": {
+      "description": "Time period for query log rotation.\n",
+      "enum": [
+       0.25,
+       1,
+       7,
+       30,
+       90
+      ],
+      "type": "number"
+     }
+    },
+    "type": "object"
+   },
+   "QueryLogItem": {
+    "description": "Query log item",
+    "properties": {
+     "answer": {
+      "items": {
+       "$ref": "#/components/schemas/DnsAnswer"
+      },
+      "type": "array"
+     },
+     "answer_dnssec": {
+      "description": "If true, the response had the Authenticated Data (AD) flag set.\n",
+      "type": "boolean"
+     },
+     "cached": {
+      "description": "Defines if the response has been served from cache.\n",
+      "type": "boolean"
+     },
+     "client": {
+      "description": "The client's IP address.\n",
+      "example": "192.168.0.1",
+      "type": "string"
+     },
+     "client_id": {
+      "description": "The ClientID, if provided in DoH, DoQ, or DoT.\n",
+      "example": "cli123",
+      "type": "string"
+     },
+     "client_info": {
+      "$ref": "#/components/schemas/QueryLogItemClient"
+     },
+     "client_proto": {
+      "enum": [
+       "dot",
+       "doh",
+       "doq",
+       "dnscrypt",
+       ""
+      ],
+      "type": "string"
+     },
+     "ecs": {
+      "description": "The IP network defined by an EDNS Client-Subnet option in the request message if any.\n",
+      "example": "192.168.0.0/16",
+      "type": "string"
+     },
+     "elapsedMs": {
+      "example": "54.023928",
+      "type": "string"
+     },
+     "filterId": {
+      "deprecated": true,
+      "description": "In case if there's a rule applied to this DNS request, this is ID of the filter list that the rule belongs to.\nDeprecated: use `rules[*].filter_list_id` instead.\n",
+      "example": 123123,
+      "type": "integer"
+     },
+     "original_answer": {
+      "description": "Answer from upstream server (optional)",
+      "items": {
+       "$ref": "#/components/schemas/DnsAnswer"
+      },
+      "type": "array"
+     },
+     "question": {
+      "$ref": "#/components/schemas/DnsQuestion"
+     },
+     "reason": {
+      "$ref": "#/components/schemas/FilteringReason"
+     },
+     "rule": {
+      "deprecated": true,
+      "description": "Filtering rule applied to the request (if any).\nDeprecated: use `rules[*].text` instead.\n",
+      "example": "||example.org^",
+      "type": "string"
+     },
+     "rules": {
+      "description": "Applied rules.",
+      "items": {
+       "$ref": "#/components/schemas/ResultRule"
+      },
+      "type": "array"
+     },
+     "service_name": {
+      "description": "Set if reason=FilteredBlockedService",
+      "type": "string"
+     },
+     "status": {
+      "description": "DNS response status",
+      "example": "NOERROR",
+      "type": "string"
+     },
+     "time": {
+      "description": "DNS request processing start time",
+      "example": "2018-11-26T00:02:41+03:00",
+      "type": "string"
+     },
+     "upstream": {
+      "description": "Upstream URL starting with tcp://, tls://, https://, or with an IP address.\n",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "QueryLogItemClient": {
+    "description": "Client information for a query log item.\n",
+    "properties": {
+     "disallowed": {
+      "description": "Whether the client's IP is blocked or not.\n",
+      "type": "boolean"
+     },
+     "disallowed_rule": {
+      "description": "The rule due to which the client is allowed or blocked.\n",
+      "type": "string"
+     },
+     "name": {
+      "description": "Persistent client's name or runtime client's hostname.  May be empty.\n",
+      "type": "string"
+     },
+     "whois": {
+      "$ref": "#/components/schemas/QueryLogItemClientWhois"
+     }
+    },
+    "required": [
+     "disallowed",
+     "disallowed_rule",
+     "name",
+     "whois"
+    ],
+    "type": "object"
+   },
+   "QueryLogItemClientWhois": {
+    "description": "Client WHOIS information, if any.\n",
+    "properties": {
+     "city": {
+      "description": "City, if any.\n",
+      "type": "string"
+     },
+     "country": {
+      "description": "Country, if any.\n",
+      "type": "string"
+     },
+     "orgname": {
+      "description": "Organization name, if any.\n",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "RemoveUrlRequest": {
+    "description": "/remove_url request data",
+    "properties": {
+     "url": {
+      "description": "Previously added URL containing filtering rules",
+      "example": "https://filters.adtidy.org/windows/filters/15.txt",
+      "type": "string"
+     },
+     "whitelist": {
+      "type": "boolean"
+     }
+    },
+    "type": "object"
+   },
+   "ResultRule": {
+    "description": "Applied rule.",
+    "properties": {
+     "filter_list_id": {
+      "description": "In case if there's a rule applied to this DNS request, this is ID of the filter list that the rule belongs to.\n",
+      "example": 123123,
+      "format": "int64",
+      "type": "integer"
+     },
+     "text": {
+      "description": "The text of the filtering rule applied to the request (if any).\n",
+      "example": "||example.org^",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "RewriteEntry": {
+    "description": "Rewrite rule",
+    "properties": {
+     "answer": {
+      "description": "value of A, AAAA or CNAME DNS record",
+      "example": "127.0.0.1",
+      "type": "string"
+     },
+     "domain": {
+      "description": "Domain name",
+      "example": "example.org",
+      "type": "string"
+     },
+     "enabled": {
+      "default": true,
+      "description": "Optional. If omitted on add, defaults to `true`. On update, omitted preserves previous value.\n",
+      "example": true,
+      "type": "boolean"
+     }
+    },
+    "type": "object"
+   },
+   "RewriteList": {
+    "description": "Rewrite rules array",
+    "items": {
+     "$ref": "#/components/schemas/RewriteEntry"
+    },
+    "type": "array"
+   },
+   "RewriteSettings": {
+    "description": "DNS rewrite settings",
+    "properties": {
+     "enabled": {
+      "description": "indicates whether rewrites are applied",
+      "example": true,
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "enabled"
+    ],
+    "type": "object"
+   },
+   "RewriteUpdate": {
+    "description": "Rewrite rule update object",
+    "properties": {
+     "target": {
+      "$ref": "#/components/schemas/RewriteEntry"
+     },
+     "update": {
+      "$ref": "#/components/schemas/RewriteEntry"
+     }
+    },
+    "type": "object"
+   },
+   "SafeSearchConfig": {
+    "description": "Safe search settings.",
+    "properties": {
+     "bing": {
+      "type": "boolean"
+     },
+     "duckduckgo": {
+      "type": "boolean"
+     },
+     "ecosia": {
+      "type": "boolean"
+     },
+     "enabled": {
+      "type": "boolean"
+     },
+     "google": {
+      "type": "boolean"
+     },
+     "pixabay": {
+      "type": "boolean"
+     },
+     "yandex": {
+      "type": "boolean"
+     },
+     "youtube": {
+      "type": "boolean"
+     }
+    },
+    "type": "object"
+   },
+   "Schedule": {
+    "description": "Sets periods of inactivity for filtering blocked services.  The schedule contains 7 days (Sunday to Saturday) and a time zone.\n",
+    "properties": {
+     "fri": {
+      "$ref": "#/components/schemas/DayRange"
+     },
+     "mon": {
+      "$ref": "#/components/schemas/DayRange"
+     },
+     "sat": {
+      "$ref": "#/components/schemas/DayRange"
+     },
+     "sun": {
+      "$ref": "#/components/schemas/DayRange"
+     },
+     "thu": {
+      "$ref": "#/components/schemas/DayRange"
+     },
+     "time_zone": {
+      "description": "Time zone name according to IANA time zone database.  For example `Europe/Brussels`.  `Local` represents the system's local time zone.\n",
+      "type": "string"
+     },
+     "tue": {
+      "$ref": "#/components/schemas/DayRange"
+     },
+     "wed": {
+      "$ref": "#/components/schemas/DayRange"
+     }
+    },
+    "type": "object"
+   },
+   "ServerStatus": {
+    "description": "AdGuard Home server status and configuration",
+    "properties": {
+     "dhcp_available": {
+      "type": "boolean"
+     },
+     "dns_addresses": {
+      "example": [
+       "127.0.0.1"
+      ],
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "dns_port": {
+      "example": 53,
+      "format": "uint16",
+      "maximum": 65535,
+      "minimum": 1,
+      "type": "integer"
+     },
+     "http_port": {
+      "example": 80,
+      "format": "uint16",
+      "maximum": 65535,
+      "minimum": 1,
+      "type": "integer"
+     },
+     "language": {
+      "$ref": "#/components/schemas/Lang"
+     },
+     "protection_disabled_duration": {
+      "format": "int64",
+      "type": "integer"
+     },
+     "protection_enabled": {
+      "type": "boolean"
+     },
+     "running": {
+      "type": "boolean"
+     },
+     "start_time": {
+      "description": "Start time of the web API server (Unix time in milliseconds).",
+      "example": 1700000000000,
+      "format": "double",
+      "type": "number"
+     },
+     "version": {
+      "example": "v0.123.4",
+      "type": "string"
+     }
+    },
+    "required": [
+     "dns_addresses",
+     "dns_port",
+     "http_port",
+     "protection_enabled",
+     "protection_disabled_duration",
+     "running",
+     "version",
+     "language"
+    ],
+    "type": "object"
+   },
+   "ServiceGroup": {
+    "properties": {
+     "id": {
+      "description": "The ID of this group.\n",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id"
+    ],
+    "type": "object"
+   },
+   "SetProtectionRequest": {
+    "description": "Protection state configuration",
+    "properties": {
+     "duration": {
+      "description": "Duration of a pause, in milliseconds.  Enabled should be false.",
+      "format": "uint64",
+      "type": "integer"
+     },
+     "enabled": {
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "enabled"
+    ],
+    "type": "object"
+   },
+   "SetRulesRequest": {
+    "description": "Custom filtering rules setting request.",
+    "example": {
+     "rules": [
+      "||example.com^",
+      "# comment",
+      "@@||www.example.com^"
+     ]
+    },
+    "properties": {
+     "rules": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     }
+    },
+    "type": "object"
+   },
+   "Stats": {
+    "description": "Server statistics data",
+    "properties": {
+     "avg_processing_time": {
+      "description": "Average time in seconds on processing a DNS request",
+      "example": 0.34,
+      "format": "float",
+      "type": "number"
+     },
+     "blocked_filtering": {
+      "items": {
+       "type": "integer"
+      },
+      "type": "array"
+     },
+     "dns_queries": {
+      "items": {
+       "type": "integer"
+      },
+      "type": "array"
+     },
+     "num_blocked_filtering": {
+      "description": "Number of requests blocked by filtering rules",
+      "example": 50,
+      "type": "integer"
+     },
+     "num_dns_queries": {
+      "description": "Total number of DNS queries",
+      "example": 123,
+      "type": "integer"
+     },
+     "num_replaced_parental": {
+      "description": "Number of blocked adult websites",
+      "example": 15,
+      "type": "integer"
+     },
+     "num_replaced_safebrowsing": {
+      "description": "Number of requests blocked by safebrowsing module",
+      "example": 5,
+      "type": "integer"
+     },
+     "num_replaced_safesearch": {
+      "description": "Number of requests blocked by safesearch module",
+      "example": 5,
+      "type": "integer"
+     },
+     "replaced_parental": {
+      "items": {
+       "type": "integer"
+      },
+      "type": "array"
+     },
+     "replaced_safebrowsing": {
+      "items": {
+       "type": "integer"
+      },
+      "type": "array"
+     },
+     "time_units": {
+      "description": "Time units",
+      "enum": [
+       "hours",
+       "days"
+      ],
+      "example": "hours",
+      "type": "string"
+     },
+     "top_blocked_domains": {
+      "items": {
+       "$ref": "#/components/schemas/TopArrayEntry"
+      },
+      "type": "array"
+     },
+     "top_clients": {
+      "items": {
+       "$ref": "#/components/schemas/TopArrayEntry"
+      },
+      "type": "array"
+     },
+     "top_queried_domains": {
+      "items": {
+       "$ref": "#/components/schemas/TopArrayEntry"
+      },
+      "type": "array"
+     },
+     "top_upstreams_avg_time": {
+      "description": "Average processing time in seconds of requests from each upstream.\n",
+      "items": {
+       "$ref": "#/components/schemas/TopArrayEntry"
+      },
+      "maxItems": 100,
+      "type": "array"
+     },
+     "top_upstreams_responses": {
+      "description": "Total number of responses from each upstream.",
+      "items": {
+       "$ref": "#/components/schemas/TopArrayEntry"
+      },
+      "maxItems": 100,
+      "type": "array"
+     }
+    },
+    "type": "object"
+   },
+   "StatsConfig": {
+    "description": "Statistics configuration",
+    "properties": {
+     "interval": {
+      "description": "Time period to keep the data.  `0` means that the statistics is disabled.\n",
+      "enum": [
+       0,
+       1,
+       7,
+       30,
+       90
+      ],
+      "type": "integer"
+     }
+    },
+    "type": "object"
+   },
+   "TlsConfig": {
+    "description": "TLS configuration settings and status",
+    "properties": {
+     "certificate_chain": {
+      "description": "Base64 string with PEM-encoded certificates chain",
+      "type": "string"
+     },
+     "certificate_path": {
+      "description": "Path to certificate file",
+      "type": "string"
+     },
+     "dns_names": {
+      "description": "The value of SubjectAltNames field of the first certificate in the chain.\n",
+      "example": [
+       "*.example.org"
+      ],
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "dnscrypt_config_file": {
+      "description": "Path to the DNSCrypt configuration file.",
+      "type": "string"
+     },
+     "enabled": {
+      "description": "enabled is the encryption (DoT/DoH/HTTPS) status",
+      "example": true,
+      "type": "boolean"
+     },
+     "force_https": {
+      "description": "if true, forces HTTP->HTTPS redirect",
+      "example": true,
+      "type": "boolean"
+     },
+     "issuer": {
+      "description": "The issuer of the first certificate in the chain.",
+      "example": "CN=Let's Encrypt Authority X3,O=Let's Encrypt,C=US",
+      "type": "string"
+     },
+     "key_type": {
+      "description": "Key type.",
+      "enum": [
+       "RSA",
+       "ECDSA"
+      ],
+      "example": "RSA",
+      "type": "string"
+     },
+     "not_after": {
+      "description": "The NotAfter field of the first certificate in the chain.\n",
+      "example": "2019-05-01T10:47:32Z",
+      "type": "string"
+     },
+     "not_before": {
+      "description": "The NotBefore field of the first certificate in the chain.\n",
+      "example": "2019-01-31T10:47:32Z",
+      "type": "string"
+     },
+     "port_dns_over_quic": {
+      "description": "DNS-over-QUIC port. If 0, DoQ will be disabled.",
+      "example": 784,
+      "format": "uint16",
+      "type": "integer"
+     },
+     "port_dns_over_tls": {
+      "description": "DNS-over-TLS port. If 0, DoT will be disabled.",
+      "example": 853,
+      "format": "uint16",
+      "type": "integer"
+     },
+     "port_dnscrypt": {
+      "description": "DNS-over-HTTPS port. If 0, DNSCrypt will be disabled.",
+      "example": 5443,
+      "format": "uint16",
+      "type": "integer"
+     },
+     "port_https": {
+      "description": "HTTPS port. If 0, HTTPS will be disabled.",
+      "example": 443,
+      "format": "uint16",
+      "type": "integer"
+     },
+     "private_key": {
+      "description": "Base64 string with PEM-encoded private key",
+      "type": "string"
+     },
+     "private_key_path": {
+      "description": "Path to private key file",
+      "type": "string"
+     },
+     "private_key_saved": {
+      "description": "Set to true if the user has previously saved a private key as a string.  This is used so that the server and the client don't have to send the private key between each other every time, which might lead to security issues.\n",
+      "example": true,
+      "type": "boolean"
+     },
+     "serve_plain_dns": {
+      "description": "Set to true if plain DNS is allowed for incoming requests.\n",
+      "example": true,
+      "type": "boolean"
+     },
+     "server_name": {
+      "description": "server_name is the hostname of your HTTPS/TLS server",
+      "example": "example.org",
+      "type": "string"
+     },
+     "subject": {
+      "description": "The subject of the first certificate in the chain.",
+      "example": "CN=example.org",
+      "type": "string"
+     },
+     "valid_cert": {
+      "description": "Set to true if the specified certificates chain is a valid chain of X509 certificates.\n",
+      "example": true,
+      "type": "boolean"
+     },
+     "valid_chain": {
+      "description": "Set to true if the specified certificates chain is verified and issued by a known CA.\n",
+      "example": true,
+      "type": "boolean"
+     },
+     "valid_key": {
+      "description": "Set to true if the key is a valid private key.",
+      "example": true,
+      "type": "boolean"
+     },
+     "valid_pair": {
+      "description": "Set to true if both certificate and private key are correct.\n",
+      "example": true,
+      "type": "boolean"
+     },
+     "warning_validation": {
+      "description": "A validation warning message with the issue description.\n",
+      "example": "You have specified an empty certificate",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   },
+   "TopArrayEntry": {
+    "additionalProperties": {
+     "type": "number"
+    },
+    "description": "Represent the number of hits or time duration per key (url, domain, or client IP).\n",
+    "properties": {
+     "domain_or_ip": {
+      "type": "number"
+     }
+    },
+    "type": "object"
+   },
+   "UpstreamsConfig": {
+    "description": "Upstream configuration to be tested",
+    "properties": {
+     "bootstrap_dns": {
+      "description": "Bootstrap DNS servers, port is optional after colon.\n",
+      "example": [
+       "8.8.8.8:53",
+       "1.1.1.1:53"
+      ],
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "fallback_dns": {
+      "description": "Fallback DNS servers, port is optional after colon.\n",
+      "example": [
+       "8.8.8.8",
+       "1.1.1.1:53"
+      ],
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "private_upstream": {
+      "description": "Local PTR resolvers, port is optional after colon.\n",
+      "example": [
+       "tls://1.1.1.1",
+       "tls://1.0.0.1"
+      ],
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "upstream_dns": {
+      "description": "Upstream DNS servers, port is optional after colon.\n",
+      "example": [
+       "tls://1.1.1.1",
+       "tls://1.0.0.1"
+      ],
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     }
+    },
+    "required": [
+     "bootstrap_dns",
+     "upstream_dns"
+    ],
+    "type": "object"
+   },
+   "UpstreamsConfigResponse": {
+    "additionalProperties": {
+     "type": "string"
+    },
+    "description": "Upstreams configuration response",
+    "type": "object"
+   },
+   "VersionInfo": {
+    "description": "Information about the latest available version of AdGuard Home.\n",
+    "properties": {
+     "announcement": {
+      "example": "AdGuard Home v0.9 is now available!",
+      "type": "string"
+     },
+     "announcement_url": {
+      "example": "https://github.com/AdguardTeam/AdGuardHome/releases/tag/v0.9\n",
+      "type": "string"
+     },
+     "can_autoupdate": {
+      "type": "boolean"
+     },
+     "disabled": {
+      "description": "If true then other fields doesn't appear.\n",
+      "type": "boolean"
+     },
+     "new_version": {
+      "example": "v0.9",
+      "type": "string"
+     }
+    },
+    "required": [
+     "disabled"
+    ],
+    "type": "object"
+   },
+   "WhoisInfo": {
+    "additionalProperties": {
+     "type": "string"
+    },
+    "type": "object"
+   }
+  },
+  "securitySchemes": {
+   "basicAuth": {
+    "scheme": "basic",
+    "type": "http"
+   }
+  }
+ },
+ "info": {
+  "contact": {
+   "name": "AdGuard Home",
+   "url": "https://github.com/AdguardTeam/AdGuardHome"
+  },
+  "description": "AdGuard Home REST-ish API.  Our admin web interface is built on top of this REST-ish API.\n",
+  "title": "AdGuard Home",
+  "version": "0.107"
+ },
+ "openapi": "3.2.0",
+ "paths": {
+  "/access/list": {
+   "get": {
+    "operationId": "accessList",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AccessListResponse"
+        }
+       }
+      },
+      "description": "OK."
+     }
+    },
+    "summary": "List (dis)allowed clients, blocked hosts, etc.",
+    "tags": [
+     "clients"
+    ]
+   }
+  },
+  "/access/set": {
+   "post": {
+    "operationId": "accessSet",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AccessSetRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "OK."
+     },
+     "400": {
+      "description": "Failed to parse JSON or cannot save the list.\n"
+     },
+     "500": {
+      "description": "Internal error."
+     }
+    },
+    "summary": "Set (dis)allowed clients, blocked hosts, etc.",
+    "tags": [
+     "clients"
+    ]
+   }
+  },
+  "/apple/doh.mobileconfig": {
+   "get": {
+    "operationId": "mobileConfigDoH",
+    "parameters": [
+     {
+      "description": "Host for which the config is generated.  If no host is provided, `tls.server_name` from the configuration file is used.  If `tls.server_name` is not set, the API returns an error with a 500 status.\n",
+      "example": "example.org",
+      "in": "query",
+      "name": "host",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "description": "ClientID.\n",
+      "example": "client-1",
+      "in": "query",
+      "name": "client_id",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "DNS over HTTPS plist file."
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      },
+      "description": "Server configuration error."
+     }
+    },
+    "summary": "Get DNS over HTTPS .mobileconfig.",
+    "tags": [
+     "mobileconfig",
+     "global"
+    ]
+   }
+  },
+  "/apple/dot.mobileconfig": {
+   "get": {
+    "operationId": "mobileConfigDoT",
+    "parameters": [
+     {
+      "description": "Host for which the config is generated.  If no host is provided, `tls.server_name` from the configuration file is used.  If `tls.server_name` is not set, the API returns an error with a 500 status.\n",
+      "example": "example.org",
+      "in": "query",
+      "name": "host",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "description": "ClientID.\n",
+      "example": "client-1",
+      "in": "query",
+      "name": "client_id",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "DNS over TLS plist file"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      },
+      "description": "Server configuration error."
+     }
+    },
+    "summary": "Get DNS over TLS .mobileconfig.",
+    "tags": [
+     "mobileconfig",
+     "global"
+    ]
+   }
+  },
+  "/blocked_services/all": {
+   "get": {
+    "operationId": "blockedServicesAll",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/BlockedServicesAll"
+        }
+       }
+      },
+      "description": "OK."
+     }
+    },
+    "summary": "Get available services to use for blocking",
+    "tags": [
+     "blocked_services"
+    ]
+   }
+  },
+  "/blocked_services/get": {
+   "get": {
+    "operationId": "blockedServicesSchedule",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/BlockedServicesSchedule"
+        }
+       }
+      },
+      "description": "OK."
+     }
+    },
+    "summary": "Get blocked services",
+    "tags": [
+     "blocked_services"
+    ]
+   }
+  },
+  "/blocked_services/list": {
+   "get": {
+    "deprecated": true,
+    "description": "Deprecated: Use `GET /blocked_services/get` instead.\n",
+    "operationId": "blockedServicesList",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/BlockedServicesArray"
+        }
+       }
+      },
+      "description": "OK."
+     }
+    },
+    "summary": "Get blocked services list",
+    "tags": [
+     "blocked_services"
+    ]
+   }
+  },
+  "/blocked_services/services": {
+   "get": {
+    "deprecated": true,
+    "description": "Deprecated: Use `GET /blocked_services/all` instead.\n",
+    "operationId": "blockedServicesAvailableServices",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/BlockedServicesArray"
+        }
+       }
+      },
+      "description": "OK."
+     }
+    },
+    "summary": "Get available services to use for blocking",
+    "tags": [
+     "blocked_services"
+    ]
+   }
+  },
+  "/blocked_services/set": {
+   "post": {
+    "deprecated": true,
+    "description": "Deprecated: Use `PUT /blocked_services/update` instead.\n",
+    "operationId": "blockedServicesSet",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/BlockedServicesArray"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "OK."
+     }
+    },
+    "summary": "Set blocked services list",
+    "tags": [
+     "blocked_services"
+    ]
+   }
+  },
+  "/blocked_services/update": {
+   "put": {
+    "operationId": "blockedServicesScheduleUpdate",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/BlockedServicesSchedule"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "OK."
+     }
+    },
+    "summary": "Update blocked services",
+    "tags": [
+     "blocked_services"
+    ]
+   }
+  },
+  "/cache_clear": {
+   "post": {
+    "operationId": "cacheClear",
+    "responses": {
+     "200": {
+      "description": "OK"
+     }
+    },
+    "summary": "Clear DNS cache",
+    "tags": [
+     "global"
+    ]
+   }
+  },
+  "/clients": {
+   "get": {
+    "operationId": "clientsStatus",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Clients"
+        }
+       }
+      },
+      "description": "OK."
+     }
+    },
+    "summary": "Get information about configured clients",
+    "tags": [
+     "clients"
+    ]
+   }
+  },
+  "/clients/add": {
+   "post": {
+    "operationId": "clientsAdd",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/Client"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "OK."
+     }
+    },
+    "summary": "Add a new client",
+    "tags": [
+     "clients"
+    ]
+   }
+  },
+  "/clients/delete": {
+   "post": {
+    "operationId": "clientsDelete",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ClientDelete"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "OK."
+     }
+    },
+    "summary": "Remove a client",
+    "tags": [
+     "clients"
+    ]
+   }
+  },
+  "/clients/find": {
+   "get": {
+    "deprecated": true,
+    "description": "Deprecated: Use `POST /clients/search` instead.\n",
+    "operationId": "clientsFind",
+    "parameters": [
+     {
+      "description": "Filter by IP address or ClientIDs.  Parameters with names `ip1`, `ip2`, and so on are also accepted and interpreted as \"ip0 OR ip1 OR ip2\".\nTODO(a.garipov): Replace with a better query API.\n",
+      "in": "query",
+      "name": "ip0",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ClientsFindResponse"
+        }
+       }
+      },
+      "description": "OK."
+     }
+    },
+    "summary": "Get information about clients by their IP addresses or ClientIDs.\n",
+    "tags": [
+     "clients"
+    ]
+   }
+  },
+  "/clients/search": {
+   "post": {
+    "operationId": "clientsSearch",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ClientsSearchRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ClientsFindResponse"
+        }
+       }
+      },
+      "description": "OK."
+     }
+    },
+    "summary": "Retrieve information about clients by performing an exact match search using IP addresses, CIDRs, MAC addresses, or ClientIDs.\n",
+    "tags": [
+     "clients"
+    ]
+   }
+  },
+  "/clients/update": {
+   "post": {
+    "operationId": "clientsUpdate",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ClientUpdate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "OK."
+     }
+    },
+    "summary": "Update client information",
+    "tags": [
+     "clients"
+    ]
+   }
+  },
+  "/dhcp/add_static_lease": {
+   "post": {
+    "operationId": "dhcpAddStaticLease",
+    "requestBody": {
+     "$ref": "#/components/requestBodies/DhcpStaticLease"
+    },
+    "responses": {
+     "200": {
+      "description": "OK."
+     },
+     "501": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      },
+      "description": "Not implemented (for example, on Windows)."
+     }
+    },
+    "summary": "Adds a static lease",
+    "tags": [
+     "dhcp"
+    ]
+   }
+  },
+  "/dhcp/find_active_dhcp": {
+   "post": {
+    "operationId": "checkActiveDhcp",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DhcpFindActiveReq"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/DhcpSearchResult"
+        }
+       }
+      },
+      "description": "OK."
+     },
+     "501": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      },
+      "description": "Not implemented (for example, on Windows)."
+     }
+    },
+    "summary": "Searches for an active DHCP server on the network",
+    "tags": [
+     "dhcp"
+    ]
+   }
+  },
+  "/dhcp/interfaces": {
+   "get": {
+    "operationId": "dhcpInterfaces",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/DHCPNetInterfaces"
+        }
+       }
+      },
+      "description": "OK."
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      },
+      "description": "Not implemented (for example, on Windows)."
+     }
+    },
+    "summary": "Gets the available interfaces",
+    "tags": [
+     "dhcp"
+    ]
+   }
+  },
+  "/dhcp/remove_static_lease": {
+   "post": {
+    "operationId": "dhcpRemoveStaticLease",
+    "requestBody": {
+     "$ref": "#/components/requestBodies/DhcpStaticLease"
+    },
+    "responses": {
+     "200": {
+      "description": "OK."
+     },
+     "501": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      },
+      "description": "Not implemented (for example, on Windows)."
+     }
+    },
+    "summary": "Removes a static lease",
+    "tags": [
+     "dhcp"
+    ]
+   }
+  },
+  "/dhcp/reset": {
+   "post": {
+    "operationId": "dhcpReset",
+    "responses": {
+     "200": {
+      "description": "OK."
+     },
+     "501": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      },
+      "description": "Not implemented (for example, on Windows)."
+     }
+    },
+    "summary": "Reset DHCP configuration",
+    "tags": [
+     "dhcp"
+    ]
+   }
+  },
+  "/dhcp/reset_leases": {
+   "post": {
+    "operationId": "dhcpResetLeases",
+    "responses": {
+     "200": {
+      "description": "OK."
+     },
+     "501": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      },
+      "description": "Not implemented (for example, on Windows)."
+     }
+    },
+    "summary": "Reset DHCP leases",
+    "tags": [
+     "dhcp"
+    ]
+   }
+  },
+  "/dhcp/set_config": {
+   "post": {
+    "operationId": "dhcpSetConfig",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DhcpConfig"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "OK."
+     },
+     "501": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      },
+      "description": "Not implemented (for example, on Windows)."
+     }
+    },
+    "summary": "Updates the current DHCP server configuration",
+    "tags": [
+     "dhcp"
+    ]
+   }
+  },
+  "/dhcp/status": {
+   "get": {
+    "operationId": "dhcpStatus",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/DhcpStatus"
+        }
+       }
+      },
+      "description": "OK."
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      },
+      "description": "Not implemented (for example, on Windows)."
+     }
+    },
+    "summary": "Gets the current DHCP settings and status",
+    "tags": [
+     "dhcp"
+    ]
+   }
+  },
+  "/dhcp/update_static_lease": {
+   "post": {
+    "description": "Updates IP address, hostname of the static lease.  IP version must be the same as previous.\n",
+    "operationId": "dhcpUpdateStaticLease",
+    "requestBody": {
+     "$ref": "#/components/requestBodies/DhcpStaticLease"
+    },
+    "responses": {
+     "200": {
+      "description": "OK."
+     },
+     "501": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      },
+      "description": "Not implemented (for example, on Windows)."
+     }
+    },
+    "summary": "Updates a static lease",
+    "tags": [
+     "dhcp"
+    ]
+   }
+  },
+  "/dns_config": {
+   "post": {
+    "operationId": "dnsConfig",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DNSConfig"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "OK"
+     }
+    },
+    "summary": "Set general DNS parameters",
+    "tags": [
+     "global"
+    ]
+   }
+  },
+  "/dns_info": {
+   "get": {
+    "operationId": "dnsInfo",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "allOf": [
+          {
+           "$ref": "#/components/schemas/DNSConfig"
+          },
+          {
+           "properties": {
+            "default_local_ptr_upstreams": {
+             "example": [
+              "192.168.168.192",
+              "10.0.0.10"
+             ],
+             "items": {
+              "type": "string"
+             },
+             "type": "array"
+            }
+           },
+           "type": "object"
+          }
+         ]
+        }
+       }
+      },
+      "description": "OK"
+     }
+    },
+    "summary": "Get general DNS parameters",
+    "tags": [
+     "global"
+    ]
+   }
+  },
+  "/filtering/add_url": {
+   "post": {
+    "operationId": "filteringAddURL",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AddUrlRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "OK."
+     }
+    },
+    "summary": "Add filter URL or an absolute file path",
+    "tags": [
+     "filtering"
+    ]
+   }
+  },
+  "/filtering/check_host": {
+   "get": {
+    "operationId": "filteringCheckHost",
+    "parameters": [
+     {
+      "description": "Filter by host name",
+      "example": "google.com",
+      "in": "query",
+      "name": "name",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "description": "Optional ClientID or client IP address",
+      "example": "192.0.2.1",
+      "in": "query",
+      "name": "client",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "description": "Optional DNS type",
+      "example": "AAAA",
+      "in": "query",
+      "name": "qtype",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/FilterCheckHostResponse"
+        }
+       }
+      },
+      "description": "OK."
+     }
+    },
+    "summary": "Check if host name is filtered",
+    "tags": [
+     "filtering"
+    ]
+   }
+  },
+  "/filtering/config": {
+   "post": {
+    "operationId": "filteringConfig",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/FilterConfig"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "OK."
+     }
+    },
+    "summary": "Set filtering parameters",
+    "tags": [
+     "filtering"
+    ]
+   }
+  },
+  "/filtering/refresh": {
+   "post": {
+    "operationId": "filteringRefresh",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/FilterRefreshRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/FilterRefreshResponse"
+        }
+       }
+      },
+      "description": "OK."
+     }
+    },
+    "summary": "Reload filtering rules from URLs.  This might be needed if new URL was just added and you don't want to wait for automatic refresh to kick in. This API request is ratelimited, so you can call it freely as often as you like, it wont create unnecessary burden on servers that host the URL.  This should work as intended, a `force` parameter is offered as last-resort attempt to make filter lists fresh.  If you ever find yourself using `force` to make something work that otherwise wont, this is a bug and report it accordingly.\n",
+    "tags": [
+     "filtering"
+    ]
+   }
+  },
+  "/filtering/remove_url": {
+   "post": {
+    "operationId": "filteringRemoveURL",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RemoveUrlRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "OK."
+     }
+    },
+    "summary": "Remove filter URL",
+    "tags": [
+     "filtering"
+    ]
+   }
+  },
+  "/filtering/set_rules": {
+   "post": {
+    "operationId": "filteringSetRules",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SetRulesRequest"
+       }
+      }
+     },
+     "description": "Custom filtering rules."
+    },
+    "responses": {
+     "200": {
+      "description": "OK."
+     }
+    },
+    "summary": "Set user-defined filter rules",
+    "tags": [
+     "filtering"
+    ]
+   }
+  },
+  "/filtering/set_url": {
+   "post": {
+    "operationId": "filteringSetURL",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/FilterSetUrl"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "OK."
+     }
+    },
+    "summary": "Set URL parameters",
+    "tags": [
+     "filtering"
+    ]
+   }
+  },
+  "/filtering/status": {
+   "get": {
+    "operationId": "filteringStatus",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/FilterStatus"
+        }
+       }
+      },
+      "description": "OK."
+     }
+    },
+    "summary": "Get filtering parameters",
+    "tags": [
+     "filtering"
+    ]
+   }
+  },
+  "/i18n/change_language": {
+   "post": {
+    "deprecated": true,
+    "description": "Deprecated: Use `PUT /control/profile` instead.\n",
+    "operationId": "changeLanguage",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/LanguageSettings"
+       }
+      }
+     },
+     "description": "New language.  It must be known to the server and must be an ISO 639-1 two-letter code.\n"
+    },
+    "responses": {
+     "200": {
+      "description": "OK."
+     }
+    },
+    "summary": "Change current language.  Argument must be an ISO 639-1 two-letter code.\n",
+    "tags": [
+     "i18n"
+    ]
+   }
+  },
+  "/i18n/current_language": {
+   "get": {
+    "deprecated": true,
+    "description": "Deprecated: Use `GET /control/profile` instead.\n",
+    "operationId": "currentLanguage",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/LanguageSettings"
+        }
+       }
+      },
+      "description": "OK."
+     }
+    },
+    "summary": "Get currently set language.  Result is ISO 639-1 two-letter code.  Empty result means default language.\n",
+    "tags": [
+     "i18n"
+    ]
+   }
+  },
+  "/install/check_config": {
+   "post": {
+    "operationId": "installCheckConfig",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CheckConfigRequest"
+       }
+      }
+     },
+     "description": "Configuration to be checked",
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/CheckConfigResponse"
+        }
+       }
+      },
+      "description": "OK."
+     },
+     "400": {
+      "description": "Failed to parse JSON or cannot listen on the specified address.\n"
+     }
+    },
+    "summary": "Checks configuration",
+    "tags": [
+     "install"
+    ]
+   }
+  },
+  "/install/configure": {
+   "post": {
+    "operationId": "installConfigure",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/InitialConfiguration"
+       }
+      }
+     },
+     "description": "Initial configuration JSON",
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "OK."
+     },
+     "400": {
+      "description": "Failed to parse initial configuration or cannot listen to the specified addresses.\n"
+     },
+     "422": {
+      "description": "The specified password does not meet the strength requirements.\n"
+     },
+     "500": {
+      "description": "Cannot start the DNS server"
+     }
+    },
+    "summary": "Applies the initial configuration.",
+    "tags": [
+     "install"
+    ]
+   }
+  },
+  "/install/get_addresses": {
+   "get": {
+    "operationId": "installGetAddresses",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AddressesInfo"
+        }
+       }
+      },
+      "description": "OK."
+     }
+    },
+    "summary": "Gets the network interfaces information.",
+    "tags": [
+     "install"
+    ]
+   }
+  },
+  "/login": {
+   "post": {
+    "operationId": "login",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/Login"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "OK."
+     },
+     "400": {
+      "description": "Invalid username or password.\n"
+     },
+     "429": {
+      "description": "Out of login attempts.\n"
+     }
+    },
+    "summary": "Perform administrator log-in",
+    "tags": [
+     "global"
+    ]
+   }
+  },
+  "/logout": {
+   "get": {
+    "operationId": "logout",
+    "responses": {
+     "302": {
+      "description": "OK."
+     }
+    },
+    "summary": "Perform administrator log-out",
+    "tags": [
+     "global"
+    ]
+   }
+  },
+  "/parental/disable": {
+   "post": {
+    "operationId": "parentalDisable",
+    "responses": {
+     "200": {
+      "description": "OK."
+     }
+    },
+    "summary": "Disable parental filtering",
+    "tags": [
+     "parental"
+    ]
+   }
+  },
+  "/parental/enable": {
+   "post": {
+    "operationId": "parentalEnable",
+    "responses": {
+     "200": {
+      "description": "OK."
+     }
+    },
+    "summary": "Enable parental filtering",
+    "tags": [
+     "parental"
+    ]
+   }
+  },
+  "/parental/status": {
+   "get": {
+    "operationId": "parentalStatus",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "examples": {
+         "response": {
+          "value": {
+           "enabled": true,
+           "sensitivity": 13
+          }
+         }
+        },
+        "schema": {
+         "properties": {
+          "enabled": {
+           "type": "boolean"
+          },
+          "sensitivity": {
+           "type": "integer"
+          }
+         },
+         "type": "object"
+        }
+       }
+      },
+      "description": "OK."
+     }
+    },
+    "summary": "Get parental filtering status",
+    "tags": [
+     "parental"
+    ]
+   }
+  },
+  "/profile": {
+   "get": {
+    "operationId": "getProfile",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProfileInfo"
+        }
+       }
+      },
+      "description": "OK."
+     }
+    },
+    "summary": "",
+    "tags": [
+     "global"
+    ]
+   }
+  },
+  "/profile/update": {
+   "put": {
+    "operationId": "updateProfile",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ProfileInfo"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "OK"
+     }
+    },
+    "summary": "Updates current user info",
+    "tags": [
+     "global"
+    ]
+   }
+  },
+  "/protection": {
+   "post": {
+    "operationId": "setProtection",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SetProtectionRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "OK"
+     }
+    },
+    "summary": "Set protection state and duration",
+    "tags": [
+     "global"
+    ]
+   }
+  },
+  "/querylog": {
+   "get": {
+    "operationId": "queryLog",
+    "parameters": [
+     {
+      "description": "Filter by older than",
+      "in": "query",
+      "name": "older_than",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "description": "Specify the ranking number of the first item on the page.  Even though it is possible to use \"offset\" and \"older_than\", we recommend choosing one of them and sticking to it.\n",
+      "in": "query",
+      "name": "offset",
+      "schema": {
+       "type": "integer"
+      }
+     },
+     {
+      "description": "Limit the number of records to be returned",
+      "in": "query",
+      "name": "limit",
+      "schema": {
+       "type": "integer"
+      }
+     },
+     {
+      "description": "Filter by domain name or client IP",
+      "in": "query",
+      "name": "search",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "deprecated": true,
+      "description": "Deprecated: Use 'reason' parameter instead Filter by response status\nNOTE: This parameter cannot be used with 'reason' parameter.\n",
+      "in": "query",
+      "name": "response_status",
+      "schema": {
+       "enum": [
+        "all",
+        "filtered",
+        "blocked",
+        "blocked_safebrowsing",
+        "blocked_parental",
+        "whitelisted",
+        "rewritten",
+        "safe_search",
+        "processed"
+       ],
+       "type": "string"
+      }
+     },
+     {
+      "description": "Filter by response filtering reason.  Multiple reasons can be provided.\nNOTE: This parameter cannot be used with 'response_status' parameter.\n",
+      "in": "query",
+      "name": "reason",
+      "schema": {
+       "items": {
+        "$ref": "#/components/schemas/FilteringReason"
+       },
+       "type": "array"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/QueryLog"
+        }
+       }
+      },
+      "description": "OK."
+     }
+    },
+    "summary": "Get DNS server query log.",
+    "tags": [
+     "log"
+    ]
+   }
+  },
+  "/querylog/config": {
+   "get": {
+    "operationId": "getQueryLogConfig",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/GetQueryLogConfigResponse"
+        }
+       }
+      },
+      "description": "OK."
+     }
+    },
+    "summary": "Get query log parameters",
+    "tags": [
+     "log"
+    ]
+   }
+  },
+  "/querylog/config/update": {
+   "put": {
+    "operationId": "putQueryLogConfig",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PutQueryLogConfigUpdateRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "OK."
+     }
+    },
+    "summary": "Set query log parameters",
+    "tags": [
+     "log"
+    ]
+   }
+  },
+  "/querylog_clear": {
+   "post": {
+    "operationId": "querylogClear",
+    "responses": {
+     "200": {
+      "description": "OK."
+     }
+    },
+    "summary": "Clear query log",
+    "tags": [
+     "log"
+    ]
+   }
+  },
+  "/querylog_config": {
+   "post": {
+    "deprecated": true,
+    "description": "Deprecated: Use `PUT /querylog/config/update` instead.\n",
+    "operationId": "queryLogConfig",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/QueryLogConfig"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "OK."
+     }
+    },
+    "summary": "Set query log parameters",
+    "tags": [
+     "log"
+    ]
+   }
+  },
+  "/querylog_info": {
+   "get": {
+    "deprecated": true,
+    "description": "Deprecated: Use `GET /querylog/config` instead.\n\nNOTE: If `interval` was configured by editing configuration file or new\nHTTP API call `PUT /querylog/config/update` and it's not equal to\nprevious allowed enum values then it will be equal to `90` days for\ncompatibility reasons.\n",
+    "operationId": "queryLogInfo",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/QueryLogConfig"
+        }
+       }
+      },
+      "description": "OK."
+     }
+    },
+    "summary": "Get query log parameters",
+    "tags": [
+     "log"
+    ]
+   }
+  },
+  "/rewrite/add": {
+   "post": {
+    "operationId": "rewriteAdd",
+    "requestBody": {
+     "$ref": "#/components/requestBodies/RewriteEntry"
+    },
+    "responses": {
+     "200": {
+      "description": "OK."
+     }
+    },
+    "summary": "Add a new Rewrite rule",
+    "tags": [
+     "rewrite"
+    ]
+   }
+  },
+  "/rewrite/delete": {
+   "post": {
+    "operationId": "rewriteDelete",
+    "requestBody": {
+     "$ref": "#/components/requestBodies/RewriteEntry"
+    },
+    "responses": {
+     "200": {
+      "description": "OK."
+     }
+    },
+    "summary": "Remove a Rewrite rule",
+    "tags": [
+     "rewrite"
+    ]
+   }
+  },
+  "/rewrite/list": {
+   "get": {
+    "operationId": "rewriteList",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RewriteList"
+        }
+       }
+      },
+      "description": "OK."
+     }
+    },
+    "summary": "Get list of Rewrite rules",
+    "tags": [
+     "rewrite"
+    ]
+   }
+  },
+  "/rewrite/settings": {
+   "get": {
+    "operationId": "rewriteSettingsGet",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RewriteSettings"
+        }
+       }
+      },
+      "description": "OK."
+     }
+    },
+    "summary": "Get rewrite settings",
+    "tags": [
+     "rewrite"
+    ]
+   }
+  },
+  "/rewrite/settings/update": {
+   "put": {
+    "operationId": "rewriteSettingsUpdate",
+    "requestBody": {
+     "$ref": "#/components/requestBodies/RewriteSettings"
+    },
+    "responses": {
+     "200": {
+      "description": "OK."
+     }
+    },
+    "summary": "Update rewrite settings",
+    "tags": [
+     "rewrite"
+    ]
+   }
+  },
+  "/rewrite/update": {
+   "put": {
+    "operationId": "rewriteUpdate",
+    "requestBody": {
+     "$ref": "#/components/requestBodies/RewriteUpdate"
+    },
+    "responses": {
+     "200": {
+      "description": "OK."
+     }
+    },
+    "summary": "Update a Rewrite rule",
+    "tags": [
+     "rewrite"
+    ]
+   }
+  },
+  "/safebrowsing/disable": {
+   "post": {
+    "operationId": "safebrowsingDisable",
+    "responses": {
+     "200": {
+      "description": "OK."
+     }
+    },
+    "summary": "Disable safebrowsing",
+    "tags": [
+     "safebrowsing"
+    ]
+   }
+  },
+  "/safebrowsing/enable": {
+   "post": {
+    "operationId": "safebrowsingEnable",
+    "responses": {
+     "200": {
+      "description": "OK."
+     }
+    },
+    "summary": "Enable safebrowsing",
+    "tags": [
+     "safebrowsing"
+    ]
+   }
+  },
+  "/safebrowsing/status": {
+   "get": {
+    "operationId": "safebrowsingStatus",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "examples": {
+         "response": {
+          "value": {
+           "enabled": false
+          }
+         }
+        },
+        "schema": {
+         "properties": {
+          "enabled": {
+           "type": "boolean"
+          }
+         },
+         "type": "object"
+        }
+       }
+      },
+      "description": "OK."
+     }
+    },
+    "summary": "Get safebrowsing status",
+    "tags": [
+     "safebrowsing"
+    ]
+   }
+  },
+  "/safesearch/disable": {
+   "post": {
+    "deprecated": true,
+    "operationId": "safesearchDisable",
+    "responses": {
+     "200": {
+      "description": "OK."
+     }
+    },
+    "summary": "Disable safesearch",
+    "tags": [
+     "safesearch"
+    ]
+   }
+  },
+  "/safesearch/enable": {
+   "post": {
+    "deprecated": true,
+    "operationId": "safesearchEnable",
+    "responses": {
+     "200": {
+      "description": "OK."
+     }
+    },
+    "summary": "Enable safesearch",
+    "tags": [
+     "safesearch"
+    ]
+   }
+  },
+  "/safesearch/settings": {
+   "put": {
+    "operationId": "safesearchSettings",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SafeSearchConfig"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "OK."
+     }
+    },
+    "summary": "Update safesearch settings",
+    "tags": [
+     "safesearch"
+    ]
+   }
+  },
+  "/safesearch/status": {
+   "get": {
+    "operationId": "safesearchStatus",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SafeSearchConfig"
+        }
+       }
+      },
+      "description": "OK."
+     }
+    },
+    "summary": "Get safesearch status",
+    "tags": [
+     "safesearch"
+    ]
+   }
+  },
+  "/stats": {
+   "get": {
+    "operationId": "stats",
+    "parameters": [
+     {
+      "description": "The lookback period for statistics in milliseconds.  The interval must\nbe a multiple of one hour and must not be greater than the value of\n`statistics.interval`.\n",
+      "example": 604800000,
+      "in": "query",
+      "name": "recent",
+      "required": false,
+      "schema": {
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Stats"
+        }
+       }
+      },
+      "description": "Returns statistics data"
+     },
+     "400": {
+      "description": "Invalid value of parameter `recent`"
+     }
+    },
+    "summary": "Get DNS server statistics",
+    "tags": [
+     "stats"
+    ]
+   }
+  },
+  "/stats/config": {
+   "get": {
+    "operationId": "getStatsConfig",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/GetStatsConfigResponse"
+        }
+       }
+      },
+      "description": "OK."
+     }
+    },
+    "summary": "Get statistics parameters",
+    "tags": [
+     "stats"
+    ]
+   }
+  },
+  "/stats/config/update": {
+   "put": {
+    "operationId": "putStatsConfig",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PutStatsConfigUpdateRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "OK."
+     }
+    },
+    "summary": "Set statistics parameters",
+    "tags": [
+     "stats"
+    ]
+   }
+  },
+  "/stats_config": {
+   "post": {
+    "deprecated": true,
+    "description": "Deprecated: Use `PUT /stats/config/update` instead.\n",
+    "operationId": "statsConfig",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/StatsConfig"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "OK."
+     }
+    },
+    "summary": "Set statistics parameters",
+    "tags": [
+     "stats"
+    ]
+   }
+  },
+  "/stats_info": {
+   "get": {
+    "deprecated": true,
+    "description": "Deprecated: Use `GET /stats/config` instead.\n\nNOTE: If `interval` was configured by editing configuration file or new\nHTTP API call `PUT /stats/config/update` and it's not equal to\nprevious allowed enum values then it will be equal to `90` days for\ncompatibility reasons.\n",
+    "operationId": "statsInfo",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/StatsConfig"
+        }
+       }
+      },
+      "description": "OK."
+     }
+    },
+    "summary": "Get statistics parameters",
+    "tags": [
+     "stats"
+    ]
+   }
+  },
+  "/stats_reset": {
+   "post": {
+    "operationId": "statsReset",
+    "responses": {
+     "200": {
+      "description": "OK."
+     }
+    },
+    "summary": "Reset all statistics to zeroes",
+    "tags": [
+     "stats"
+    ]
+   }
+  },
+  "/status": {
+   "get": {
+    "operationId": "status",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ServerStatus"
+        }
+       }
+      },
+      "description": "OK"
+     }
+    },
+    "summary": "Get DNS server current status and general settings",
+    "tags": [
+     "global"
+    ]
+   }
+  },
+  "/test_upstream_dns": {
+   "post": {
+    "operationId": "testUpstreamDNS",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/UpstreamsConfig"
+       }
+      }
+     },
+     "description": "Upstream configuration to be tested"
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "examples": {
+         "response": {
+          "value": {
+           "1.0.0.1": "OK",
+           "1.1.1.1": "OK",
+           "192.168.1.104:53535": "upstream \"192.168.1.104:1234\" fails to exchange: couldn't communicate with upstream: read udp 192.168.1.100:60675->8.8.8.8:1234: i/o timeout\n",
+           "8.8.4.4": "OK",
+           "8.8.8.8": "OK"
+          }
+         }
+        },
+        "schema": {
+         "$ref": "#/components/schemas/UpstreamsConfigResponse"
+        }
+       }
+      },
+      "description": "Status of testing each requested server, with \"OK\" meaning that server works, any other text means an error.\n"
+     }
+    },
+    "summary": "Test upstream configuration",
+    "tags": [
+     "global"
+    ]
+   }
+  },
+  "/tls/configure": {
+   "post": {
+    "operationId": "tlsConfigure",
+    "requestBody": {
+     "$ref": "#/components/requestBodies/TlsConfig"
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TlsConfig"
+        }
+       }
+      },
+      "description": "TLS configuration and its status"
+     },
+     "400": {
+      "description": "Invalid configuration or unavailable port"
+     },
+     "500": {
+      "description": "Error occurred while applying configuration"
+     }
+    },
+    "summary": "Updates current TLS configuration",
+    "tags": [
+     "tls"
+    ]
+   }
+  },
+  "/tls/status": {
+   "get": {
+    "operationId": "tlsStatus",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TlsConfig"
+        }
+       }
+      },
+      "description": "OK."
+     }
+    },
+    "summary": "Returns TLS configuration and its status",
+    "tags": [
+     "tls"
+    ]
+   }
+  },
+  "/tls/validate": {
+   "post": {
+    "operationId": "tlsValidate",
+    "requestBody": {
+     "$ref": "#/components/requestBodies/TlsConfig"
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TlsConfig"
+        }
+       }
+      },
+      "description": "TLS configuration and its status"
+     },
+     "400": {
+      "description": "Invalid configuration or unavailable port"
+     }
+    },
+    "summary": "Checks if the current TLS configuration is valid",
+    "tags": [
+     "tls"
+    ]
+   }
+  },
+  "/update": {
+   "post": {
+    "operationId": "beginUpdate",
+    "responses": {
+     "200": {
+      "description": "OK."
+     },
+     "500": {
+      "description": "Failed"
+     }
+    },
+    "summary": "Begin auto-upgrade procedure",
+    "tags": [
+     "global"
+    ]
+   }
+  },
+  "/version.json": {
+   "post": {
+    "operationId": "getVersionJson",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/GetVersionRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/VersionInfo"
+        }
+       }
+      },
+      "description": "Version info.  If response message is empty, UI does not show a version update message.\n"
+     },
+     "500": {
+      "description": "Cannot write answer"
+     },
+     "502": {
+      "description": "Cannot retrieve the version.json file contents"
+     }
+    },
+    "summary": "Gets information about the latest available version of AdGuard\n",
+    "tags": [
+     "global"
+    ]
+   }
+  }
+ },
+ "security": [
+  {
+   "basicAuth": []
+  }
+ ],
+ "servers": [
+  {
+   "url": "/control"
+  }
+ ],
+ "tags": [
+  {
+   "description": "Blocked services controls",
+   "name": "blocked_services"
+  },
+  {
+   "description": "Clients list operations",
+   "name": "clients"
+  },
+  {
+   "description": "Built-in DHCP server controls",
+   "name": "dhcp"
+  },
+  {
+   "description": "Rule-based filtering",
+   "name": "filtering"
+  },
+  {
+   "description": "AdGuard Home server general settings and controls",
+   "name": "global"
+  },
+  {
+   "description": "Application localization",
+   "name": "i18n"
+  },
+  {
+   "description": "First-time install configuration handlers",
+   "name": "install"
+  },
+  {
+   "description": "AdGuard Home query log",
+   "name": "log"
+  },
+  {
+   "description": "Apple .mobileconfig",
+   "name": "mobileconfig"
+  },
+  {
+   "description": "Blocking adult and explicit materials",
+   "name": "parental"
+  },
+  {
+   "description": "DNS rewrites",
+   "name": "rewrite"
+  },
+  {
+   "description": "Blocking malware/phishing sites",
+   "name": "safebrowsing"
+  },
+  {
+   "description": "Enforce family-friendly results in search engines",
+   "name": "safesearch"
+  },
+  {
+   "description": "AdGuard Home statistics",
+   "name": "stats"
+  },
+  {
+   "description": "AdGuard Home HTTPS/DoH/DoQ/DoT settings",
+   "name": "tls"
+  }
+ ]
+}
