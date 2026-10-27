@@ -49,6 +49,8 @@ describe('additive check', () => {
     ['ALTER TABLE "a" ALTER COLUMN "b" SET NOT NULL;'],
     ['ALTER TABLE "a" ADD COLUMN "b" text NOT NULL;'],
     ['DELETE FROM "a";'],
+    ['TRUNCATE "a";'],
+    ['CREATE TABLE "b" ("id" int);\nDELETE FROM "a";'],
   ])('catches %s', (statement) => {
     expect(additiveProblems(statement)).not.toEqual([]);
   });
@@ -58,6 +60,7 @@ describe('additive check', () => {
     ['ALTER TABLE "a" ADD COLUMN "b" text NOT NULL DEFAULT \'x\';'],
     ['ALTER TABLE "a" ADD COLUMN "b" text;'],
     ['CREATE INDEX "a_b" ON "a" ("b");'],
+    ['CREATE TRIGGER t BEFORE TRUNCATE ON "a" FOR EACH STATEMENT EXECUTE FUNCTION f();'],
   ])('allows %s', (statement) => {
     expect(additiveProblems(statement)).toEqual([]);
   });

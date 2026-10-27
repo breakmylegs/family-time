@@ -1,0 +1,142 @@
+@import 'tailwindcss';
+@import '@family-time/tokens/tokens.css';
+
+/*
+ * Colours, fonts and curves come from the shared tokens. These ADD names to Tailwind's theme; no
+ * namespace is reset, so Tailwind's own utilities keep working.
+ */
+@theme inline {
+  --color-page: var(--page);
+  --color-ground: var(--ground);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-shell: var(--shell);
+  --color-shell-ink: var(--shell-ink);
+  --color-shell-ink-2: var(--shell-ink-2);
+  --color-shell-btn: var(--shell-btn);
+  --color-primary: var(--primary);
+  --color-primary-press: var(--primary-press);
+  --color-primary-ink: var(--primary-ink);
+  --color-primary-soft: var(--primary-soft);
+  --color-allowed: var(--allowed);
+  --color-allowed-soft: var(--allowed-soft);
+  --color-blocked: var(--blocked);
+  --color-blocked-soft: var(--blocked-soft);
+  --color-paused: var(--paused);
+  --color-paused-soft: var(--paused-soft);
+  --font-ui: var(--font-ui);
+  --ease-ui-out: var(--ease-out);
+}
+
+/* Mobile-native baseline (Emil Kowalski's mobile-native skill), before any component. */
+html {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
+  background: var(--ground);
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 17px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--selection);
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* 16px stops iOS zooming into a field. */
+input,
+textarea,
+select {
+  font-size: 16px;
+}
+
+/* Controls respond at once, never select their label, never show the long-press callout. */
+button,
+a,
+[role='button'] {
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* Buttons from the mock. Press feedback on :active, quick ease-out, no hover outside fine pointers. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 50px;
+  padding: 0 18px;
+  border-radius: 14px;
+  font-size: 17px;
+  font-weight: 650;
+  transition:
+    transform 140ms var(--ease-out),
+    background-color 160ms ease;
+}
+.btn:active {
+  transform: scale(0.97);
+}
+.btn:disabled {
+  opacity: 0.55;
+}
+.btn-primary {
+  background: var(--primary);
+  color: var(--primary-ink);
+}
+.btn-primary:active {
+  background: var(--primary-press);
+}
+.btn-quiet {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.btn-shell {
+  background: var(--shell-btn);
+  color: var(--shell-ink);
+}
+.btn-shell:active {
+  background: var(--shell-btn-press);
+}
+
+.field {
+  width: 100%;
+  height: 50px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn {
+    transition: none;
+  }
+  .btn:active {
+    transform: none;
+  }
+}

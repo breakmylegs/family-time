@@ -1,0 +1,173 @@
+/*
+ * Design tokens, taken from docs/design/mock-screens.html. Shared by the parent app and the kiosk.
+ * Light by default, dark from the OS setting, and either forced with data-theme on <html>.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  --page: #dce5e3;
+  --ground: #f1f5f4;
+  --surface: #ffffff;
+  --surface-2: #e6edec;
+  --surface-3: #d7e1df;
+  --line: rgba(18, 38, 42, 0.1);
+  --line-strong: rgba(18, 38, 42, 0.22);
+  --ink: #12262a;
+  --ink-2: #465a5f;
+  --ink-3: #5f7377;
+  --shell: #123a40;
+  --shell-ink: #f1f7f6;
+  --shell-ink-2: #bcd3d1;
+  --shell-btn: rgba(241, 247, 246, 0.12);
+  --shell-btn-press: rgba(241, 247, 246, 0.2);
+  --primary: #0d6a6e;
+  --primary-press: #0a5659;
+  --primary-ink: #ffffff;
+  --primary-soft: #d9ecea;
+  --allowed: #26734a;
+  --allowed-soft: #dcefe3;
+  --blocked: #55646b;
+  --blocked-soft: #e3e9eb;
+  --paused: #664985;
+  --paused-soft: #ece3f4;
+  --rail-free: #7bcb9c;
+  --rail-tea: #9db0b5;
+  --rail-wind: #b9a0d6;
+  --rail-bed: #5b4e86;
+  --rail-pause: #e9d9fa;
+  --selection: rgba(13, 106, 110, 0.22);
+  --scrim: rgba(6, 18, 20, 0.42);
+  --shadow-raise: 0 1px 2px rgba(10, 30, 34, 0.08);
+  --shadow-sheet: 0 -10px 34px rgba(8, 26, 30, 0.18);
+  --shadow-panel: -14px 0 44px rgba(8, 26, 30, 0.22);
+
+  /* Kiosk */
+  --k-ground: #e3f0ec;
+  --k-surface: #ffffff;
+  --k-surface-2: #edf4f2;
+  --k-ink: #0f2e2d;
+  --k-ink-2: #425d5b;
+  --k-primary: #0d6a6e;
+  --k-primary-ink: #ffffff;
+  --k-used: #c9d8d5;
+  --k-sun: #efb23a;
+  --k-sun-ink: #3f2b00;
+  --k-sun-soft: #fbebc9;
+
+  /* Type: the parent app uses the phone's own font; Lora for help reading; Poppins on the kiosk. */
+  --font-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-read: 'Lora', Georgia, serif;
+  --font-kid: 'Poppins', system-ui, sans-serif;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Dark values, written once and applied two ways below. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --page: #081214;
+    --ground: #0d181a;
+    --surface: #152427;
+    --surface-2: #1e3236;
+    --surface-3: #28403f;
+    --line: rgba(226, 238, 236, 0.1);
+    --line-strong: rgba(226, 238, 236, 0.24);
+    --ink: #e6efed;
+    --ink-2: #aabcbd;
+    --ink-3: #94a8a9;
+    --shell: #0b2b30;
+    --shell-ink: #eaf4f2;
+    --shell-ink-2: #a3c3c0;
+    --shell-btn: rgba(234, 244, 242, 0.1);
+    --shell-btn-press: rgba(234, 244, 242, 0.18);
+    --primary: #4fbdb6;
+    --primary-press: #3ea49e;
+    --primary-ink: #04201f;
+    --primary-soft: #123a3b;
+    --allowed: #71cf99;
+    --allowed-soft: #173a29;
+    --blocked: #a0afb5;
+    --blocked-soft: #25343a;
+    --paused: #c6aae3;
+    --paused-soft: #2f2642;
+    --rail-free: #4f9e73;
+    --rail-tea: #5e7378;
+    --rail-wind: #8c74ae;
+    --rail-bed: #3e3566;
+    --rail-pause: #4a3c66;
+    --selection: rgba(79, 189, 182, 0.32);
+    --scrim: rgba(0, 0, 0, 0.55);
+    --shadow-raise: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-sheet: 0 -10px 34px rgba(0, 0, 0, 0.45);
+    --shadow-panel: -14px 0 44px rgba(0, 0, 0, 0.5);
+    --k-ground: #0e1d1e;
+    --k-surface: #17292b;
+    --k-surface-2: #1f3436;
+    --k-ink: #e5f2ef;
+    --k-ink-2: #a8bfbc;
+    --k-primary: #4fbdb6;
+    --k-primary-ink: #04201f;
+    --k-used: #2c4244;
+    --k-sun: #efb23a;
+    --k-sun-ink: #2e2000;
+    --k-sun-soft: #3a2e14;
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --page: #081214;
+  --ground: #0d181a;
+  --surface: #152427;
+  --surface-2: #1e3236;
+  --surface-3: #28403f;
+  --line: rgba(226, 238, 236, 0.1);
+  --line-strong: rgba(226, 238, 236, 0.24);
+  --ink: #e6efed;
+  --ink-2: #aabcbd;
+  --ink-3: #94a8a9;
+  --shell: #0b2b30;
+  --shell-ink: #eaf4f2;
+  --shell-ink-2: #a3c3c0;
+  --shell-btn: rgba(234, 244, 242, 0.1);
+  --shell-btn-press: rgba(234, 244, 242, 0.18);
+  --primary: #4fbdb6;
+  --primary-press: #3ea49e;
+  --primary-ink: #04201f;
+  --primary-soft: #123a3b;
+  --allowed: #71cf99;
+  --allowed-soft: #173a29;
+  --blocked: #a0afb5;
+  --blocked-soft: #25343a;
+  --paused: #c6aae3;
+  --paused-soft: #2f2642;
+  --rail-free: #4f9e73;
+  --rail-tea: #5e7378;
+  --rail-wind: #8c74ae;
+  --rail-bed: #3e3566;
+  --rail-pause: #4a3c66;
+  --selection: rgba(79, 189, 182, 0.32);
+  --scrim: rgba(0, 0, 0, 0.55);
+  --shadow-raise: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-sheet: 0 -10px 34px rgba(0, 0, 0, 0.45);
+  --shadow-panel: -14px 0 44px rgba(0, 0, 0, 0.5);
+  --k-ground: #0e1d1e;
+  --k-surface: #17292b;
+  --k-surface-2: #1f3436;
+  --k-ink: #e5f2ef;
+  --k-ink-2: #a8bfbc;
+  --k-primary: #4fbdb6;
+  --k-primary-ink: #04201f;
+  --k-used: #2c4244;
+  --k-sun: #efb23a;
+  --k-sun-ink: #2e2000;
+  --k-sun-soft: #3a2e14;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+}

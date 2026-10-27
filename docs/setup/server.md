@@ -12,10 +12,10 @@ For the owner. Run these on the Proxmox VM (Ubuntu 24.04), as root (`sudo su -`)
 
 ## First install
 
-Clone the branch being tested. While a phase is under review that is its branch (now `phase-0`); after you approve it, the server moves to `main` (below). Git asks for a username (your GitHub name) and a password (paste the token). `credential.helper=store` saves the token for this repository in root's `~/.git-credentials`, because `update.sh` pulls in the background, where nothing can type it.
+Clone `main`. To test a phase before it is merged, clone its branch instead (for example `-b phase-1`) and move to `main` afterwards (below). Git asks for a username (your GitHub name) and a password (paste the token). `credential.helper=store` saves the token for this repository in root's `~/.git-credentials`, because `update.sh` pulls in the background, where nothing can type it.
 
 ```bash
-git clone -b phase-0 -c credential.helper=store https://github.com/breakmylegs/family-time.git /opt/family-time
+git clone -c credential.helper=store https://github.com/breakmylegs/family-time.git /opt/family-time
 ```
 
 Create the secrets, then deploy. The first build takes several minutes. `update.sh` runs in the background, so a dropped SSH session does not stop it; it shows the log as it goes.
@@ -25,6 +25,26 @@ cd /opt/family-time && ./scripts/init.sh && ./scripts/update.sh
 ```
 
 Paste me everything it printed. The last line says `finished: exit 0, deployed` when it worked.
+
+## Make the first owner (once)
+
+Passkeys only work over HTTPS, so the parent app needs its Caddy site first. Add `deploy/caddy/family-time.caddy` to your Caddyfile with your hostname, and reload Caddy.
+
+Then make the first owner's link. Use the exact address the app is reached at; passkeys are tied to it and it cannot be changed later.
+
+```bash
+cd /opt/family-time && ./scripts/ft.sh owner-invite --origin https://family.<your-domain> --name "<your name>" --family "<family name>"
+```
+
+Open the link it prints on your iPhone, in Safari, within 24 hours. Tap Make my passkey and use Face ID. Then, in the app, open People and invite Mum. Send her the link; she opens it on her iPhone and does the same.
+
+## If you lose your phone
+
+This prints a link, valid for 30 minutes, that lets you add a passkey on a new phone. Your old passkeys keep working until you remove them.
+
+```bash
+cd /opt/family-time && ./scripts/ft.sh recovery-link
+```
 
 ## Prove the rollback (once, after the first deploy)
 

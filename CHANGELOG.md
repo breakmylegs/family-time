@@ -2,6 +2,14 @@
 
 Release notes the app shows on its System page (from Phase 8). One plain line per change, newest first.
 
+## 0.2.0 (Phase 1, accounts)
+
+- Sign in with a passkey: one tap, then Face ID. No passwords.
+- The owner invites people by link, as a parent, carer or another owner, and can remove them.
+- There is always at least one owner; the database refuses to remove the last one.
+- Every privileged action is recorded in an audit log that cannot be changed.
+- If the owner loses their phone, a recovery link from the server lets them add a new passkey.
+
 ## 0.1.0 (Phase 0, foundations)
 
 - The server runs the api, worker and database, each with health checks.

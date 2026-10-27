@@ -15,6 +15,8 @@ const steps = [
   ['secrets', ['run', 'check:secrets']],
   ['test', ['exec', 'turbo', 'run', 'test', '--concurrency=2', '--output-logs=errors-only']],
   ['build', ['exec', 'turbo', 'run', 'build', '--output-logs=errors-only']],
+  // Browsers drive the real api on PGlite. The image has no browsers, so this runs here only.
+  ...(inImage ? [] : [['e2e', ['exec', 'playwright', 'test']]]),
   // update.sh's scenario tests start a few hundred processes. That takes seconds on Linux and about
   // an hour on the Windows laptop, where every process start costs seconds. So they always run in
   // the image, which means update.sh tests the new version of itself before using it, and on the

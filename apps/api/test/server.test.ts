@@ -48,17 +48,17 @@ describe('request handling', () => {
   it('refuses non-JSON bodies with 415 before any route runs', async () => {
     h = await harness();
     let reached = false;
-    h.app.post('/probe', async () => {
+    h.app.post('/probe', { config: { access: 'public' } }, async () => {
       reached = true;
       return { ok: true };
     });
-    const res = await h.app.inject({ method: 'POST', url: '/probe', headers: { 'content-type': 'text/plain' }, payload: 'x' });
+    const res = await h.app.inject({ method: 'POST', url: '/probe', headers: { 'content-type': 'text/plain', origin: 'http://localhost' }, payload: 'x' });
     expect(res.statusCode).toBe(415);
     expect(reached).toBe(false);
     const form = await h.app.inject({
       method: 'POST',
       url: '/probe',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      headers: { 'content-type': 'application/x-www-form-urlencoded', origin: 'http://localhost' },
       payload: 'a=b',
     });
     expect(form.statusCode).toBe(415);
@@ -66,7 +66,7 @@ describe('request handling', () => {
 
   it('takes the client address from one proxy hop, not from whatever the client wrote', async () => {
     h = await harness();
-    h.app.get('/ip', async (request) => ({ ip: request.ip }));
+    h.app.get('/ip', { config: { access: 'public' } }, async (request) => ({ ip: request.ip }));
     const res = await h.app.inject({
       url: '/ip',
       remoteAddress: '172.18.0.2', // Caddy
@@ -92,7 +92,7 @@ describe('request handling', () => {
 
   it('hides the cause of a 500 from the caller and logs it', async () => {
     h = await harness();
-    h.app.get('/boom', async () => {
+    h.app.get('/boom', { config: { access: 'public' } }, async () => {
       throw new Error('database password is hunter2');
     });
     const res = await h.app.inject('/boom');

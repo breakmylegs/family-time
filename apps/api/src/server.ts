@@ -3,8 +3,13 @@ import type { Db } from '@family-time/db';
 import type { Liveness, Version } from '@family-time/schemas';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { BuildInfo } from './build.js';
+import { registerAccess } from './auth/access.js';
+import type { RateLimiter } from './auth/ratelimit.js';
 import { readiness } from './health.js';
 import { HEALTH_PATHS, loggerOptions, logPath } from './logging.js';
+import { authRoutes } from './routes/auth.js';
+import { peopleRoutes } from './routes/people.js';
+import { registerStatic } from './static.js';
 
 export interface ServerDeps {
   db: Db;
@@ -14,6 +19,10 @@ export interface ServerDeps {
   logStream?: NodeJS.WritableStream;
   /** Proxies in front of the api. Caddy is one. */
   trustedProxyHops?: number;
+  /** The parent app's build, served at /. Absent in api-only tests. */
+  staticDir?: string;
+  /** Injected so tests can share or inspect it. */
+  limiter?: RateLimiter;
 }
 
 export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
@@ -56,18 +65,27 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     return reply.code(status).send({ error: status === 500 ? 'internal' : error.message });
   });
 
-  // Health routes first, before any guard a later phase adds. Never rate-limited.
-  app.get('/healthz', async (): Promise<Liveness> => ({ status: 'ok' }));
+  // Default deny: from here on, a route without an access rule stops the server starting.
+  registerAccess(app, { db: deps.db, now, ...(deps.limiter ? { limiter: deps.limiter } : {}) });
 
-  app.get('/readyz', async (_request, reply) => {
+  // Health routes: public, never rate-limited, and the access hook skips them entirely, so
+  // /healthz touches nothing even when a browser sends a session cookie.
+  const health = { config: { access: 'public' as const } };
+  app.get('/healthz', health, async (): Promise<Liveness> => ({ status: 'ok' }));
+
+  app.get('/readyz', health, async (_request, reply) => {
     const result = await readiness({ db: deps.db, build: deps.build, now });
     return reply.code(result.status === 'ready' ? 200 : 503).send(result);
   });
 
-  app.get('/version', async (): Promise<Version> => {
+  app.get('/version', health, async (): Promise<Version> => {
     const { app: name, commit, builtAt, schema } = deps.build;
     return { app: name, commit, builtAt, schema };
   });
+
+  await authRoutes(app, { db: deps.db, now });
+  await peopleRoutes(app, { db: deps.db, now });
+  if (deps.staticDir) registerStatic(app, deps.staticDir);
 
   return app;
 }

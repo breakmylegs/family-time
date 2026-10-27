@@ -13,9 +13,9 @@ export interface TestDb {
   close: () => Promise<void>;
 }
 
-/** A fresh in-memory Postgres, optionally with every migration applied. */
-export async function testDb(options: { migrated?: boolean } = {}): Promise<TestDb> {
-  const client = new PGlite();
+/** A fresh Postgres (in memory, or in `dataDir`), optionally with every migration applied. */
+export async function testDb(options: { migrated?: boolean; dataDir?: string } = {}): Promise<TestDb> {
+  const client = options.dataDir ? new PGlite(options.dataDir) : new PGlite();
   const db = drizzle(client, { schema });
   if (options.migrated ?? true) await migrate(db, { migrationsFolder });
   // Safe to call twice: tests close the database early to simulate it going away.
