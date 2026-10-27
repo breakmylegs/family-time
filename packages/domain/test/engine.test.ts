@@ -16,7 +16,8 @@ const allow = (id: string, start: string, end: string | null, extra: Partial<Ove
 describe('a school night (Monday 26 October 2026)', () => {
   it('blocks at school, naming the end', () => {
     const d = decide(rules(), 'youtube', at('2026-10-26 10:00'));
-    expect(d).toMatchObject({ state: 'blocked', layer: 'schedule', reason: 'School time until 15:30.' });
+    expect(d).toMatchObject({ state: 'blocked', layer: 'schedule', reason: 'School time.' });
+    expect(d.until).toEqual(at('2026-10-26 15:30'));
   });
 
   it('is blocked in free time when nothing is planned, with the usual rule', () => {
@@ -26,7 +27,8 @@ describe('a school night (Monday 26 October 2026)', () => {
 
   it('pauses everything at tea', () => {
     const d = decide(rules(), 'youtube', at('2026-10-26 17:45'));
-    expect(d).toMatchObject({ state: 'paused', layer: 'pause', reason: 'Tea. Everything is paused until 18:15.' });
+    expect(d).toMatchObject({ state: 'paused', layer: 'pause', reason: 'Tea. Everything is paused.' });
+    expect(d.until).toEqual(at('2026-10-26 18:15'));
   });
 
   it('allows a planned session, then blocks when it ends', () => {
@@ -52,14 +54,17 @@ describe('a school night (Monday 26 October 2026)', () => {
 
   it('blocks everything at bedtime, even always-allowed services', () => {
     const d = decide(rules(), 'facetime', at('2026-10-26 22:00'));
-    expect(d).toMatchObject({ state: 'blocked', reason: 'Bedtime until Tue 07:00.' });
+    expect(d).toMatchObject({ state: 'blocked', reason: 'Bedtime.' });
+    expect(d.until).toEqual(at('2026-10-27 07:00'));
   });
 });
 
 describe('parent overrides', () => {
   it('beat school and wind-down, and say who and until when', () => {
     const r = rules({ overrides: [allow('o1', '2026-10-26 10:00', '2026-10-26 11:00')] });
-    expect(decide(r, 'roblox', at('2026-10-26 10:15'))).toMatchObject({ state: 'allowed', layer: 'override', reason: 'Mum allowed it until 11:00.' });
+    const d = decide(r, 'roblox', at('2026-10-26 10:15'));
+    expect(d).toMatchObject({ state: 'allowed', layer: 'override', reason: 'Mum allowed it.' });
+    expect(d.until).toEqual(at('2026-10-26 11:00'));
   });
 
   it('stop at bedtime unless the parent chose to run through it', () => {
@@ -84,7 +89,9 @@ describe('parent overrides', () => {
     const block: Override = { ...allow('b1', '2026-10-26 18:40', '2026-10-26 19:10'), type: 'block', createdByName: 'Dad' };
     const grant: Grant = { id: 'g1', childId: CHILD, target: { kind: 'service', id: 'roblox' }, start: at('2026-10-26 18:30'), end: at('2026-10-26 19:00'), source: 'planned', status: 'active' };
     const r = rules({ overrides: [allow('o1', '2026-10-26 18:30', '2026-10-26 19:20'), block], grants: [grant] });
-    expect(decide(r, 'roblox', at('2026-10-26 18:45'))).toMatchObject({ state: 'blocked', reason: 'Dad blocked it until 19:10.' });
+    const d = decide(r, 'roblox', at('2026-10-26 18:45'));
+    expect(d).toMatchObject({ state: 'blocked', reason: 'Dad blocked it.' });
+    expect(d.until).toEqual(at('2026-10-26 19:10'));
   });
 
   it('match a group or everything', () => {

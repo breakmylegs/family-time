@@ -63,7 +63,7 @@ describe('control', () => {
     });
     expect(res.statusCode).toBe(201);
     const roblox = ChildStatus.parse(res.json()).services.find((x) => x.name === 'Roblox')!;
-    expect(roblox).toMatchObject({ state: 'allowed', reason: 'Mum allowed it until 16:30.' });
+    expect(roblox).toMatchObject({ state: 'allowed', reason: 'Mum allowed it.', until: '2026-10-26T16:30:00.000Z' });
     expect(nudges).toBe(1);
     const [o] = await h.handle.db.select().from(overrides);
     expect(o).toMatchObject({ countsAgainstAllowance: true, overridesBedtime: false });

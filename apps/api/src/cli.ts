@@ -61,9 +61,10 @@ const time = (d: Date) => d.toLocaleString('en-GB', { timeZone: 'Europe/London',
 function printStatus(s: ChildStatus): void {
   console.log(`${s.child.name}, at ${time(new Date(s.at))}:`);
   for (const svc of s.services) {
-    const state = { allowed: 'Allowed', blocked: 'Blocked', paused: 'Paused' }[svc.state];
+    const until = svc.until ? ` until ${new Date(svc.until).toLocaleTimeString('en-GB', { timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit' })}` : '';
+    const state = { allowed: 'Allowed', blocked: 'Blocked', paused: 'Paused' }[svc.state] + until;
     const usage = svc.usageMinutesToday ? `  (about ${svc.usageMinutesToday} min today)` : '';
-    console.log(`  ${svc.name.padEnd(14)} ${state.padEnd(8)} ${svc.reason}${svc.inForce ? '' : '  [not confirmed on every device yet]'}${usage}`);
+    console.log(`  ${svc.name.padEnd(14)} ${state.padEnd(22)} ${svc.reason}${svc.inForce ? '' : '  [not confirmed on every device yet]'}${usage}`);
   }
   for (const d of s.devices) {
     const quiet = d.quietSince ? `, quiet since ${time(new Date(d.quietSince))}` : '';

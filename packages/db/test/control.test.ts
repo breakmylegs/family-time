@@ -52,9 +52,9 @@ describe('loadRules', () => {
     expect(rules.childName).toBe('Ollie');
     expect(rules.timeZone).toBe('Europe/London');
     expect(rules.services.find((x) => x.id === s.roblox.id)?.groupIds).toEqual([s.games.id]);
-    expect(decide(rules, s.roblox.id, NOW)).toMatchObject({ state: 'allowed', reason: 'Mum allowed it until 17:00.' });
+    expect(decide(rules, s.roblox.id, NOW)).toMatchObject({ state: 'allowed', reason: 'Mum allowed it.', until: new Date('2026-10-26T17:00:00Z') });
     expect(decide(rules, s.youtube.id, NOW)).toMatchObject({ state: 'blocked', reason: 'Not planned today. Usual school night rule.' });
-    expect(decide(rules, s.youtube.id, new Date('2026-10-26T10:00:00Z')).reason).toBe('School time until 15:30.');
+    expect(decide(rules, s.youtube.id, new Date('2026-10-26T10:00:00Z')).reason).toBe('School time.');
   });
 
   it('leaves out overrides and grants that ended days ago, and refunded grants', async () => {

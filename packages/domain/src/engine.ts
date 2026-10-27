@@ -12,7 +12,6 @@
 // bedtime" (`overridesBedtime`). A Block always wins over everything below it.
 
 import { activeBlocks, blocksAround, ruleNameAt, type BlockInterval, type Schedule } from './schedule.js';
-import { clockLabel } from './time.js';
 
 export type State = 'allowed' | 'blocked' | 'paused';
 export type Layer = 'pause' | 'override' | 'schedule' | 'allowed-time' | 'default';
@@ -72,7 +71,7 @@ export interface Rules {
 export interface Decision {
   state: State;
   layer: Layer;
-  /** A sentence for the parent app, used verbatim. */
+  /** Why, as a sentence for the parent app, used verbatim. The time is in `until`. */
   reason: string;
   /** When this decision next changes, or null when nothing scheduled changes it. */
   until: Date | null;
@@ -112,8 +111,8 @@ function override(rules: Rules, service: Service, at: Date, types: Override['typ
 interface Raw {
   state: State;
   layer: Layer;
-  /** Builds the sentence once `until` is known. */
-  say: (until: string | null) => string;
+  /** Why, without the time: the app shows "Allowed until 19:00" above it, from `until`. */
+  reason: string;
   sourceId?: string;
 }
 
@@ -134,12 +133,12 @@ function decideRaw(rules: Rules, service: Service, at: Date): Raw {
       state: 'paused',
       layer: 'pause',
       sourceId: pause.id,
-      say: (until) => (until ? `Paused by ${pause.createdByName} until ${until}.` : `Paused by ${pause.createdByName} until they resume.`),
+      reason: pause.end ? `Paused by ${pause.createdByName}.` : `Paused by ${pause.createdByName} until they resume.`,
     };
   }
   const routinePause = blocks.find((b) => b.type === 'pause');
   if (routinePause) {
-    return { state: 'paused', layer: 'pause', say: (until) => `${blockName(routinePause)}. Everything is paused${until ? ` until ${until}` : ''}.` };
+    return { state: 'paused', layer: 'pause', reason: `${blockName(routinePause)}. Everything is paused.` };
   }
 
   // 2. Parent override (an Allow gives way to bedtime unless it was made to run through it)
@@ -151,17 +150,17 @@ function decideRaw(rules: Rules, service: Service, at: Date): Raw {
       state: parentOverride.type === 'allow' ? 'allowed' : 'blocked',
       layer: 'override',
       sourceId: parentOverride.id,
-      say: (until) => `${parentOverride.createdByName} ${verb}${until ? ` until ${until}` : ' until they set it back'}.`,
+      reason: `${parentOverride.createdByName} ${verb}.`,
     };
   }
 
   // 3. Schedule blocks
-  if (bed) return { state: 'blocked', layer: 'schedule', say: (until) => `Bedtime${until ? ` until ${until}` : ''}.` };
+  if (bed) return { state: 'blocked', layer: 'schedule', reason: 'Bedtime.' };
   const school = blocks.find((b) => b.type === 'school');
-  if (school) return { state: 'blocked', layer: 'schedule', say: (until) => `${blockName(school)}${until ? ` until ${until}` : ''}.` };
+  if (school) return { state: 'blocked', layer: 'schedule', reason: `${blockName(school)}.` };
   const wind = blocks.find((b) => b.type === 'wind-down');
   if (wind && !policy?.allowedDuringWindDown) {
-    return { state: 'blocked', layer: 'schedule', say: (until) => `${blockName(wind)}. Screens are off${until ? ` until ${until}` : ''}.` };
+    return { state: 'blocked', layer: 'schedule', reason: `${blockName(wind)}. Screens are off.` };
   }
 
   // 4. Allowed time
@@ -174,19 +173,19 @@ function decideRaw(rules: Rules, service: Service, at: Date): Raw {
       state: 'allowed',
       layer: 'allowed-time',
       sourceId: grant.id,
-      say: () =>
+      reason:
         grant.source === 'planned'
           ? // No pronoun: V2 serves any family, and a guessed pronoun is worse than none.
             `${name} planned ${duration(minutes)} of screen time.`
           : `${grant.approvedByName ?? 'A parent'} said yes to ${name}'s request.`,
     };
   }
-  if (policy?.alwaysAllowed) return { state: 'allowed', layer: 'allowed-time', say: () => 'Always allowed.' };
+  if (policy?.alwaysAllowed) return { state: 'allowed', layer: 'allowed-time', reason: 'Always allowed.' };
 
   // 5. Default
-  if (policy?.default === 'allowed') return { state: 'allowed', layer: 'default', say: () => 'Allowed by your family rules.' };
+  if (policy?.default === 'allowed') return { state: 'allowed', layer: 'default', reason: 'Allowed by your family rules.' };
   const rule = ruleNameAt(rules.schedules, rules.childId, at, rules.timeZone);
-  return { state: 'blocked', layer: 'default', say: () => `Not planned today.${rule ? ` Usual ${rule.toLowerCase()} rule.` : ''}` };
+  return { state: 'blocked', layer: 'default', reason: `Not planned today.${rule ? ` Usual ${rule.toLowerCase()} rule.` : ''}` };
 }
 
 function duration(minutes: number): string {
@@ -236,7 +235,7 @@ export function decide(rules: Rules, serviceId: string, at: Date): Decision {
   return {
     state: now.state,
     layer: now.layer,
-    reason: now.say(until ? clockLabel(until, at, rules.timeZone) : null),
+    reason: now.reason,
     until,
     ...(now.sourceId ? { sourceId: now.sourceId } : {}),
   };

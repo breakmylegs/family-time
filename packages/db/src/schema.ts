@@ -83,12 +83,15 @@ export const people = pgTable(
     active: boolean('active').notNull().default(true),
     /** Optional OIDC subject, for the owner only. */
     oidcSubject: text('oidc_subject'),
+    /** For help text about a child: he, she or they. Null reads as they. */
+    pronouns: text('pronouns').$type<'he' | 'she' | 'they'>(),
     createdAt: createdAt(),
     deactivatedAt: timestamp('deactivated_at', { withTimezone: true }),
   },
   (t) => [
     check('people_role', sql`${t.role} in ('owner', 'parent', 'carer', 'child')`),
     check('people_oidc_owner_only', sql`${t.oidcSubject} is null or ${t.role} = 'owner'`),
+    check('people_pronouns', sql`${t.pronouns} is null or ${t.pronouns} in ('he', 'she', 'they')`),
     uniqueIndex('people_oidc_subject').on(t.oidcSubject),
     index('people_household').on(t.householdId),
   ],
@@ -416,4 +419,55 @@ export const querylogCursor = pgTable(
     readUntil: timestamp('read_until', { withTimezone: true }).notNull(),
   },
   (t) => [check('querylog_cursor_single_row', sql`${t.id} = 1`)],
+);
+
+// ---------------------------------------------------------------------------------------------
+// Phase 3: the parent app.
+
+/** A browser's Web Push subscription for one person. */
+export const pushSubscriptions = pgTable(
+  'push_subscriptions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    personId: uuid('person_id')
+      .notNull()
+      .references(() => people.id),
+    endpoint: text('endpoint').notNull(),
+    p256dh: text('p256dh').notNull(),
+    auth: text('auth').notNull(),
+    userAgent: text('user_agent'),
+    createdAt: createdAt(),
+    lastSentAt: timestamp('last_sent_at', { withTimezone: true }),
+    failures: smallint('failures').notNull().default(0),
+  },
+  (t) => [uniqueIndex('push_subscriptions_endpoint').on(t.endpoint), index('push_subscriptions_person').on(t.personId)],
+);
+
+/** "Was this helpful?" on a help topic. Stays on the home server. */
+export const helpFeedback = pgTable('help_feedback', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  personId: uuid('person_id').references(() => people.id),
+  topicId: text('topic_id').notNull(),
+  helpful: boolean('helpful').notNull(),
+  createdAt: createdAt(),
+});
+
+/** How a session ended, tapped by a parent: calm, grumble or meltdown. For the pilot's metrics. */
+export const sessionEndings = pgTable(
+  'session_endings',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    childId: uuid('child_id')
+      .notNull()
+      .references(() => people.id),
+    /** What ended: an override or grant id, so one ending is tapped once. */
+    ref: text('ref').notNull(),
+    endedAt: timestamp('ended_at', { withTimezone: true }).notNull(),
+    mood: text('mood').$type<'calm' | 'grumble' | 'meltdown'>().notNull(),
+    byPersonId: uuid('by_person_id')
+      .notNull()
+      .references(() => people.id),
+    createdAt: createdAt(),
+  },
+  (t) => [check('session_endings_mood', sql`${t.mood} in ('calm', 'grumble', 'meltdown')`), uniqueIndex('session_endings_child_ref').on(t.childId, t.ref)],
 );

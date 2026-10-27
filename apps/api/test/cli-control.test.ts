@@ -55,7 +55,7 @@ describe('setting up from the command line', () => {
 
     const target = await resolveTarget(db, { group: 'games' });
     const after = await control(db, { child: 'Ollie', type: 'allow', target, duration: '1h' }, FREE);
-    expect(after.services.find((x) => x.name === 'Roblox')).toMatchObject({ state: 'allowed', reason: 'Mum allowed it until 17:00.' });
+    expect(after.services.find((x) => x.name === 'Roblox')).toMatchObject({ state: 'allowed', reason: 'Mum allowed it.', until: '2026-10-26T17:00:00.000Z' });
     expect(after.services.find((x) => x.name === 'YouTube')?.state).toBe('blocked');
   });
 
