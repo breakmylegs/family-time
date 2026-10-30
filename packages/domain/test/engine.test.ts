@@ -25,6 +25,17 @@ describe('a school night (Monday 26 October 2026)', () => {
     expect(d).toMatchObject({ state: 'blocked', layer: 'default', reason: 'Not planned today. Usual school night rule.' });
   });
 
+  it('says when it next works differently, not just when the rule changes', () => {
+    // Blocked through free time, wind-down, bed and tomorrow's tea: no end worth showing.
+    const blocked = decide(rules(), 'roblox', at('2026-10-26 18:32'));
+    expect(blocked.until).toEqual(at('2026-10-26 19:30'));
+    expect(blocked.stateUntil).toBeNull();
+    // Paused at tea until it ends; allowed until it stops.
+    expect(decide(rules(), 'roblox', at('2026-10-26 17:45')).stateUntil).toEqual(at('2026-10-26 18:15'));
+    const o = allow('o1', '2026-10-26 18:32', '2026-10-26 19:02');
+    expect(decide(rules({ overrides: [o] }), 'roblox', at('2026-10-26 18:40')).stateUntil).toEqual(at('2026-10-26 19:02'));
+  });
+
   it('pauses everything at tea', () => {
     const d = decide(rules(), 'youtube', at('2026-10-26 17:45'));
     expect(d).toMatchObject({ state: 'paused', layer: 'pause', reason: 'Tea. Everything is paused.' });

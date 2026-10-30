@@ -20,7 +20,7 @@ describe('device alerts', () => {
   it('say what happened in plain words and open Control for that child', () => {
     expect(deviceAlert('quiet', { label: "Ollie's iPad", childId: 'c1' })).toEqual({
       title: "Ollie's iPad has gone quiet",
-      body: 'It has not used home Wi-Fi for 30 minutes. That usually means mobile data, a VPN or other DNS.',
+      body: 'It has not checked in with your home server for 30 minutes. That usually means mobile data, a VPN or other DNS.',
       path: '/?child=c1&help=device-gone-quiet',
     });
     expect(deviceAlert('not-confirmed', { label: "Ollie's iPad", childId: 'c1' })).toMatchObject({ title: "Not confirmed on Ollie's iPad", path: '/?child=c1' });

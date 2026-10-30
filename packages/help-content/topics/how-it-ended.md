@@ -11,7 +11,7 @@ status: needs-review
 
 ## In short
 
-After extra time ends or a block starts, you can tap how it went: calm, grumble or meltdown. One tap, and only if you want to.
+After extra time ends, or a block or pause starts, you can tap how it went: calm, grumble or meltdown. One tap, and only if you want to.
 
 ## How to use it
 
@@ -21,7 +21,7 @@ After extra time ends or a block starts, you can tap how it went: calm, grumble 
 
 ## Why it helps
 
-Endings are where many screen battles happen. Noting how they go shows, over a few weeks, whether changes like ending at a natural stopping point make them easier.
+In one study, how screen time ended was linked to how upset children were. Noting how endings go shows, over a few weeks, whether changes like ending at a natural stopping point make them easier for {child}.
 
 ## Watch out for
 
@@ -29,4 +29,4 @@ Tapping only the hard ones. The calm endings matter too, or the picture looks wo
 
 ## The research
 
-Hiniker and colleagues, 2016, CHI. In a diary study of families with children aged 1 to 5, routines and natural stopping points made the end of screen time easier. Two-minute warnings were linked to more upset.
+Hiniker and colleagues, 2016, CHI. In a diary study of families with children aged 1 to 5, routines and natural stopping points were linked to easier endings. Two-minute warnings were linked to more upset.

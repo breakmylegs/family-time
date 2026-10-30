@@ -13,7 +13,7 @@ After a change, each app says when it has really reached {child}'s devices.
 
 ## How it works
 
-Your home server tells AdGuard, the home Wi-Fi filter, what to block, then reads it back to check. Until then the app says "Starting. Takes up to a minute". Once AdGuard has it, it says "Working now".
+Your home server tells AdGuard, the home Wi-Fi filter, what to block, then reads it back to check. Until then the app says "Starting. Takes up to a minute". Once AdGuard has it, it says "Working on" and the device's name.
 
 If the check fails three times in a row, it says "Not confirmed" and parents get an alert. The server keeps trying every minute, so it often sorts itself out.
 

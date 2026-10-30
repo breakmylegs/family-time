@@ -31,7 +31,7 @@ export function deviceAlert(kind: DeviceAlertKind, device: { label: string; chil
   }
   return {
     title: `${device.label} has gone quiet`,
-    body: 'It has not used home Wi-Fi for 30 minutes. That usually means mobile data, a VPN or other DNS.',
+    body: 'It has not checked in with your home server for 30 minutes. That usually means mobile data, a VPN or other DNS.',
     path: `/?child=${child}&help=device-gone-quiet`,
   };
 }

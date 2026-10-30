@@ -3,7 +3,8 @@ import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const SCREENS = join(dirname(fileURLToPath(import.meta.url)), '..', 'docs', 'screens', 'phase-1');
+const DOCS = join(dirname(fileURLToPath(import.meta.url)), '..', 'docs', 'screens');
+export const SCREENS = join(DOCS, 'phase-1');
 mkdirSync(SCREENS, { recursive: true });
 
 /**
@@ -27,6 +28,14 @@ export async function phone(context: BrowserContext): Promise<Page> {
   return page;
 }
 
-export async function shot(page: Page, name: string): Promise<void> {
-  await page.screenshot({ path: join(SCREENS, `${name}.png`), fullPage: true });
+/**
+ * A screenshot into docs/screens/<phase>. Phase 3 on is the phone's own 390 by 844 view: a full-page
+ * capture would draw the fixed tab bar, sheets and help panel part way down a long page.
+ */
+export async function shot(page: Page, name: string, phase = 'phase-1'): Promise<void> {
+  const dir = join(DOCS, phase);
+  mkdirSync(dir, { recursive: true });
+  // Let sheets, the panel and the toast finish moving (all under 330ms).
+  if (phase !== 'phase-1') await page.waitForTimeout(400);
+  await page.screenshot({ path: join(dir, `${name}.png`), fullPage: phase === 'phase-1' });
 }

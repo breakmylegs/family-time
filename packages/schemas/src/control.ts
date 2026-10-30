@@ -32,6 +32,8 @@ export const ServiceStatus = z.object({
   /** Shown verbatim. */
   reason: z.string(),
   until: z.string().nullable(),
+  /** When the state changes: `19:30`, or `Tue 07:00` on another day. From the server, so the app never works out times. */
+  untilLabel: z.string().nullable(),
   /** True when every device of the child has confirmed AdGuard holds this state. */
   inForce: z.boolean(),
   /** Minutes today with real activity, from the query log. Approximate. */
@@ -81,7 +83,7 @@ export const ChildStatus = z.object({
   headline: z.object({ lead: z.string(), rest: z.string() }),
   day: z.array(DayBlock),
   /** Pause everything, when a parent has it on. */
-  pause: z.object({ id: z.uuid(), by: z.string(), until: z.string().nullable() }).nullable(),
+  pause: z.object({ id: z.uuid(), by: z.string(), until: z.string().nullable(), untilLabel: z.string().nullable() }).nullable(),
   services: z.array(ServiceStatus),
   devices: z.array(DeviceStatus),
   /** The sheet's choices, with real end times. */

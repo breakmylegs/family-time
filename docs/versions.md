@@ -43,13 +43,16 @@ Every version is pinned exactly. Checked on the registry on 26 October 2026 unle
 | fast-check | 4.10.2 | root (dev) | yes. Property tests in `packages/domain` |
 | pg-boss | 12.38.0 | api | yes. The api queues a reconcile after each change |
 | tsx | 4.23.15 | api (dev) | approved in Phase 0; runs `apps/api/dev/server.ts` |
+| web-push | 3.6.7 | notify | yes (Part 17). Phase 3 |
+| @types/web-push | 3.6.4 | notify (dev) | types only |
+| @radix-ui/react-dialog | 1.3.1 | parent | asked and approved in the Phase 3 plan. Focus trap, Escape and focus return for the help panel and sheets |
+| @fontsource/lora, @fontsource/poppins | 5.3.0 | parent | asked and approved in the Phase 3 plan. Self-hosted fonts, as the design README suggests |
 
 ## Checked for later phases, not installed yet
 
 | Package | Version on 26 Oct 2026 | Phase |
 |---|---|---|
-| vite-plugin-pwa | 2.0.0 (supports Vite 8) | 3 |
-| web-push | 3.6.7 | 3 |
+| vite-plugin-pwa | 2.0.0 (supports Vite 8). Not used: a hand-written service worker is a few dozen lines (Phase 3 plan, decision 7) | 3 |
 | preact | 10.29.8, not 11.0.2 (see reuse report) | 6 |
 | openid-client | 6.8.8 | when owner OIDC is switched on (deferred from Phase 1) |
 | viem | 2.57.11 | 5 |

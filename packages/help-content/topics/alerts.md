@@ -9,7 +9,7 @@ status: needs-review
 
 ## In short
 
-Family time can tell you when something needs you, even when the app is closed.
+Family time can tell owners and parents when something needs them, even when the app is closed.
 
 ## How to use it
 
@@ -19,7 +19,7 @@ Family time can tell you when something needs you, even when the app is closed.
 
 ## How it works
 
-For now you're told when a change can't be confirmed on {child}'s devices, and when a device goes quiet. Tapping an alert opens the screen it's about. Alerts travel through Apple's or Google's push service and say only what's needed.
+For now you're told when a change can't be confirmed on {child}'s devices, and when a device goes quiet. Tapping an alert opens the screen it's about. Alerts travel through your phone's push service, such as Apple's or Google's, and say only what's needed.
 
 ## Watch out for
 

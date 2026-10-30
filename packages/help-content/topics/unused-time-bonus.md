@@ -33,4 +33,4 @@ Saving everything for one long weekend session. Keep the single-session limit on
 
 ## The research
 
-Epstein and colleagues, 2008, Archives of Pediatrics and Adolescent Medicine. 70 families with children aged 4 to 7. The screen budget was cut by 10% a month, and children were paid for each unused half hour. Screen use fell by about 17.5 hours a week at 6 months, and the reduction held at 24 months. Children were aged 4 to 7, so treat the size of the effect as a guide for older children.
+Epstein and colleagues, 2008, Archives of Pediatrics and Adolescent Medicine. 70 families with children aged 4 to 7. The screen budget was cut by 10% a month, and children were paid for each unused half hour. Screen use fell by about 17.5 hours a week at 6 months, against about 5.2 hours in the comparison group, and the reduction held at 24 months. The children were young, so treat the size of the effect as a guide for older children.

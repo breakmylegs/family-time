@@ -13,7 +13,7 @@ The bar at the top is {child}'s day: school, free time, routine pauses like tea,
 
 ## How it works
 
-The times come from your family's schedule. During a routine pause, apps are paused, the same as Pause everything. In wind-down, apps are blocked unless you've marked them as fine for wind-down. At bedtime they're blocked until morning.
+The times come from your family's schedule. During a routine pause, apps are paused, the same as Pause everything. In wind-down, apps are blocked unless you've marked them as fine for wind-down. At bedtime they're blocked until morning. An Allow you make can run into wind-down, and through bedtime only if you choose Until tomorrow.
 
 When you pause everything, the paused stretch shows on the bar.
 

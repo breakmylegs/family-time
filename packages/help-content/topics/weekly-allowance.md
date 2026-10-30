@@ -17,7 +17,7 @@ A set amount of screen time for the week, agreed with {child}, who plans how to 
 
 1. Agree the amount together at the family review.
 2. {child} plans the time on the kiosk, in 30-minute blocks.
-3. It resets every Sunday at 18:00.
+3. It resets once a week, at the time your family chose.
 
 ## Why it helps
 

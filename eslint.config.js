@@ -16,4 +16,8 @@ export default tseslint.config(
     files: ['apps/parent/src/**'],
     languageOptions: { globals: { ...globals.browser } },
   },
+  {
+    files: ['apps/parent/public/sw.js'],
+    languageOptions: { globals: { ...globals.serviceworker } },
+  },
 );

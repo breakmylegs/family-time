@@ -1,9 +1,9 @@
 // Today, in plain sentences, newest first: what parents did, what ended, and the household's
 // routine pauses. Where a session ended, parents can tap how it went (calm, grumble, meltdown).
-import { loadRules, overrides, people, serviceGroups, services, sessionEndings, type Db } from '@family-time/db';
+import { grants, loadRules, overrides, people, serviceGroups, services, sessionEndings, type Db } from '@family-time/db';
 import { blocksOn, civilDate, clockLabel, zonedTime } from '@family-time/domain';
 import type { EndingRequest, HistoryEntry } from '@family-time/schemas';
-import { and, eq, gte, inArray, isNull, lte, or } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNull, lte, ne, or } from 'drizzle-orm';
 import { audit } from '../audit.js';
 
 export async function todayHistory(db: Db, householdId: string, childId: string, now: Date): Promise<HistoryEntry[]> {
@@ -68,6 +68,18 @@ export async function todayHistory(db: Db, householdId: string, childId: string,
     }
   }
 
+  // Planned sessions (and, from Phase 4, approved requests). A refunded one never happened.
+  const sessions = await db
+    .select({ id: grants.id, targetKind: grants.targetKind, targetId: grants.targetId, startsAt: grants.startsAt, endsAt: grants.endsAt, source: grants.source })
+    .from(grants)
+    .where(and(eq(grants.childId, childId), ne(grants.status, 'refunded'), gte(grants.endsAt, midnight), lte(grants.startsAt, now)));
+  for (const g of sessions) {
+    const target = what(g.targetKind, g.targetId);
+    const minutes = Math.round((g.endsAt.getTime() - g.startsAt.getTime()) / 60_000);
+    add(g.startsAt, g.source === 'planned' ? `${target} unlocked. ${childName} planned ${minutes} minutes.` : `${target} unlocked. A parent said yes to ${childName}'s request.`);
+    add(g.endsAt, `${childName}'s ${target} time ended.`, `end:${g.id}`);
+  }
+
   for (const b of blocksOn(schedules, childId, today, timeZone)) {
     if (b.type !== 'pause') continue;
     const label = b.label ?? 'Routine';
@@ -79,13 +91,21 @@ export async function todayHistory(db: Db, householdId: string, childId: string,
   return out.map((e, i) => ({ e, i })).sort((a, b) => b.e.at.localeCompare(a.e.at) || b.i - a.i).map((x) => x.e);
 }
 
-/** The conflict tap. One per ending: tapping again changes the answer. Only for overrides of this child. */
+/** When the thing a ref names ended: an override's start or end, or a session's end. Only this child's. */
+async function endingTime(db: Db, childId: string, ref: string): Promise<{ at: Date | null; targetType: string; id: string } | undefined> {
+  const [edge, id] = ref.split(':') as ['start' | 'end', string];
+  const o = (await db.select({ startsAt: overrides.startsAt, endsAt: overrides.endsAt }).from(overrides).where(and(eq(overrides.id, id), eq(overrides.childId, childId))))[0];
+  if (o) return { at: edge === 'start' ? o.startsAt : o.endsAt, targetType: 'override', id };
+  if (edge !== 'end') return undefined;
+  const g = (await db.select({ endsAt: grants.endsAt }).from(grants).where(and(eq(grants.id, id), eq(grants.childId, childId))))[0];
+  return g ? { at: g.endsAt, targetType: 'grant', id } : undefined;
+}
+
+/** The conflict tap. One per ending: tapping again changes the answer. */
 export async function recordEnding(db: Db, input: { householdId: string; childId: string; byPersonId: string; request: EndingRequest }, now: Date): Promise<boolean> {
-  const [edge, overrideId] = input.request.ref.split(':') as ['start' | 'end', string];
-  const o = (await db.select().from(overrides).where(and(eq(overrides.id, overrideId), eq(overrides.childId, input.childId))))[0];
-  if (!o) return false;
-  const endedAt = edge === 'start' ? o.startsAt : o.endsAt;
-  if (!endedAt || endedAt.getTime() > now.getTime()) return false;
+  const ending = await endingTime(db, input.childId, input.request.ref);
+  const endedAt = ending?.at;
+  if (!ending || !endedAt || endedAt.getTime() > now.getTime()) return false;
   await db
     .insert(sessionEndings)
     .values({ childId: input.childId, ref: input.request.ref, endedAt, mood: input.request.mood, byPersonId: input.byPersonId, createdAt: now })
@@ -94,8 +114,8 @@ export async function recordEnding(db: Db, input: { householdId: string; childId
     householdId: input.householdId,
     actor: { personId: input.byPersonId },
     action: 'control.ending',
-    targetType: 'override',
-    targetId: o.id,
+    targetType: ending.targetType,
+    targetId: ending.id,
     after: { ref: input.request.ref, mood: input.request.mood },
   });
   return true;

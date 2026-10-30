@@ -1,4 +1,4 @@
-import { auditEvents, helpFeedback, overrides, policies, pushSubscriptions, schedules, serviceGroupMembers, serviceGroups, services, sessionEndings, type Db } from '@family-time/db';
+import { auditEvents, grants, helpFeedback, overrides, policies, pushSubscriptions, schedules, serviceGroupMembers, serviceGroups, services, sessionEndings, type Db } from '@family-time/db';
 import { ChildStatus, HistoryEntry } from '@family-time/schemas';
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -63,6 +63,11 @@ describe('Control screen data', () => {
     ]);
     expect(status.durations.pause).toHaveLength(3);
     expect(status.pause).toBeNull();
+    // Blocked through free time, wind-down and bed: no end worth showing.
+    expect(status.services.map((x) => [x.name, x.untilLabel])).toEqual([
+      ['Roblox', null],
+      ['YouTube', null],
+    ]);
     expect(status.services.every((x) => x.override === null && x.inPlannedTime === false)).toBe(true);
   });
 
@@ -147,6 +152,22 @@ describe('Today history and the conflict tap', () => {
     expect(await s.db.select({ mood: sessionEndings.mood }).from(sessionEndings)).toEqual([{ mood: 'calm' }]);
     const again = HistoryEntry.array().parse((await s.app.inject({ url: `/api/children/${s.child}/history`, headers })).json());
     expect(again[0]!.ending!.mood).toBe('calm');
+  });
+
+  it("includes the child's planned session, and offers the tap when it ends", async () => {
+    const s = await setup();
+    const headers = await signedIn(s.db, s.owner);
+    const [g] = await s.db
+      .insert(grants)
+      .values({ householdId: s.hh, childId: s.child, targetKind: 'service', targetId: s.youtube.id, startsAt: new Date('2026-10-26T18:30:00Z'), endsAt: new Date('2026-10-26T19:00:00Z'), source: 'planned', status: 'active' })
+      .returning();
+    const now = HistoryEntry.array().parse((await s.app.inject({ url: `/api/children/${s.child}/history`, headers })).json());
+    expect(now[0]).toMatchObject({ time: '18:30', text: 'YouTube unlocked. Ollie planned 30 minutes.' });
+    expect(now[0]!.ending).toBeUndefined();
+    s.advance(min(30));
+    const later = HistoryEntry.array().parse((await s.app.inject({ url: `/api/children/${s.child}/history`, headers })).json());
+    expect(later[0]).toMatchObject({ time: '19:00', text: "Ollie's YouTube time ended.", ending: { ref: `end:${g!.id}`, mood: null } });
+    expect((await s.app.inject({ method: 'POST', url: `/api/children/${s.child}/endings`, headers, payload: { ref: `end:${g!.id}`, mood: 'calm' } })).statusCode).toBe(201);
   });
 
   it('refuses a tap on something that has not ended or is not this child', async () => {

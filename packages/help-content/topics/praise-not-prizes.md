@@ -33,4 +33,4 @@ A surprise treat now and then is fine. Putting a price on LEGO or the trampoline
 
 ## The research
 
-Deci, Koestner and Ryan, 1999, Psychological Bulletin. Rewards that children expected for doing something they found interesting reduced how often they chose to do it later. The effect was stronger in children than adults. Unexpected rewards made no clear difference.
+Deci, Koestner and Ryan, 1999, Psychological Bulletin. Tangible rewards that children expected for doing something they found interesting reduced how often they chose to do it later. Praise and positive feedback did not. The effect was stronger in children than adults. Unexpected rewards made no clear difference.

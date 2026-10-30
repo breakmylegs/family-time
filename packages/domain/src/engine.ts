@@ -75,6 +75,12 @@ export interface Decision {
   reason: string;
   /** When this decision next changes, or null when nothing scheduled changes it. */
   until: Date | null;
+  /**
+   * When it next works differently for the child, which is what the parent's "until 19:30" says:
+   * allowed until it is not, paused until the pause ends, blocked until it is allowed. "Blocked"
+   * through free time, wind-down and bed has none, though `until` marks each change of rule.
+   */
+  stateUntil: Date | null;
   /** The override, grant or block behind it, for the app to act on. */
   sourceId?: string;
 }
@@ -225,10 +231,13 @@ export function decide(rules: Rules, serviceId: string, at: Date): Decision {
   if (!service) throw new Error(`Unknown service ${serviceId}`);
   const now = decideRaw(rules, service, at);
   let until: Date | null = null;
+  let stateUntil: Date | null = null;
   for (const b of boundaries(rules, at)) {
     const next = decideRaw(rules, service, new Date(b));
-    if (next.state !== now.state || next.layer !== now.layer || next.sourceId !== now.sourceId) {
-      until = new Date(b);
+    if (!until && (next.state !== now.state || next.layer !== now.layer || next.sourceId !== now.sourceId)) until = new Date(b);
+    const differs = now.state === 'blocked' ? next.state === 'allowed' : next.state !== now.state;
+    if (differs) {
+      stateUntil = new Date(b);
       break;
     }
   }
@@ -237,6 +246,7 @@ export function decide(rules: Rules, serviceId: string, at: Date): Decision {
     layer: now.layer,
     reason: now.reason,
     until,
+    stateUntil,
     ...(now.sourceId ? { sourceId: now.sourceId } : {}),
   };
 }

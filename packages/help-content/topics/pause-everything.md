@@ -33,4 +33,4 @@ Using it as a punishment. Studies link using screens as a reward or punishment t
 
 ## The research
 
-Carter and colleagues, 2016, JAMA Pediatrics: using devices at bedtime was linked to poorer sleep. The UK Chief Medical Officers advise screen-free mealtimes. Nagata and colleagues, 2024, Pediatric Research: screens used as a punishment were linked to more use.
+Carter and colleagues, 2016, JAMA Pediatrics: using devices at bedtime was linked to poorer sleep. The UK Chief Medical Officers advise screen-free mealtimes. Nagata and colleagues, 2024, Pediatric Research: screens used as a reward or a punishment were linked to more use.

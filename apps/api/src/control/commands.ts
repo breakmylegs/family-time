@@ -213,6 +213,8 @@ export async function childStatus(db: Db, childId: string, now: Date): Promise<C
   const servicesOut: ServiceStatus[] = serviceRows
     .map((s) => {
       const d = decisions.get(s.id)!;
+      // A parent's own Allow or Block shows the end they chose; otherwise, when it next works differently.
+      const shownUntil = d.layer === 'override' ? d.until : d.stateUntil;
       const wantBlocked = d.state !== 'allowed';
       // In force: every device has confirmed AdGuard holds this state for the service. A custom
       // service counts as blocked when its first domain's rule is in the block written.
@@ -244,6 +246,7 @@ export async function childStatus(db: Db, childId: string, now: Date): Promise<C
         layer: d.layer,
         reason: d.reason,
         until: d.until?.toISOString() ?? null,
+        untilLabel: shownUntil ? clockLabel(shownUntil, now, rules.timeZone) : null,
         inForce,
         usageMinutesToday: minutesBy.get(s.id)?.size ?? 0,
       };
@@ -277,7 +280,7 @@ export async function childStatus(db: Db, childId: string, now: Date): Promise<C
     at: now.toISOString(),
     headline: head,
     day: dayBlocks(rules.schedules, childId, now, rules.timeZone),
-    pause: pauseAll ? { id: pauseAll.id, by: pauseAll.createdByName, until: pauseAll.end?.toISOString() ?? null } : null,
+    pause: pauseAll ? { id: pauseAll.id, by: pauseAll.createdByName, until: pauseAll.end?.toISOString() ?? null, untilLabel: pauseAll.end ? clockLabel(pauseAll.end, now, rules.timeZone) : null } : null,
     services: servicesOut,
     devices: devicesOut,
     durations: {

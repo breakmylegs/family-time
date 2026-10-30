@@ -9,7 +9,7 @@ status: needs-review
 
 ## In short
 
-Everyone signs in with their own passkey, and their role decides what they can change.
+Every adult signs in with their own passkey, and their role decides what they can change.
 
 ## How it works
 

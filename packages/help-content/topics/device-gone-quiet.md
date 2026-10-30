@@ -9,13 +9,13 @@ status: needs-review
 
 ## In short
 
-One of {child}'s devices hasn't used the home Wi-Fi for 30 minutes, outside bedtime.
+One of {child}'s devices has stopped checking in with your home server for 30 minutes, outside bedtime.
 
 ## How it works
 
-Family time only works on your home Wi-Fi, so it notices when a device stops asking it for websites. Often there's a simple reason: the device is switched off, out of the house, or out of battery.
+Every device on your home Wi-Fi asks the home server where websites are, so Family time notices when one goes silent. That usually means it's on mobile data, a VPN or a different internet setting, and then its apps are not being managed.
 
-Otherwise it usually means it's on mobile data, a VPN, or a different internet setting. Then its apps are not being managed.
+It can also be something simple: switched off, out of battery, or out of the house.
 
 ## Watch out for
 
