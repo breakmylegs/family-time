@@ -113,14 +113,33 @@ async function childNamed(db: Db, householdId: string, name: string) {
   return rows[0]!;
 }
 
-export async function addChild(db: Db, name: string): Promise<string> {
+const PRONOUNS = ['he', 'she', 'they'] as const;
+type Pronouns = (typeof PRONOUNS)[number];
+
+/** For help text about the child. Unset reads as they. */
+function pronounsOf(value: string | undefined): Pronouns | undefined {
+  if (value === undefined) return undefined;
+  if (!(PRONOUNS as readonly string[]).includes(value)) throw new CliError('--pronouns is he, she or they.');
+  return value as Pronouns;
+}
+
+export async function setChildPronouns(db: Db, input: { child: string; pronouns: string }): Promise<void> {
+  const hh = await household(db);
+  const child = await childNamed(db, hh.id, input.child);
+  const pronouns = pronounsOf(input.pronouns)!;
+  await db.update(people).set({ pronouns }).where(eq(people.id, child.id));
+  await audit(db, { householdId: hh.id, actor: { label: 'cli' }, action: 'child.updated', targetType: 'person', targetId: child.id, after: { pronouns } });
+}
+
+export async function addChild(db: Db, name: string, pronounsRaw?: string): Promise<string> {
   const hh = await household(db);
   const clean = name.trim();
   if (!clean) throw new CliError('Give the child a name with --name.');
+  const pronouns = pronounsOf(pronounsRaw);
   const existing = await db.select({ id: people.id }).from(people).where(and(eq(people.householdId, hh.id), eq(people.role, 'child'), ilike(people.displayName, clean)));
   if (existing.length) throw new CliError(`There is already a child called ${clean}.`);
-  const [row] = await db.insert(people).values({ householdId: hh.id, displayName: clean, role: 'child' }).returning({ id: people.id });
-  await audit(db, { householdId: hh.id, actor: { label: 'cli' }, action: 'child.added', targetType: 'person', targetId: row!.id, after: { name: clean } });
+  const [row] = await db.insert(people).values({ householdId: hh.id, displayName: clean, role: 'child', ...(pronouns ? { pronouns } : {}) }).returning({ id: people.id });
+  await audit(db, { householdId: hh.id, actor: { label: 'cli' }, action: 'child.added', targetType: 'person', targetId: row!.id, after: { name: clean, pronouns: pronouns ?? null } });
   return row!.id;
 }
 

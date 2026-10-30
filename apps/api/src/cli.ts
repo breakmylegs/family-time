@@ -5,7 +5,7 @@ import type { ChildStatus } from '@family-time/schemas';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import { CliError, ownerInvite, recoveryLink } from './cli/commands.js';
-import { addChild, addDevice, adguardSetup, control, resolveTarget, setupDefaults, status, syncServices } from './cli/control.js';
+import { addChild, addDevice, adguardSetup, control, resolveTarget, setChildPronouns, setupDefaults, status, syncServices } from './cli/control.js';
 
 const USAGE = `Usage: ./scripts/ft.sh <command> [options]
 
@@ -17,7 +17,9 @@ First-time setup
   adguard-setup [--yes]
       Shows what will change in AdGuard. With --yes, sets it up: first-time setup, short caching so
       changes land within a minute, 7 days of query log, and the bypass rules.
-  child-add --name "Ollie"
+  child-add --name "Ollie" [--pronouns he|she|they]
+      Pronouns are for the app's help text about the child. Without them it says they.
+  child-set --child "Ollie" --pronouns he|she|they
   device-add --child "Ollie" --label "Ollie's iPad" --type ipad --id 192.168.1.50 [--id aa:bb:cc:dd:ee:ff]
   setup-defaults --child "Ollie"
       Adds the Video, Games, Social and Chat groups, the starting schedules, and blocks each group
@@ -99,8 +101,12 @@ async function run(db: Db, command: string, args: ReturnType<typeof flags>): Pro
       return 0;
     }
     case 'child-add':
-      await addChild(db, need('name'));
+      await addChild(db, need('name'), values.pronouns);
       console.log(`Added ${values.name}. Next: device-add, then setup-defaults.`);
+      return 0;
+    case 'child-set':
+      await setChildPronouns(db, { child: need('child'), pronouns: need('pronouns') });
+      console.log(`Updated ${values.child}.`);
       return 0;
     case 'device-add': {
       const d = await addDevice(db, { child: need('child'), label: need('label'), type: values.type ?? 'other', ids: lists.id ?? [] });

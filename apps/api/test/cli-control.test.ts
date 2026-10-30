@@ -1,9 +1,9 @@
 import { AdGuard, HAGEZI_BYPASS_LIST, SETTING_BYPASS_RULES } from '@family-time/adguard-client';
 import { FakeAdGuard } from '@family-time/adguard-client/fake';
-import { devices, policies, schedules, serviceGroups, services, settings } from '@family-time/db';
+import { devices, people, policies, schedules, serviceGroups, services, settings } from '@family-time/db';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ownerInvite } from '../src/cli/commands.js';
-import { addChild, addDevice, adguardSetup, control, DEFAULT_SCHEDULES, resolveTarget, setupDefaults, status, syncServices } from '../src/cli/control.js';
+import { addChild, addDevice, adguardSetup, control, DEFAULT_SCHEDULES, resolveTarget, setChildPronouns, setupDefaults, status, syncServices } from '../src/cli/control.js';
 import { seedPerson } from './accounts.js';
 import { harness, type Harness } from './helpers.js';
 
@@ -57,6 +57,19 @@ describe('setting up from the command line', () => {
     const after = await control(db, { child: 'Ollie', type: 'allow', target, duration: '1h' }, FREE);
     expect(after.services.find((x) => x.name === 'Roblox')).toMatchObject({ state: 'allowed', reason: 'Mum allowed it.', until: '2026-10-26T17:00:00.000Z' });
     expect(after.services.find((x) => x.name === 'YouTube')?.state).toBe('blocked');
+  });
+
+  it("sets a child's pronouns for the help text, they when unset", async () => {
+    const { db } = await home();
+    await addChild(db, 'Ollie', 'he');
+    await addChild(db, 'Sam');
+    await expect(addChild(db, 'Ada', 'xe')).rejects.toThrow(/he, she or they/);
+    await setChildPronouns(db, { child: 'Sam', pronouns: 'she' });
+    const rows = await db.select({ name: people.displayName, pronouns: people.pronouns }).from(people);
+    expect(rows.filter((r) => r.name !== 'Mum' && r.name !== 'Owner').sort((a, b) => a.name.localeCompare(b.name))).toEqual([
+      { name: 'Ollie', pronouns: 'he' },
+      { name: 'Sam', pronouns: 'she' },
+    ]);
   });
 
   it('refuses bad device identifiers and unclear targets, in words', async () => {
