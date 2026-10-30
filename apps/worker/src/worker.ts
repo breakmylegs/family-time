@@ -1,6 +1,8 @@
 import type { AdGuard } from '@family-time/adguard-client';
 import { recordHeartbeat, type Db } from '@family-time/db';
+import type { Send, Vapid } from '@family-time/notify';
 import type { PgBoss } from 'pg-boss';
+import { sendDeviceAlerts } from './alerts.js';
 import { reconcile } from './reconcile.js';
 import { readUsage } from './usage.js';
 
@@ -24,6 +26,10 @@ export interface WorkerDeps {
   /** Absent until AdGuard is set up: the control jobs then do nothing and say why. */
   adguard?: AdGuard;
   controlIntervalMs?: number;
+  /** Tells the api's open Control screens to refresh. Postgres NOTIFY in production. */
+  notifyChange?: () => Promise<void>;
+  /** Web Push to parents. Absent until init.sh has made the VAPID key. */
+  push?: { vapid: Vapid; send?: Send };
 }
 
 export interface RunningWorker {
@@ -50,15 +56,36 @@ export async function startWorker(deps: WorkerDeps): Promise<RunningWorker> {
     if (!(await boss.getQueue(queue))) await boss.createQueue(queue, { policy: 'singleton' });
   }
   const adguard = deps.adguard;
+  // Neither may fail a job: the state is recorded, and the next run tries again.
+  const changed = async () => {
+    try {
+      await deps.notifyChange?.();
+    } catch (err) {
+      log('warn', 'notify_failed', { error: (err as Error).message });
+    }
+  };
+  const alert = async (kind: 'not-confirmed' | 'quiet', deviceIds: string[]) => {
+    if (!deviceIds.length) return;
+    if (!deps.push) return log('warn', 'alert_skipped', { kind, reason: 'No VAPID key. Run ./scripts/init.sh' });
+    try {
+      await sendDeviceAlerts({ db, log, ...deps.push }, kind, deviceIds);
+    } catch (err) {
+      log('error', 'alert_failed', { kind, error: (err as Error).message });
+    }
+  };
   await boss.work(RECONCILE_QUEUE, { pollingIntervalSeconds: deps.pollingIntervalSeconds ?? 2 }, async () => {
     if (!adguard) return log('debug', 'reconcile_skipped', { reason: 'AdGuard is not set up. Run ./scripts/ft.sh adguard-setup' });
     const result = await reconcile({ db, adguard, now, log });
     log(result.failed ? 'warn' : 'debug', 'reconciled', { ...result });
+    await changed();
+    await alert('not-confirmed', result.notConfirmed ?? []);
   });
   await boss.work(USAGE_QUEUE, { pollingIntervalSeconds: deps.pollingIntervalSeconds ?? 2 }, async () => {
     if (!adguard) return;
     const result = await readUsage({ db, adguard, now, log });
     log('debug', 'usage_read', { ...result });
+    await changed();
+    await alert('quiet', result.quiet);
   });
 
   const send = async (queue: string, key: string) => {

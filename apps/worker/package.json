@@ -21,7 +21,8 @@
     "pg": "8.23.1",
     "pg-boss": "12.38.0",
     "@family-time/adguard-client": "workspace:*",
-    "@family-time/domain": "workspace:*"
+    "@family-time/domain": "workspace:*",
+    "@family-time/notify": "workspace:*"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.11",

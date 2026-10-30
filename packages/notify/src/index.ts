@@ -7,6 +7,9 @@ import { readFileSync } from 'node:fs';
 import { and, eq, inArray } from 'drizzle-orm';
 import webpush from 'web-push';
 
+/** The Postgres channel the worker NOTIFYs after each run and the api LISTENs on. The payload is a household id. */
+export const CHANGE_CHANNEL = 'family_time_change';
+
 export interface Vapid {
   /** base64url of the uncompressed P-256 public key: what the browser subscribes with. */
   publicKey: string;

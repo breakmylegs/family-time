@@ -6,9 +6,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { PgBoss } from 'pg-boss';
-import { vapidFromFile } from '@family-time/notify';
+import { CHANGE_CHANNEL, vapidFromFile } from '@family-time/notify';
 import { readBuildInfo } from './build.js';
-import { Changes, CHANGE_CHANNEL } from './events.js';
+import { Changes } from './events.js';
 import { buildServer } from './server.js';
 
 const pool = new pg.Pool({ ...connectionConfig(), max: 10 });

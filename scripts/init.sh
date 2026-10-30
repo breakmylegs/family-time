@@ -3,7 +3,7 @@
 # owned by root. Safe to run again: it never replaces a secret that already exists, because the
 # Postgres password, for one, is fixed into the database the first time Postgres starts.
 #
-# Later phases add more here (VAPID keys, ledger keys, the owner invite).
+# Later phases add more here (ledger keys, the owner invite).
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -38,6 +38,17 @@ make_secret postgres_password 32
 make_secret session_key 48
 make_secret master_key 32
 make_secret adguard_password 24
+
+# The Web Push (VAPID) key: a P-256 private key in PEM. The api gives browsers its public half.
+if [ -s secrets/vapid_private.pem ]; then
+  echo "  kept     secrets/vapid_private.pem"
+else
+  tmp=$(mktemp "secrets/.vapid.XXXXXX")
+  openssl ecparam -name prime256v1 -genkey -noout -out "$tmp"
+  chmod 600 "$tmp"
+  mv "$tmp" secrets/vapid_private.pem
+  echo "  created  secrets/vapid_private.pem"
+fi
 
 # The server's LAN address, where AdGuard publishes DNS port 53. Found from the default route, and
 # never 0.0.0.0, which would clash with the server's own resolver. Kept if already set; edit

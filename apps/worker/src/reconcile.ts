@@ -44,6 +44,8 @@ export interface ReconcileResult {
   confirmed: number;
   failed: number;
   rulesError?: string;
+  /** Devices that have just reached "Not confirmed", so parents get one alert, not one a minute. */
+  notConfirmed?: string[];
 }
 
 /** What AdGuard should hold for every managed device, from the engine. Pure apart from reads. */
@@ -144,24 +146,33 @@ export async function reconcile(deps: ReconcileDeps): Promise<ReconcileResult> {
   }
 
   let confirmed = 0;
+  const notConfirmed: string[] = [];
   for (const p of plans) {
     let problem = failures.get(p.deviceId);
     if (!problem && !matches(readBack.find((c) => c.name === p.name), wanted.get(p.deviceId)!)) problem = 'AdGuard does not hold what was written';
     if (!problem && p.rules.length && !rulesHeld) problem = rulesError ?? 'AdGuard does not hold our custom rules';
-    await record(db, p, problem, now);
+    const failuresNow = await record(db, p, problem, now);
     if (problem) log('warn', 'device_not_confirmed', { device: p.name, problem });
     else confirmed++;
+    if (failuresNow === NOT_CONFIRMED_AFTER) notConfirmed.push(p.deviceId);
   }
-  return { devices: plans.length, confirmed, failed: plans.length - confirmed, ...(rulesError ? { rulesError } : {}) };
+  return {
+    devices: plans.length,
+    confirmed,
+    failed: plans.length - confirmed,
+    ...(rulesError ? { rulesError } : {}),
+    ...(notConfirmed.length ? { notConfirmed } : {}),
+  };
 }
 
-async function record(db: Db, p: DevicePlan, problem: string | undefined, now: Date) {
+/** Records the outcome. Returns the failures in a row, so the caller can alert on the third. */
+async function record(db: Db, p: DevicePlan, problem: string | undefined, now: Date): Promise<number> {
   const applied = { blocked: p.blocked, rules: p.rules };
   const prior = (await db.select({ failures: adguardSync.failures }).from(adguardSync).where(eq(adguardSync.deviceId, p.deviceId)))[0];
   if (!problem) {
     const values = { state: 'confirmed' as const, applied, appliedAt: now, confirmedAt: now, failures: 0, lastError: null, updatedAt: now };
     await db.insert(adguardSync).values({ deviceId: p.deviceId, ...values }).onConflictDoUpdate({ target: adguardSync.deviceId, set: values });
-    return;
+    return 0;
   }
   const failuresNow = (prior?.failures ?? 0) + 1;
   const values = {
@@ -173,4 +184,5 @@ async function record(db: Db, p: DevicePlan, problem: string | undefined, now: D
     updatedAt: now,
   };
   await db.insert(adguardSync).values({ deviceId: p.deviceId, ...values }).onConflictDoUpdate({ target: adguardSync.deviceId, set: values });
+  return failuresNow;
 }

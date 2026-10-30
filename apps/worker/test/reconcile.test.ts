@@ -99,6 +99,8 @@ describe('reconcile', () => {
     for (let i = 1; i <= NOT_CONFIRMED_AFTER; i++) {
       const r = await run(new Date(FREE_TIME.getTime() + i * 60_000));
       expect(r.failed).toBe(1);
+      // Reported once, on the run that reaches Not confirmed, so parents get one alert.
+      expect(r.notConfirmed).toEqual(i === NOT_CONFIRMED_AFTER ? [s.ipad.id] : undefined);
       expect(await sync(s.ipad.id)).toMatchObject({ failures: i, state: i < NOT_CONFIRMED_AFTER ? 'pending' : 'not-confirmed', lastError: 'AdGuard does not hold what was written' });
     }
     fake.faults.dropUpdates = false;

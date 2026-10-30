@@ -31,11 +31,11 @@ export function serviceFor(name: string, domains: Map<string, string>): string |
   return undefined;
 }
 
-export async function readUsage(deps: UsageDeps): Promise<{ read: number; minutes: number }> {
+export async function readUsage(deps: UsageDeps): Promise<{ read: number; minutes: number; quiet: string[] }> {
   const { db, adguard, log } = deps;
   const now = deps.now();
   const deviceRows = await db.select({ id: devices.id, name: devices.adguardName, ids: devices.identifiers }).from(devices);
-  if (!deviceRows.length) return { read: 0, minutes: 0 };
+  if (!deviceRows.length) return { read: 0, minutes: 0, quiet: [] };
   const serviceRows = await db.select({ id: services.id, domains: services.domains }).from(services);
   const domainToService = new Map<string, string>();
   for (const s of serviceRows) for (const d of s.domains) domainToService.set(d.toLowerCase(), s.id);
@@ -94,8 +94,8 @@ export async function readUsage(deps: UsageDeps): Promise<{ read: number; minute
     .values({ id: 1, readUntil: newest })
     .onConflictDoUpdate({ target: querylogCursor.id, set: { readUntil: newest } });
 
-  await markQuiet(db, now, log);
-  return { read: fresh.length, minutes: counts.size };
+  const quiet = await markQuiet(db, now, log);
+  return { read: fresh.length, minutes: counts.size, quiet };
 }
 
 /** Marks a child's device quiet after 30 silent minutes, unless it is the child's bedtime. */

@@ -22,9 +22,10 @@ x-app: &app
     ADGUARD_URL: http://adguard:3000
     ADGUARD_USER: familytime
     ADGUARD_PASSWORD_FILE: /run/app-secrets/adguard_password
+    VAPID_PRIVATE_KEY_FILE: /run/app-secrets/vapid_private.pem
     LOG_LEVEL: info
     TZ: Europe/London
-  secrets: [postgres_password, adguard_password]
+  secrets: [postgres_password, adguard_password, vapid_private.pem]
   logging: &logging
     driver: json-file
     options:
@@ -131,6 +132,8 @@ secrets:
     file: ../secrets/postgres_password
   adguard_password:
     file: ../secrets/adguard_password
+  vapid_private.pem:
+    file: ../secrets/vapid_private.pem
 
 volumes:
   pgdata:

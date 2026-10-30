@@ -35,6 +35,7 @@ make_template() {
   mkdir -p "$t/host/secrets" "$t/host/deploy/.state"
   echo pw > "$t/host/secrets/postgres_password"
   echo pw > "$t/host/secrets/adguard_password"
+  echo pem > "$t/host/secrets/vapid_private.pem"
   echo LAN_IP=192.0.2.10 > "$t/host/deploy/.state/network.env"
 }
 
@@ -271,6 +272,16 @@ case_22() {
   end_case
 }
 
+case_23() {
+  new_case "an install from before alerts is told to run init.sh again"
+  rm -f "$H/secrets/vapid_private.pem"
+  run_update
+  expect_rc 10
+  expect_out "Run ./scripts/init.sh again"
+  expect_no_call "build"
+  end_case
+}
+
 case_15() {
   new_case "a missing proxy network is refused, with the command to create it"
   run_update SHIM_FAIL=nonet
@@ -351,7 +362,7 @@ case_21() {
   end_case
 }
 
-ALL_CASES=$(seq 1 22)
+ALL_CASES=$(seq 1 23)
 # FT_CASES="6 7 8" runs only those cases. On the Windows laptop a full run can exhaust the process
 # table, so run it there in batches; on Linux run all of them.
 SELECTED=${FT_CASES:-$ALL_CASES}

@@ -5,9 +5,6 @@
 import { EventEmitter } from 'node:events';
 import type { FastifyInstance } from 'fastify';
 
-/** The Postgres channel the worker notifies on. The payload is a household id. */
-export const CHANGE_CHANNEL = 'family_time_change';
-
 export class Changes {
   private readonly emitter = new EventEmitter();
 

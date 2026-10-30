@@ -1,5 +1,6 @@
 import { AdGuard } from '@family-time/adguard-client';
 import { connectionConfig, readSecret, schema, type Db } from '@family-time/db';
+import { CHANGE_CHANNEL, vapidFromFile } from '@family-time/notify';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import { PgBoss } from 'pg-boss';
@@ -18,7 +19,22 @@ const adguard = adguardPassword
   ? new AdGuard({ baseUrl: process.env.ADGUARD_URL ?? 'http://adguard:3000', username: process.env.ADGUARD_USER ?? 'familytime', password: adguardPassword })
   : undefined;
 
-const worker = await startWorker({ boss, db, commit: process.env.GIT_COMMIT || 'dev', now: () => new Date(), log, ...(adguard ? { adguard } : {}) });
+// After each run, the api's open Control screens hear about it (the api LISTENs on this channel).
+const notifyChange = async () => {
+  await pool.query('select pg_notify($1, id::text) from households', [CHANGE_CHANNEL]);
+};
+const vapid = vapidFromFile(process.env.VAPID_PRIVATE_KEY_FILE);
+
+const worker = await startWorker({
+  boss,
+  db,
+  commit: process.env.GIT_COMMIT || 'dev',
+  now: () => new Date(),
+  log,
+  notifyChange,
+  ...(adguard ? { adguard } : {}),
+  ...(vapid ? { push: { vapid } } : {}),
+});
 
 const shutdown = async (signal: string) => {
   log('info', 'shutdown', { signal });
