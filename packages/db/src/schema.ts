@@ -345,6 +345,8 @@ export const overrides = pgTable(
     createdAt: createdAt(),
     /** Set when a parent taps Normal or Resume before the end. */
     endedBy: uuid('ended_by').references(() => people.id),
+    /** The end chosen when it was set, kept when a parent ends it early, so Undo can put it back. */
+    plannedEndsAt: timestamp('planned_ends_at', { withTimezone: true }),
   },
   (t) => [
     check('overrides_type', sql`${t.type} in ('allow', 'block', 'pause')`),

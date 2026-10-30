@@ -6,7 +6,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { PgBoss } from 'pg-boss';
+import { vapidFromFile } from '@family-time/notify';
 import { readBuildInfo } from './build.js';
+import { Changes, CHANGE_CHANNEL } from './events.js';
 import { buildServer } from './server.js';
 
 const pool = new pg.Pool({ ...connectionConfig(), max: 10 });
@@ -29,8 +31,38 @@ const adguard = adguardPassword
   ? new AdGuard({ baseUrl: process.env.ADGUARD_URL ?? 'http://adguard:3000', username: process.env.ADGUARD_USER ?? 'familytime', password: adguardPassword })
   : undefined;
 
+// The worker NOTIFYs after each reconcile and usage run, so "Working on his iPad now" appears on
+// open Control screens without a refresh. One client holds the LISTEN; it reconnects if dropped.
+const changes = new Changes();
+let listener: pg.Client | undefined;
+let stopping = false;
+const listen = async () => {
+  if (stopping) return;
+  const client = new pg.Client(connectionConfig());
+  client.on('notification', (msg) => {
+    if (msg.channel === CHANGE_CHANNEL && msg.payload) changes.emit(msg.payload);
+  });
+  client.on('error', () => {
+    listener = undefined;
+    void client.end().catch(() => undefined);
+    setTimeout(() => void listen(), 5_000);
+  });
+  try {
+    await client.connect();
+    await client.query(`LISTEN ${CHANGE_CHANNEL}`);
+    listener = client;
+  } catch {
+    setTimeout(() => void listen(), 5_000);
+  }
+};
+await listen();
+
+const vapid = vapidFromFile(process.env.VAPID_PRIVATE_KEY_FILE);
+
 const app = await buildServer({
   db,
+  changes,
+  ...(vapid ? { vapidPublicKey: vapid.publicKey } : {}),
   build,
   logLevel: process.env.LOG_LEVEL ?? 'info',
   trustedProxyHops: Number(process.env.TRUSTED_PROXY_HOPS ?? 1),
@@ -41,7 +73,9 @@ const app = await buildServer({
 
 const shutdown = async (signal: string) => {
   app.log.info({ event: 'shutdown', signal });
+  stopping = true;
   await app.close();
+  await listener?.end().catch(() => undefined);
   await boss.stop({ graceful: true, timeout: 5_000 });
   await pool.end();
   process.exit(0);

@@ -2,9 +2,9 @@
 // apply a rule differently. They write our own tables only. AdGuard is written by the reconciler,
 // which `notifyChange` wakes straight away (ADR 0010).
 import { adguardSync, devices, loadRules, overrides, people, serviceGroups, services, usageMinutes, type Db } from '@family-time/db';
-import { civilDate, decideAll, overrideWindow, zonedTime } from '@family-time/domain';
+import { civilDate, clockLabel, dayBlocks, decideAll, durationOptions, headline, overrideWindow, zonedTime } from '@family-time/domain';
 import type { ChildStatus, ControlTarget, DeviceStatus, OverrideRequest, ServiceStatus } from '@family-time/schemas';
-import { and, eq, gt, gte, inArray, isNull, or } from 'drizzle-orm';
+import { and, eq, gt, gte, inArray, isNull, or, sql } from 'drizzle-orm';
 import { audit } from '../audit.js';
 
 export class ControlError extends Error {
@@ -97,7 +97,7 @@ export async function endOverrides(
   }
   const rows = await db
     .update(overrides)
-    .set({ endsAt: now, endedBy: input.byPersonId })
+    .set({ endsAt: now, endedBy: input.byPersonId, plannedEndsAt: sql`${overrides.endsAt}` })
     .where(and(...conditions))
     .returning({ id: overrides.id });
   if (rows.length) {
@@ -108,6 +108,61 @@ export async function endOverrides(
       targetType: 'child',
       targetId: input.childId,
       after: { ended: rows.map((r) => r.id), target: input.target ?? null },
+      ...(input.ip ? { ip: input.ip } : {}),
+    });
+  }
+  return rows.length;
+}
+
+/** How long after Normal its Undo still works. The toast shows for 10 seconds; this allows for a slow network. */
+const UNDO_MS = 60_000;
+
+/** Undo of an Allow, Block or Pause just made: ends that one override now. False when it is not live. */
+export async function endOverride(db: Db, input: { householdId: string; childId: string; byPersonId: string; overrideId: string; ip?: string }, now: Date) {
+  if (!/^[0-9a-f-]{36}$/i.test(input.overrideId)) return undefined;
+  const rows = await db
+    .update(overrides)
+    .set({ endsAt: now, endedBy: input.byPersonId, plannedEndsAt: sql`${overrides.endsAt}` })
+    .where(and(eq(overrides.id, input.overrideId), eq(overrides.childId, input.childId), or(isNull(overrides.endsAt), gt(overrides.endsAt, now))))
+    .returning({ id: overrides.id, type: overrides.type });
+  const row = rows[0];
+  if (!row) return undefined;
+  await audit(db, {
+    householdId: input.householdId,
+    actor: { personId: input.byPersonId },
+    action: 'control.undo',
+    targetType: 'override',
+    targetId: row.id,
+    after: { childId: input.childId, endsAt: now.toISOString() },
+    ...(input.ip ? { ip: input.ip } : {}),
+  });
+  return row;
+}
+
+/** Undo of Normal: puts back the Allows and Blocks on this target that this parent ended a moment ago. */
+export async function reinstateOverrides(db: Db, input: { householdId: string; childId: string; byPersonId: string; target: ControlTarget; ip?: string }, now: Date): Promise<number> {
+  const conditions = [
+    eq(overrides.childId, input.childId),
+    inArray(overrides.type, ['allow', 'block']),
+    eq(overrides.endedBy, input.byPersonId),
+    gte(overrides.endsAt, new Date(now.getTime() - UNDO_MS)),
+    gt(overrides.plannedEndsAt, now),
+    eq(overrides.targetKind, input.target.kind),
+  ];
+  if (input.target.kind !== 'everything') conditions.push(eq(overrides.targetId, input.target.id));
+  const rows = await db
+    .update(overrides)
+    .set({ endsAt: sql`${overrides.plannedEndsAt}`, endedBy: null, plannedEndsAt: null })
+    .where(and(...conditions))
+    .returning({ id: overrides.id });
+  if (rows.length) {
+    await audit(db, {
+      householdId: input.householdId,
+      actor: { personId: input.byPersonId },
+      action: 'control.undo',
+      targetType: 'child',
+      targetId: input.childId,
+      after: { reinstated: rows.map((r) => r.id), target: input.target },
       ...(input.ip ? { ip: input.ip } : {}),
     });
   }
@@ -170,10 +225,21 @@ export async function childStatus(db: Db, childId: string, now: Date): Promise<C
           const blocked = s.source === 'adguard' ? applied.blocked.includes(s.adguardId!) : Boolean(firstRule && applied.rules.some((r) => r.startsWith(firstRule)));
           return blocked === wantBlocked;
         });
+      const ov = rules.overrides.find((o) => o.id === d.sourceId && (o.type === 'allow' || o.type === 'block'));
+      const svc = rules.services.find((x) => x.id === s.id)!;
+      const inPlannedTime = rules.grants.some(
+        (g) =>
+          (g.status === 'scheduled' || g.status === 'active') &&
+          (g.target.kind === 'service' ? g.target.id === s.id : svc.groupIds.includes(g.target.id)) &&
+          g.start.getTime() <= now.getTime() &&
+          now.getTime() < g.end.getTime(),
+      );
       return {
         id: s.id,
         name: s.name,
         icon: s.icon,
+        override: ov ? { id: ov.id, type: ov.type as 'allow' | 'block' } : null,
+        inPlannedTime,
         state: d.state,
         layer: d.layer,
         reason: d.reason,
@@ -194,5 +260,30 @@ export async function childStatus(db: Db, childId: string, now: Date): Promise<C
     quietSince: d.quietSince?.toISOString() ?? null,
   }));
 
-  return { child: { id: childId, name: rules.childName }, at: now.toISOString(), services: servicesOut, devices: devicesOut };
+  // Pause everything, as a parent set it (a routine pause like tea is in the headline instead).
+  const t = now.getTime();
+  const live = (o: (typeof rules.overrides)[number]) => o.start.getTime() <= t && (o.end === null || t < o.end.getTime());
+  const pauseAll = rules.overrides.filter((o) => o.type === 'pause' && o.target.kind === 'everything' && live(o)).sort((a, b) => b.start.getTime() - a.start.getTime())[0];
+  const head = pauseAll
+    ? {
+        lead: 'Everything is paused',
+        rest: `${pauseAll.end ? `until ${clockLabel(pauseAll.end, now, rules.timeZone)}` : 'until you resume'}. ${pauseAll.createdByName} started it.`,
+      }
+    : headline(rules.schedules, childId, now, rules.timeZone);
+
+  const pronouns = (await db.select({ pronouns: people.pronouns }).from(people).where(eq(people.id, childId)))[0]?.pronouns ?? 'they';
+  return {
+    child: { id: childId, name: rules.childName, pronouns },
+    at: now.toISOString(),
+    headline: head,
+    day: dayBlocks(rules.schedules, childId, now, rules.timeZone),
+    pause: pauseAll ? { id: pauseAll.id, by: pauseAll.createdByName, until: pauseAll.end?.toISOString() ?? null } : null,
+    services: servicesOut,
+    devices: devicesOut,
+    durations: {
+      allow: durationOptions('allow', rules.schedules, childId, now, rules.timeZone),
+      block: durationOptions('block', rules.schedules, childId, now, rules.timeZone),
+      pause: durationOptions('pause', rules.schedules, childId, now, rules.timeZone),
+    },
+  };
 }

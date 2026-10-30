@@ -21,6 +21,7 @@ COPY apps/parent/package.json apps/parent/
 COPY packages/adguard-client/package.json packages/adguard-client/
 COPY packages/db/package.json packages/db/
 COPY packages/domain/package.json packages/domain/
+COPY packages/notify/package.json packages/notify/
 COPY packages/schemas/package.json packages/schemas/
 COPY packages/tokens/package.json packages/tokens/
 
@@ -58,6 +59,7 @@ COPY --from=build /app/packages/schemas/dist packages/schemas/dist
 COPY --from=build /app/packages/domain/dist packages/domain/dist
 COPY --from=build /app/packages/adguard-client/dist packages/adguard-client/dist
 COPY --from=build /app/packages/db/dist packages/db/dist
+COPY --from=build /app/packages/notify/dist packages/notify/dist
 COPY --from=build /app/packages/db/migrations packages/db/migrations
 COPY --from=build /app/apps/api/dist apps/api/dist
 COPY --from=build /app/apps/worker/dist apps/worker/dist

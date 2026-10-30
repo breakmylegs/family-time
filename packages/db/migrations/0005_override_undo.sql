@@ -1,0 +1,1 @@
+ALTER TABLE "overrides" ADD COLUMN "planned_ends_at" timestamp with time zone;

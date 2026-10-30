@@ -31,6 +31,9 @@ export async function harness(
     build?: Partial<BuildInfo>;
     logLevel?: string;
     now?: Date;
+    /** A clock the test can move. Wins over `now`. */
+    clock?: () => Date;
+    vapidPublicKey?: string;
     notifyChange?: () => Promise<void>;
     readQuerylog?: (limit: number) => Promise<QueryLogEntry[]>;
   } = {},
@@ -43,7 +46,8 @@ export async function harness(
   const app = await buildServer({
     db: handle.db,
     build,
-    now: () => at,
+    now: options.clock ?? (() => at),
+    ...(options.vapidPublicKey ? { vapidPublicKey: options.vapidPublicKey } : {}),
     logStream: logs,
     logLevel: options.logLevel ?? 'debug',
     ...(options.notifyChange ? { notifyChange: options.notifyChange } : {}),

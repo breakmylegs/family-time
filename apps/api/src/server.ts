@@ -8,8 +8,10 @@ import type { RateLimiter } from './auth/ratelimit.js';
 import { readiness } from './health.js';
 import { HEALTH_PATHS, loggerOptions, logPath } from './logging.js';
 import { authRoutes } from './routes/auth.js';
+import { Changes, eventRoutes } from './events.js';
 import { controlRoutes, type QueryLogEntry } from './routes/control.js';
 import { peopleRoutes } from './routes/people.js';
+import { pushRoutes } from './routes/push.js';
 import { registerStatic } from './static.js';
 
 export interface ServerDeps {
@@ -28,6 +30,10 @@ export interface ServerDeps {
   notifyChange?: () => Promise<void>;
   /** Read-only access to AdGuard's query log, for the discovery helper. */
   readQuerylog?: (limit: number) => Promise<QueryLogEntry[]>;
+  /** Live updates for open Control screens. The production entry feeds it from Postgres NOTIFY. */
+  changes?: Changes;
+  /** The VAPID public key, when init.sh has made one. */
+  vapidPublicKey?: string;
 }
 
 export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
@@ -90,12 +96,16 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
 
   await authRoutes(app, { db: deps.db, now });
   await peopleRoutes(app, { db: deps.db, now });
+  const changes = deps.changes ?? new Changes();
   await controlRoutes(app, {
     db: deps.db,
     now,
     notifyChange: deps.notifyChange ?? (async () => undefined),
+    changes,
     ...(deps.readQuerylog ? { readQuerylog: deps.readQuerylog } : {}),
   });
+  await eventRoutes(app, { changes });
+  await pushRoutes(app, { db: deps.db, now, ...(deps.vapidPublicKey ? { vapidPublicKey: deps.vapidPublicKey } : {}) });
   if (deps.staticDir) registerStatic(app, deps.staticDir);
 
   return app;

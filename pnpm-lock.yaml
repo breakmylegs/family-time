@@ -50,6 +50,9 @@ importers:
       '@family-time/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@family-time/notify':
+        specifier: workspace:*
+        version: link:../../packages/notify
       '@family-time/schemas':
         specifier: workspace:*
         version: link:../../packages/schemas
