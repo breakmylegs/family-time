@@ -21,6 +21,7 @@ COPY apps/parent/package.json apps/parent/
 COPY packages/adguard-client/package.json packages/adguard-client/
 COPY packages/db/package.json packages/db/
 COPY packages/domain/package.json packages/domain/
+COPY packages/help-content/package.json packages/help-content/
 COPY packages/notify/package.json packages/notify/
 COPY packages/schemas/package.json packages/schemas/
 COPY packages/tokens/package.json packages/tokens/

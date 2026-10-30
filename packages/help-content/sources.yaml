@@ -1,0 +1,53 @@
+# Sources for the help panel's research claims. From the brief's Appendix B, with the study design
+# and finding as docs/research/03-motivation.md and 02-v1-research.md describe them. A claim in a
+# topic must match what its source says here.
+
+- id: epstein-2008
+  citation: "Epstein LH and others, 2008, Archives of Pediatrics and Adolescent Medicine."
+  design: "Randomised trial, 70 families, children aged 4 to 7."
+  finding: "A weekly screen budget cut by 10% a month down to half, a small payment for each unused half hour, and parental praise. Screen use fell by about 17.5 hours a week by 6 months and the drop held at 24 months, against 5.2 hours in the control group."
+
+- id: tang-2019
+  citation: "Tang L and others (Haines J), 2019, BMC Obesity."
+  design: "Observational study of 62 children aged 18 months to 5 years."
+  finding: "Using screens as a reward or a punishment was linked to about 20 more minutes of screen use a day at weekends."
+
+- id: nagata-2024
+  citation: "Nagata JM and others, 2024, Pediatric Research."
+  design: "Observational study of 10,048 US adolescents aged 12 to 13."
+  finding: "Using screens as a reward or a punishment was linked to more screen time and more problematic video gaming. Parental monitoring and clear limits were linked to less."
+
+- id: deci-1999
+  citation: "Deci EL, Koestner R, Ryan RM, 1999, Psychological Bulletin."
+  design: "Meta-analysis of 128 experiments."
+  finding: "Rewards children expected for doing something they found interesting reduced their free choice to do it later. The effect was stronger in children than adults. Unexpected rewards made no clear difference."
+
+- id: carter-2016
+  citation: "Carter B and others, 2016, JAMA Pediatrics."
+  design: "Meta-analysis of cross-sectional studies, ages 6 to 19."
+  finding: "Using media devices at bedtime was linked to not enough sleep and poorer sleep quality. Even having access without using them carried risk."
+
+- id: uk-cmo-2019
+  citation: "UK Chief Medical Officers, 2019. Commentary on screen-based activities."
+  design: "Expert guidance."
+  finding: "Advised screen-free mealtimes and phones outside the bedroom at night."
+
+- id: valkenburg-2013
+  citation: "Valkenburg PM and others, 2013, Human Communication Research."
+  design: "Observational research on how parents set media rules."
+  finding: "Rules set with reasons and a say for the child were linked to children taking them on, pushing back less and hiding less."
+
+- id: hiniker-2016
+  citation: "Hiniker A and others, 2016, CHI."
+  design: "Diary study of families with children aged 1 to 5."
+  finding: "Routines and natural stopping points made the end of screen time easier. Two-minute warnings were linked to more upset. Parents named autoplay as a driver of battles."
+
+- id: jones-2021
+  citation: "Jones A and others, 2021, International Journal of Behavioral Nutrition and Physical Activity."
+  design: "Meta-analysis of 204 studies of screen time reduction."
+  finding: "A small overall effect, slightly larger where goals, feedback and planning were used."
+
+- id: birch-1980
+  citation: "Birch LL and others, 1980 and 1984. Laboratory studies of food given as a reward."
+  design: "Experiments with children aged 2 to 12."
+  finding: "A food repeatedly given as a reward became more preferred."

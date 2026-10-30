@@ -179,6 +179,8 @@ importers:
 
   packages/domain: {}
 
+  packages/help-content: {}
+
   packages/notify:
     dependencies:
       '@family-time/db':
