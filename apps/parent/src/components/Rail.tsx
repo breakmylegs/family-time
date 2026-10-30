@@ -1,6 +1,7 @@
 // The household day as a timetable strip, with a Now marker and the pause overlay. Every time
 // comes from the server; the app only places the blocks along the bar.
 import type { ChildStatus, DayBlock } from '@family-time/schemas';
+import { useRef } from 'react';
 
 const HOUR = 3_600_000;
 
@@ -22,6 +23,7 @@ export function railWindow(blocks: DayBlock[], now: number): { start: number; en
 
 export function Rail({ status }: { status: ChildStatus }) {
   const now = Date.parse(status.at);
+  const lastPauseWidth = useRef(0);
   const w = railWindow(status.day, now);
   if (!w) return null;
   const span = w.end - w.start;
@@ -44,8 +46,13 @@ export function Rail({ status }: { status: ChildStatus }) {
   const bedStart = status.day.find((b) => b.type === 'bed' && Date.parse(b.start) > now)?.start;
   const pauseEnd = pause ? (pause.until ? Date.parse(pause.until) : bedStart ? Date.parse(bedStart) : w.end) : now;
   const pauseWidth = Math.max(1.5, pct(pauseEnd) - pct(now));
+  // On Resume the block fades out at the width it had, rather than snapping to a sliver first.
+  if (pause) lastPauseWidth.current = pauseWidth;
+  const shownPauseWidth = pause ? pauseWidth : lastPauseWidth.current || pauseWidth;
 
-  const spoken = `Today's rhythm. ${shown.map((b) => `${b.label} ${b.startLabel} to ${b.endLabel}`).join(', ')}.${pause ? ' Everything is paused now.' : ''}`;
+  // Bed is cut at midnight for the bar; say "from 20:30" rather than "to 00:00".
+  const current = shown.find((b) => Date.parse(b.start) <= now && now < Date.parse(b.end));
+  const spoken = `Today's rhythm. ${shown.map((b) => (b.type === 'bed' ? `${b.label} from ${b.startLabel}` : `${b.label} ${b.startLabel} to ${b.endLabel}`)).join(', ')}.${current ? ` Now in ${current.label.toLowerCase()}.` : ''}${pause ? ' Everything is paused now.' : ''}`;
 
   return (
     <div className="rail" role="img" aria-label={spoken}>
@@ -56,7 +63,7 @@ export function Rail({ status }: { status: ChildStatus }) {
           const lastOne = i === shown.length - 1;
           return <i key={b.start} className={`seg-r ${b.type}`} style={{ left: `${left}%`, width: lastOne ? `${width}%` : `calc(${width}% - 2px)` }} />;
         })}
-        <i className="rail-pause" data-on={Boolean(pause)} style={{ left: `${pct(now)}%`, width: `${pauseWidth}%` }} />
+        <i className="rail-pause" data-on={Boolean(pause)} style={{ left: `${pct(now)}%`, width: `${shownPauseWidth}%` }} />
         <i className="rail-now" style={{ left: `${pct(now)}%` }}>
           <span>Now</span>
         </i>

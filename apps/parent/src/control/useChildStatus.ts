@@ -56,9 +56,8 @@ export function useChildStatus(childId: string | undefined) {
     }
   }, [childId]);
 
+  // A new child: the last one stays on screen until the new answer arrives, rather than a blank band.
   useEffect(() => {
-    setStatus(undefined);
-    setHistory([]);
     void refresh();
   }, [refresh]);
 

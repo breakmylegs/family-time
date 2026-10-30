@@ -43,8 +43,9 @@ self.addEventListener('notificationclick', (event) => {
 function safeTarget(value) {
   try {
     const url = new URL(typeof value === 'string' ? value : '/', self.location.origin);
-    return url.origin === self.location.origin ? url.pathname + url.search : '/';
+    // The whole URL, not a path: a path like //evil.example would be read as another site.
+    return url.origin === self.location.origin ? url.href : new URL('/', self.location.origin).href;
   } catch {
-    return '/';
+    return new URL('/', self.location.origin).href;
   }
 }

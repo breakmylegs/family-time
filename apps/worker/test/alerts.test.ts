@@ -20,10 +20,10 @@ describe('device alerts', () => {
   it('say what happened in plain words and open Control for that child', () => {
     expect(deviceAlert('quiet', { label: "Ollie's iPad", childId: 'c1' })).toEqual({
       title: "Ollie's iPad has gone quiet",
-      body: 'It has not checked in with your home server for 30 minutes. That usually means mobile data, a VPN or other DNS.',
+      body: "It hasn't been in touch for 30 minutes, so Family time can't block apps on it. It's usually on mobile data or another network. Tap to see what to do.",
       path: '/?child=c1&help=device-gone-quiet',
     });
-    expect(deviceAlert('not-confirmed', { label: "Ollie's iPad", childId: 'c1' })).toMatchObject({ title: "Not confirmed on Ollie's iPad", path: '/?child=c1' });
+    expect(deviceAlert('not-confirmed', { label: "Ollie's iPad", childId: 'c1' })).toMatchObject({ title: "Ollie's iPad hasn't picked up a change", path: '/?child=c1' });
   });
 
   it('go to every owner and parent, not to carers', async () => {

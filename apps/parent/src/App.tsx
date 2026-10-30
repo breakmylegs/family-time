@@ -1,6 +1,7 @@
 import type { AuthState, Me } from '@family-time/schemas';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from './api';
+import { Sheet } from './components/Sheet';
 import { TabBar } from './components/TabBar';
 import { useChildren, useChildStatus } from './control/useChildStatus';
 import { HelpProvider } from './help/HelpContext';
@@ -64,16 +65,18 @@ function SignedIn({ me, path, onSignedOut }: { me: Me; path: string; onSignedOut
   const { children: kids, childId, pick, error: kidsError } = useChildren(true);
   const cs = useChildStatus(childId);
   useLive(() => void cs.refresh());
+  const [picking, setPicking] = useState<HTMLElement | null>(null);
   const child = cs.status ? { name: cs.status.child.name, pronouns: cs.status.child.pronouns } : { name: 'your child', pronouns: 'they' as const };
 
   let screen;
   if (path === '/people' && me.capabilities.includes('people.view')) screen = <People me={me} />;
   else if (path === '/settings') screen = <Settings me={me} kids={kids ?? []} onSignedOut={onSignedOut} />;
-  else if (kidsError || cs.error) screen = <Waiting error={kidsError ?? cs.error} />;
+  else if (kidsError || (cs.error && !cs.status)) screen = <Waiting error={kidsError ?? cs.error} onRetry={() => void cs.refresh()} />;
   else if (kids && !kids.length) screen = <Home me={me} onSignedOut={onSignedOut} />;
   else if (kids && cs.status)
     screen = (
       <Control
+        key={cs.status.child.id}
         me={me}
         kids={kids}
         status={cs.status}
@@ -82,7 +85,8 @@ function SignedIn({ me, path, onSignedOut }: { me: Me; path: string; onSignedOut
         accept={cs.accept}
         setHistory={cs.setHistory}
         refresh={cs.refresh}
-        onPickChild={pick}
+        offline={cs.error}
+        onSwitchChild={setPicking}
       />
     );
   else screen = <Waiting />;
@@ -92,13 +96,35 @@ function SignedIn({ me, path, onSignedOut }: { me: Me; path: string; onSignedOut
       <HelpProvider child={child} status={cs.status}>
         {screen}
         {path === '/people' ? null : <TabBar path={path === '/settings' ? '/settings' : '/'} />}
+        <Sheet open={Boolean(picking)} onClose={() => setPicking(null)} title="Choose a child" returnFocus={picking}>
+          <div className="opts" role="radiogroup" aria-label="Choose a child">
+            {(kids ?? []).map((k) => (
+              <button
+                key={k.id}
+                type="button"
+                role="radio"
+                className="opt"
+                aria-checked={k.id === childId}
+                onClick={() => {
+                  setPicking(null);
+                  pick(k.id);
+                }}
+              >
+                <span className="radio" aria-hidden="true" />
+                <span className="opt-text">
+                  <span className="opt-label">{k.name}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </Sheet>
       </HelpProvider>
     </ToastProvider>
   );
 }
 
 /** The teal band while the first answer is on its way, so the screen does not flash white. */
-function Waiting({ error }: { error?: string | undefined }) {
+function Waiting({ error, onRetry }: { error?: string | undefined; onRetry?: () => void }) {
   return (
     <main className="screen">
       <div className="shell">
@@ -106,6 +132,11 @@ function Waiting({ error }: { error?: string | undefined }) {
       </div>
       <div className="sec">
         <Notice>{error}</Notice>
+        {error && onRetry ? (
+          <button type="button" className="btn btn-quiet" style={{ width: '100%', marginTop: 12 }} onClick={onRetry}>
+            Try again
+          </button>
+        ) : null}
       </div>
     </main>
   );

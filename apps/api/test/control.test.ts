@@ -105,7 +105,7 @@ describe('control', () => {
     const allow = await h.app.inject({ method: 'POST', url: `/api/children/${s.child}/overrides`, headers, payload: { target: { kind: 'everything' }, type: 'allow', duration: '1h' } });
     expect(allow.statusCode).toBe(403);
     const pause = await h.app.inject({ method: 'POST', url: `/api/children/${s.child}/overrides`, headers, payload: { target: { kind: 'everything' }, type: 'pause', duration: 'until-resume' } });
-    expect(ChildStatus.parse(pause.json()).services.every((x) => x.state === 'paused' && x.reason === 'Paused by Gran until they resume.')).toBe(true);
+    expect(ChildStatus.parse(pause.json()).services.every((x) => x.state === 'paused' && x.reason === 'Paused by Gran until someone resumes it.')).toBe(true);
     const resume = await h.app.inject({ method: 'POST', url: `/api/children/${s.child}/resume`, headers });
     expect(ChildStatus.parse(resume.json()).services.every((x) => x.state === 'blocked')).toBe(true);
   });
@@ -137,7 +137,7 @@ describe('control', () => {
       payload: { target: { kind: 'service', id: '00000000-0000-4000-8000-000000000000' }, type: 'block', duration: '30m' },
     });
     expect(bad.statusCode).toBe(400);
-    expect(bad.json().detail).toMatch(/not in this family/);
+    expect(bad.json().detail).toMatch(/no longer on your family's list/);
   });
 
   it('lists the domains a device asked for in the last 30 minutes, owner only', async () => {

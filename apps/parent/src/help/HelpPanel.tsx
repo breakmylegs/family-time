@@ -6,6 +6,7 @@ import type { ChildStatus } from '@family-time/schemas';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { api } from '../api';
+import { pinInPlace } from '../components/motion';
 import { Icon } from '../icons';
 import { RIGHT_NOW } from './rightNow';
 
@@ -39,9 +40,10 @@ export function HelpPanel({ open, trail, child, status, returnTo, onFollow, onBa
   const previous = trail.length > 1 ? content.topics[trail[trail.length - 2]!] : undefined;
   const title = useRef<HTMLHeadingElement>(null);
   const body = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
   const [answered, setAnswered] = useState<string>();
-  const [drag, setDrag] = useState<number>();
-  const start = useRef<{ x: number; t: number; pointer: number }>(undefined);
+  // The swipe lives in a ref and writes the transform straight to the element: no re-render per move.
+  const swipe = useRef<{ x: number; t: number; id: number; dx: number }>(undefined);
 
   // A new topic: back to the top, title focused so a screen reader starts there.
   useEffect(() => {
@@ -61,35 +63,56 @@ export function HelpPanel({ open, trail, child, status, returnTo, onFollow, onBa
     }
   };
 
+  const close = () => {
+    pinInPlace(panel.current);
+    onClose();
+  };
+
   const onPointerDown = (e: PointerEvent) => {
-    if (e.pointerType === 'mouse' || (e.target as HTMLElement).closest('button,summary,a')) return;
-    start.current = { x: e.clientX, t: performance.now(), pointer: e.pointerId };
+    // One finger only: a second one must not become the new starting point.
+    if (swipe.current || e.pointerType === 'mouse' || (e.target as HTMLElement).closest('button,summary,a')) return;
+    swipe.current = { x: e.clientX, t: performance.now(), id: e.pointerId, dx: 0 };
   };
   const onPointerMove = (e: PointerEvent) => {
-    if (!start.current || e.pointerId !== start.current.pointer) return;
-    const dx = Math.max(0, e.clientX - start.current.x);
-    if (dx > 6) setDrag(dx);
+    const s = swipe.current;
+    const el = panel.current;
+    if (!s || !el || e.pointerId !== s.id) return;
+    s.dx = Math.max(0, e.clientX - s.x);
+    if (s.dx <= 6) return;
+    if (el.dataset.dragging !== 'true') {
+      // A swipe that starts during the entrance takes over from it.
+      el.getAnimations().forEach((a) => a.finish());
+      el.dataset.dragging = 'true';
+    }
+    el.style.transform = `translateX(${s.dx}px)`;
   };
-  const onPointerUp = () => {
-    if (!start.current) return;
-    const dx = drag ?? 0;
-    const speed = dx / Math.max(1, performance.now() - start.current.t);
-    start.current = undefined;
-    setDrag(undefined);
-    if (dx > 90 || (speed > 0.11 && dx > 20)) onClose();
+  const onPointerEnd = (e: PointerEvent) => {
+    const s = swipe.current;
+    const el = panel.current;
+    if (!s || e.pointerId !== s.id) return;
+    swipe.current = undefined;
+    if (!el || el.dataset.dragging !== 'true') return;
+    const speed = s.dx / Math.max(1, performance.now() - s.t);
+    if (e.type === 'pointerup' && (s.dx > 90 || (speed > 0.11 && s.dx > 20))) {
+      close();
+      return;
+    }
+    // Short of closing: the open state's transition carries it home.
+    el.dataset.dragging = 'false';
+    el.style.transform = '';
   };
 
   const rightNow = id && status ? RIGHT_NOW[id]?.(status) : undefined;
 
   return (
-    <Dialog.Root open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog.Root open={open} onOpenChange={(o) => !o && close()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="scrim" />
+        {/* Above any sheet, so "Why?" in the Pause sheet opens help on top of it. */}
+        <Dialog.Overlay className="scrim scrim-help" />
         <Dialog.Content
+          ref={panel}
           className="panel"
           aria-describedby={undefined}
-          data-dragging={drag !== undefined}
-          style={drag !== undefined ? { transform: `translateX(${drag}px)` } : undefined}
           onOpenAutoFocus={(e) => {
             e.preventDefault();
             title.current?.focus({ preventScroll: true });
@@ -101,16 +124,13 @@ export function HelpPanel({ open, trail, child, status, returnTo, onFollow, onBa
           }}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={() => {
-            start.current = undefined;
-            setDrag(undefined);
-          }}
+          onPointerUp={onPointerEnd}
+          onPointerCancel={onPointerEnd}
         >
           <div className="panel-top">
             <span className="crumb">
               {previous ? (
-                <button type="button" onClick={onBack}>
+                <button type="button" aria-label={`Back to ${previous.title}`} onClick={onBack}>
                   <Icon name="right" />
                   {previous.title}
                 </button>
@@ -233,7 +253,7 @@ export function HelpPanel({ open, trail, child, status, returnTo, onFollow, onBa
 
                 <div className="helpful" role="group" aria-label="Was this helpful?">
                   {answered === id ? (
-                    <span role="status">Thanks. Your answer stays on your home server and helps improve these notes.</span>
+                    <span role="status">Thanks. Your answer stays in your own Family time and is never sent anywhere else.</span>
                   ) : (
                     <>
                       <span>Was this helpful?</span>

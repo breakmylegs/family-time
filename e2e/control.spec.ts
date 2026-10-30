@@ -69,7 +69,7 @@ test('Allow with the sheet, then Undo', async ({ page }) => {
   await page.getByRole('button', { name: 'Undo' }).click();
   await expect(roblox.locator('.svc-line')).toHaveText('Blocked');
   await expect(roblox.getByRole('button', { name: 'Normal' })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByText('Undone.')).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: 'Undone. Takes up to a minute to change back.' })).toBeAttached();
 });
 
 test('Block during planned time, Normal, and Undo of Normal', async ({ page }) => {
@@ -94,18 +94,19 @@ test('Pause everything asks first, then Resume', async ({ page }) => {
   await openOllie(page);
   await page.getByRole('button', { name: 'Pause everything', exact: true }).click();
   const sheet = page.getByRole('dialog', { name: 'Pause everything' });
-  await expect(sheet.getByText("Stops Minecraft, Roblox and YouTube on Ollie's iPad.")).toBeVisible();
+  await expect(sheet.getByText("Pauses Minecraft, Roblox and YouTube on Ollie's iPad. Takes up to a minute, and a video that's already playing may finish first.")).toBeVisible();
   await expect(sheet.getByText('Best for meals and family time, rather than as a punishment.')).toBeVisible();
   await expect(sheet.getByRole('radio')).toHaveCount(4);
   await sheet.getByRole('radio', { name: /Until I resume/ }).click();
   await shot(page, 'sheet-pause-light', PHASE);
   await sheet.getByRole('button', { name: 'Pause everything until you resume' }).click();
 
-  await expect(page.locator('.now-line')).toHaveText('Everything is paused until you resume. Mum started it.');
+  await expect(page.locator('.now-line')).toHaveText('Everything is paused until someone resumes it. Mum started it.');
   for (const name of ['YouTube', 'Roblox', 'Minecraft']) await expect(row(page, name).locator('.svc-line')).toHaveText('Paused');
   await expect(row(page, 'Roblox').getByRole('button', { name: 'Allow' })).toBeDisabled();
   await expect(page.locator('.rail-pause')).toHaveAttribute('data-on', 'true');
-  await expect(page.getByText('Mum paused everything until a parent resumes.')).toBeVisible();
+  await expect(page.getByText('Mum paused everything until someone resumes it.')).toBeVisible();
+  await expect(page.getByText('Everything is paused. Tap Resume now to change an app.')).toBeVisible();
   for (const scheme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme: scheme });
     await expect(page.getByText(/Pausing on/)).toHaveCount(0);
@@ -113,9 +114,12 @@ test('Pause everything asks first, then Resume', async ({ page }) => {
   }
 
   await page.getByRole('button', { name: 'Resume now' }).click();
-  await expect(page.getByRole('status').filter({ hasText: "Everything's back to normal." })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: "Everything's back to normal. Takes up to a minute." })).toBeVisible();
   await expect(page.locator('.now-line')).toHaveText('Free time now. Wind-down starts at 19:30.');
   await expect(row(page, 'YouTube').locator('.svc-line')).toHaveText('Allowed until 19:00');
+  // Undo of Resume puts the pause back as it was.
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(page.locator('.now-line')).toHaveText('Everything is paused until someone resumes it. Mum started it.');
 });
 
 test('the conflict tap: one tap on how it went, kept after a reload', async ({ page }) => {
@@ -135,7 +139,7 @@ test('the conflict tap: one tap on how it went, kept after a reload', async ({ p
 test('switches child', async ({ page }) => {
   await openOllie(page);
   await page.getByRole('button', { name: 'Showing Ollie. Switch child' }).click();
-  await page.getByRole('dialog', { name: 'Show' }).getByRole('radio', { name: 'Jamie' }).click();
+  await page.getByRole('dialog', { name: 'Choose a child' }).getByRole('radio', { name: 'Jamie' }).click();
   await expect(page.getByRole('button', { name: 'Showing Jamie. Switch child' })).toBeVisible();
   await expect(page).toHaveURL(new RegExp(`child=${sessions().children.jamie}`));
 });
@@ -145,6 +149,16 @@ test('a carer can pause but not allow or block', async ({ page, context }) => {
   await openOllie(page);
   await expect(page.getByRole('button', { name: 'Pause everything', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Allow', exact: true })).toHaveCount(0);
+});
+
+test('a sheet can be left without changing anything', async ({ page }) => {
+  await openOllie(page);
+  await row(page, 'Roblox').getByRole('button', { name: 'Block' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Block Roblox' });
+  await sheet.getByRole('button', { name: 'Cancel' }).click();
+  await expect(sheet).toBeHidden();
+  await expect(row(page, 'Roblox').locator('.svc-line')).toHaveText('Blocked');
+  await expect(row(page, 'Roblox').getByRole('button', { name: 'Block' })).toBeFocused();
 });
 
 for (const scheme of ['light', 'dark'] as const) {

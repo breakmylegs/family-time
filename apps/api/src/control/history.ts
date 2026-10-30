@@ -1,7 +1,7 @@
 // Today, in plain sentences, newest first: what parents did, what ended, and the household's
 // routine pauses. Where a session ended, parents can tap how it went (calm, grumble, meltdown).
 import { grants, loadRules, overrides, people, serviceGroups, services, sessionEndings, type Db } from '@family-time/db';
-import { blocksOn, civilDate, clockLabel, zonedTime } from '@family-time/domain';
+import { blocksOn, civilDate, clockLabel, durationWords, zonedTime } from '@family-time/domain';
 import type { EndingRequest, HistoryEntry } from '@family-time/schemas';
 import { and, eq, gte, inArray, isNull, lte, ne, or } from 'drizzle-orm';
 import { audit } from '../audit.js';
@@ -50,7 +50,7 @@ export async function todayHistory(db: Db, householdId: string, childId: string,
     const target = what(r.targetKind, r.targetId);
     // The end the parent chose, even when it was later ended early.
     const chosenEnd = r.plannedEndsAt ?? r.endsAt;
-    const until = chosenEnd ? ` until ${clockLabel(chosenEnd, r.startsAt, timeZone)}` : r.type === 'pause' ? ' until a parent resumes' : '';
+    const until = chosenEnd ? ` until ${clockLabel(chosenEnd, r.startsAt, timeZone)}` : r.type === 'pause' ? ' until someone resumes it' : '';
     // A Block or Pause starting is when a grumble tends to happen; for an Allow, it is the end.
     if (r.type === 'pause') add(r.startsAt, `${r.by} paused ${target}${until}.`, `start:${r.id}`);
     else if (r.type === 'block') add(r.startsAt, `${r.by} blocked ${target}${until}.`, `start:${r.id}`);
@@ -59,10 +59,17 @@ export async function todayHistory(db: Db, householdId: string, childId: string,
     if (r.endsAt && r.endsAt.getTime() <= t) {
       const endingRef = r.type === 'allow' ? `end:${r.id}` : undefined;
       if (r.endedBy) {
-        const who = enderName.get(r.endedBy) ?? 'A parent';
+        const who = enderName.get(r.endedBy) ?? 'Someone';
         add(r.endsAt, r.type === 'pause' ? `${who} resumed ${target}.` : `${who} set ${target} back to normal.`, endingRef);
       } else {
-        const ended = r.type === 'pause' ? `The pause on ${target} ended.` : r.type === 'block' ? `The block on ${target} ended.` : `${childName}'s extra ${target} time ended.`;
+        const ended =
+          r.type === 'pause'
+            ? r.targetKind === 'everything'
+              ? "The pause ended. Everything's back to normal."
+              : `The pause on ${target} ended.`
+            : r.type === 'block'
+              ? `The block on ${target} ended.`
+              : `${childName}'s ${target} time ended.`;
         add(r.endsAt, ended, endingRef);
       }
     }
@@ -76,15 +83,17 @@ export async function todayHistory(db: Db, householdId: string, childId: string,
   for (const g of sessions) {
     const target = what(g.targetKind, g.targetId);
     const minutes = Math.round((g.endsAt.getTime() - g.startsAt.getTime()) / 60_000);
-    add(g.startsAt, g.source === 'planned' ? `${target} unlocked. ${childName} planned ${minutes} minutes.` : `${target} unlocked. A parent said yes to ${childName}'s request.`);
+    add(g.startsAt, g.source === 'planned' ? `${target} unlocked. ${childName} planned ${durationWords(minutes)}.` : `${target} unlocked. A parent said yes to ${childName}'s request.`);
     add(g.endsAt, `${childName}'s ${target} time ended.`, `end:${g.id}`);
   }
 
   for (const b of blocksOn(schedules, childId, today, timeZone)) {
     if (b.type !== 'pause') continue;
+    // "Tea pause started", but never "Pause pause started".
     const label = b.label ?? 'Routine';
-    add(b.start, `${label} pause started.`);
-    add(b.end, `${label} pause ended.`);
+    const named = /pause$/i.test(label) ? label : `${label} pause`;
+    add(b.start, `${named} started.`);
+    add(b.end, `${named} ended.`);
   }
 
   // Newest first; for two lines in the same minute, the later one in the list wins.
@@ -94,8 +103,12 @@ export async function todayHistory(db: Db, householdId: string, childId: string,
 /** When the thing a ref names ended: an override's start or end, or a session's end. Only this child's. */
 async function endingTime(db: Db, childId: string, ref: string): Promise<{ at: Date | null; targetType: string; id: string } | undefined> {
   const [edge, id] = ref.split(':') as ['start' | 'end', string];
-  const o = (await db.select({ startsAt: overrides.startsAt, endsAt: overrides.endsAt }).from(overrides).where(and(eq(overrides.id, id), eq(overrides.childId, childId))))[0];
-  if (o) return { at: edge === 'start' ? o.startsAt : o.endsAt, targetType: 'override', id };
+  const o = (await db.select({ type: overrides.type, startsAt: overrides.startsAt, endsAt: overrides.endsAt }).from(overrides).where(and(eq(overrides.id, id), eq(overrides.childId, childId))))[0];
+  if (o) {
+    // The ones Today offers: a Block or Pause where it starts, an Allow where it ends.
+    if ((edge === 'start') !== (o.type !== 'allow')) return undefined;
+    return { at: edge === 'start' ? o.startsAt : o.endsAt, targetType: 'override', id };
+  }
   if (edge !== 'end') return undefined;
   const g = (await db.select({ endsAt: grants.endsAt }).from(grants).where(and(eq(grants.id, id), eq(grants.childId, childId))))[0];
   return g ? { at: g.endsAt, targetType: 'grant', id } : undefined;

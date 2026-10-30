@@ -8,7 +8,7 @@ describe('the day view', () => {
     expect(headline(SCHEDULES, CHILD, at('2026-10-26 17:45'), TZ)).toEqual({ lead: 'Tea now.', rest: 'Everything is paused until 18:15.' });
     expect(headline(SCHEDULES, CHILD, at('2026-10-26 10:00'), TZ)).toEqual({ lead: 'School time now.', rest: 'Free time from 15:30.' });
     expect(headline(SCHEDULES, CHILD, at('2026-10-26 19:45'), TZ)).toEqual({ lead: 'Wind-down now.', rest: 'Bed at 20:30.' });
-    expect(headline(SCHEDULES, CHILD, at('2026-10-26 23:00'), TZ)).toEqual({ lead: 'Bedtime.', rest: 'Until Tue 07:00.' });
+    expect(headline(SCHEDULES, CHILD, at('2026-10-26 23:00'), TZ)).toEqual({ lead: 'Bedtime now.', rest: 'Apps are blocked until Tue 07:00.' });
   });
 
   it('lists today in order, with 24-hour labels', () => {
@@ -21,7 +21,7 @@ describe('the day view', () => {
     expect(allow.map((o) => [o.label, o.until, o.note ?? null])).toEqual([
       ['For 30 minutes', 'until 19:02', null],
       ['For 1 hour', 'until 19:32', 'Runs into wind-down'],
-      ['Until bedtime', 'until 20:30', 'Overrides wind-down'],
+      ['Until bedtime', 'until 20:30', 'Runs through wind-down'],
       ['Until tomorrow', 'until Tue 07:00', 'Runs through bedtime'],
     ]);
     expect(allow[3]!.overridesBedtime).toBe(true);

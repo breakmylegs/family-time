@@ -2,6 +2,7 @@
 // use the Declarative Web Push shape (iOS 18.4 and later show it with no service worker code); our
 // own service worker reads the same shape for every other browser.
 import { people, pushSubscriptions, type Db } from '@family-time/db';
+import { pushEndpoint } from '@family-time/schemas';
 import { createPrivateKey } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { and, eq, inArray } from 'drizzle-orm';
@@ -25,13 +26,16 @@ export function vapidFromPem(pem: string): Vapid {
   return { publicKey: Buffer.concat([Buffer.from([4]), x, y]).toString('base64url'), privateKey: jwk.d };
 }
 
+/** Undefined when no key is configured. A key that is configured but unreadable stops the process. */
 export function vapidFromFile(path: string | undefined): Vapid | undefined {
   if (!path) return undefined;
+  let pem: string;
   try {
-    return vapidFromPem(readFileSync(path, 'utf8'));
-  } catch {
-    return undefined;
+    pem = readFileSync(path, 'utf8');
+  } catch (err) {
+    throw new Error(`Cannot read the VAPID key at ${path} (${(err as Error).message}). Run ./scripts/init.sh`, { cause: err });
   }
+  return vapidFromPem(pem);
 }
 
 export interface Alert {
@@ -67,6 +71,8 @@ function sender(deps: PushDeps): Send {
       vapidDetails: { subject: deps.origin, publicKey: deps.vapid.publicKey, privateKey: deps.vapid.privateKey },
       TTL: 3600,
       urgency: 'high',
+      // A push service that never answers must not hold up the next alert.
+      timeout: 10_000,
     });
 }
 
@@ -82,6 +88,13 @@ export async function pushTo(deps: PushDeps, personIds: string[], alert: Alert):
   let sent = 0;
   let failed = 0;
   for (const s of subs) {
+    // Checked again here, not only when stored: a row from before the check, or written another way,
+    // must never point the server at another address.
+    if (!pushEndpoint(s.endpoint)) {
+      await deps.db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, s.id));
+      failed++;
+      continue;
+    }
     try {
       await send({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload);
       await deps.db.update(pushSubscriptions).set({ lastSentAt: new Date(), failures: 0 }).where(eq(pushSubscriptions.id, s.id));

@@ -92,7 +92,7 @@ describe('parent overrides', () => {
     const pause: Override = { id: 'p1', childId: CHILD, target: { kind: 'everything' }, type: 'pause', start: at('2026-10-26 18:20'), end: null, createdByName: 'Dad' };
     expect(decide(rules({ overrides: [allow('o1', '2026-10-26 18:15', '2026-10-26 19:00'), pause] }), 'roblox', at('2026-10-26 18:30'))).toMatchObject({
       state: 'paused',
-      reason: 'Paused by Dad until they resume.',
+      reason: 'Paused by Dad until someone resumes it.',
     });
   });
 

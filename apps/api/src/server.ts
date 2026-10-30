@@ -104,7 +104,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     changes,
     ...(deps.readQuerylog ? { readQuerylog: deps.readQuerylog } : {}),
   });
-  await eventRoutes(app, { changes });
+  await eventRoutes(app, { db: deps.db, now, changes });
   await pushRoutes(app, { db: deps.db, now, ...(deps.vapidPublicKey ? { vapidPublicKey: deps.vapidPublicKey } : {}) });
   if (deps.staticDir) registerStatic(app, deps.staticDir);
 

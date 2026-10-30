@@ -1,25 +1,27 @@
 import type { ChildStatus, ChildSummary, Me } from '@family-time/schemas';
 import { useEffect, useState } from 'react';
-import { api } from '../api';
+import { api, ApiFailure } from '../api';
 import { HelpButton } from '../help/HelpButton';
 import { useHelp } from '../help/HelpContext';
 import { SYNC } from '../help/rightNow';
 import { Icon } from '../icons';
 import { alertState, turnOffAlerts, turnOnAlerts, type AlertState } from '../push';
 import { navigate } from '../router';
-import { Notice, roleName } from '../ui';
+import { Notice } from '../ui';
+
+const ROLE_PHRASE: Record<string, string> = { owner: 'an owner', parent: 'a parent', carer: 'a carer' };
 
 const ALERT_TEXT: Record<AlertState, string> = {
   on: 'On for this phone.',
-  off: "Get told when a change isn't confirmed, or a device goes quiet.",
-  denied: 'Alerts are blocked for Family time in your phone settings. Allow them there, then come back.',
-  'install-first': 'On iPhone, add Family time to your Home Screen first: tap Share in Safari, then Add to Home Screen. Then open it from there.',
-  unsupported: "This browser can't show alerts. Try Safari on iPhone, from the Home Screen.",
+  off: "Get a message when a change doesn't reach a device, or a device stops checking in.",
+  denied: "Alerts are turned off for Family time. Open your phone's Settings, tap Notifications, then Family time, and turn on Allow Notifications. Then come back here.",
+  'install-first': 'On iPhone and iPad, add Family time to your Home Screen first: tap Share in Safari, then Add to Home Screen. Then open it from there.',
+  unsupported: "This browser can't show alerts. On iPhone, open Family time from your Home Screen. On other phones, try Chrome or Firefox.",
 };
 
 export function Settings({ me, kids, onSignedOut }: { me: Me; kids: ChildSummary[]; onSignedOut: () => void }) {
   const help = useHelp();
-  const [statuses, setStatuses] = useState<ChildStatus[]>([]);
+  const [statuses, setStatuses] = useState<ChildStatus[]>();
   const [alerts, setAlerts] = useState<AlertState>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -42,7 +44,8 @@ export function Settings({ me, kids, onSignedOut }: { me: Me; kids: ChildSummary
     try {
       setAlerts(alerts === 'on' ? await turnOffAlerts() : await turnOnAlerts());
     } catch (err) {
-      setError((err as Error).message);
+      // The browser's own push errors mean nothing to a parent; ours already say what to do.
+      setError(err instanceof ApiFailure ? err.message : "Couldn't change alerts on this phone. Check you opened Family time from your Home Screen, then try again.");
     } finally {
       setBusy(false);
     }
@@ -50,6 +53,8 @@ export function Settings({ me, kids, onSignedOut }: { me: Me; kids: ChildSummary
 
   const signOut = async () => {
     try {
+      // A phone that is signed out (or handed on) stops getting this person's alerts.
+      if (alerts === 'on') await turnOffAlerts().catch(() => undefined);
       await api('POST', '/api/auth/logout');
       onSignedOut();
     } catch (err) {
@@ -57,7 +62,7 @@ export function Settings({ me, kids, onSignedOut }: { me: Me; kids: ChildSummary
     }
   };
 
-  const devices = statuses.flatMap((s) => s.devices.map((d) => ({ ...d, child: s.child.name })));
+  const devices = (statuses ?? []).flatMap((s) => s.devices.map((d) => ({ ...d, child: s.child.name })));
   const canAlert = alerts === 'on' || alerts === 'off';
   const getsAlerts = me.role === 'owner' || me.role === 'parent';
 
@@ -67,7 +72,7 @@ export function Settings({ me, kids, onSignedOut }: { me: Me; kids: ChildSummary
         <div className="shell-inner">
           <h1 className="child-name">Settings</h1>
           <p className="now-line">
-            {me.householdName}. You are signed in as {roleName[me.role]?.toLowerCase() ?? me.role}.
+            {me.householdName}. You&apos;re signed in as {me.displayName}, {ROLE_PHRASE[me.role] ?? me.role}.
           </p>
         </div>
       </div>
@@ -96,7 +101,7 @@ export function Settings({ me, kids, onSignedOut }: { me: Me; kids: ChildSummary
               </span>
               <span className="row-text">
                 {k.name}
-                <small>{k.devices === 1 ? '1 device' : `${k.devices} devices`}</small>
+                <small>{k.devices === 0 ? 'No devices yet' : k.devices === 1 ? '1 device' : `${k.devices} devices`}</small>
               </span>
             </div>
           ))}
@@ -116,11 +121,11 @@ export function Settings({ me, kids, onSignedOut }: { me: Me; kids: ChildSummary
               </span>
               <span className="row-text">
                 {d.label}
-                <small>{d.quietSince ? 'Gone quiet. Its apps are not being managed.' : SYNC[d.sync]}</small>
+                <small>{d.quietSince ? "Gone quiet. Family time can't block apps on it until it's back on home Wi-Fi." : SYNC[d.sync]}</small>
               </span>
             </div>
           ))}
-          {!devices.length ? <p className="empty">No devices yet. Whoever set up Family time adds them on the server.</p> : null}
+          {!statuses ? <p className="empty">Checking devices.</p> : !devices.length ? <p className="empty">No devices yet. Whoever set up Family time can add them.</p> : null}
         </div>
       </section>
 

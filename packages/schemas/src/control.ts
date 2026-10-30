@@ -83,7 +83,7 @@ export const ChildStatus = z.object({
   headline: z.object({ lead: z.string(), rest: z.string() }),
   day: z.array(DayBlock),
   /** Pause everything, when a parent has it on. */
-  pause: z.object({ id: z.uuid(), by: z.string(), until: z.string().nullable(), untilLabel: z.string().nullable() }).nullable(),
+  pause: z.object({ id: z.uuid(), by: z.string(), byId: z.string(), until: z.string().nullable(), untilLabel: z.string().nullable() }).nullable(),
   services: z.array(ServiceStatus),
   devices: z.array(DeviceStatus),
   /** The sheet's choices, with real end times. */
@@ -112,9 +112,35 @@ export type EndingRequest = z.infer<typeof EndingRequest>;
  */
 export const PUSH_SERVICE_HOSTS = /^([a-z0-9-]+\.)*(push\.apple\.com|fcm\.googleapis\.com|push\.services\.mozilla\.com|notify\.windows\.com)$/;
 
+/**
+ * The endpoint as it is stored and sent, or undefined when it is not a push service. The part before
+ * the path must be plain hostname characters: no port, no user, no `%` escapes. web-push reads URLs
+ * with the legacy parser, which stops a hostname at `%` where the standard one decodes it, so
+ * `https://10.0.0.1%2efcm.googleapis.com/` would pass one check and connect somewhere else.
+ */
+export function pushEndpoint(raw: string): string | undefined {
+  const authority = /^https:\/\/([^/?#]*)/i.exec(raw)?.[1];
+  if (!authority || !/^[a-z0-9.-]+$/i.test(authority)) return undefined;
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return undefined;
+  }
+  if (url.protocol !== 'https:' || url.port || url.username || url.password || url.hostname !== authority.toLowerCase()) return undefined;
+  return PUSH_SERVICE_HOSTS.test(url.hostname) ? url.href : undefined;
+}
+
 /** A browser's push subscription, as `PushSubscription.toJSON()` gives it. */
 export const PushSubscriptionRequest = z.object({
-  endpoint: z.url({ protocol: /^https$/, hostname: PUSH_SERVICE_HOSTS }).max(2048),
+  endpoint: z
+    .string()
+    .max(2048)
+    .transform((value, ctx) => {
+      const ok = pushEndpoint(value);
+      if (!ok) ctx.addIssue({ code: 'custom', message: "That isn't a browser's push service." });
+      return ok ?? value;
+    }),
   keys: z.object({ p256dh: z.string().min(1).max(256), auth: z.string().min(1).max(64) }),
 });
 export type PushSubscriptionRequest = z.infer<typeof PushSubscriptionRequest>;

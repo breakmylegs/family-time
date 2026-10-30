@@ -39,7 +39,7 @@ test('follows a related topic and comes back', async ({ page }) => {
   const panel = page.getByRole('dialog');
   await panel.getByRole('button', { name: 'Allow, Block and Normal' }).click();
   await expect(panel.getByRole('heading', { name: 'Allow, Block and Normal' })).toBeFocused();
-  await panel.locator('.crumb').getByRole('button', { name: 'Pause everything' }).click();
+  await panel.getByRole('button', { name: 'Back to Pause everything' }).click();
   await expect(panel.getByRole('heading', { name: 'Pause everything' })).toBeVisible();
   await expect(panel.locator('.crumb')).toHaveText('Help');
 });
@@ -87,7 +87,7 @@ test('asks if it helped, and thanks', async ({ page }) => {
   const panel = page.getByRole('dialog', { name: 'How did it end?' });
   await expect(panel.getByText('Early evidence.')).toBeVisible();
   await panel.getByRole('button', { name: 'Yes' }).click();
-  await expect(panel.getByText('Thanks. Your answer stays on your home server and helps improve these notes.')).toBeVisible();
+  await expect(panel.getByText('Thanks. Your answer stays in your own Family time and is never sent anywhere else.')).toBeVisible();
 });
 
 test('help buttons can be turned off in Settings', async ({ page }) => {

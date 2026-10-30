@@ -22,6 +22,8 @@ interface Option {
   choice: Choice;
   label: string;
   until: string;
+  /** The instant it ends, from the server. Empty for Until I resume. */
+  end: string;
   note?: string;
 }
 
@@ -36,6 +38,9 @@ export function listOf(names: string[]): string {
   if (names.length < 2) return names.join('');
   return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 }
+
+/** "Allowed until Tue 07:00" to "allowed until Tue 07:00": only the first letter. */
+const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 
 export function serviceLine(s: Pick<ServiceStatus, 'state' | 'untilLabel'>): string {
   const word = s.state === 'allowed' ? 'Allowed' : s.state === 'paused' ? 'Paused' : 'Blocked';
@@ -73,8 +78,8 @@ export function DurationSheet({ kind, service, status, returnFocus, onClose, onC
   const s = kind ? service : shown?.service;
   if (!k) return null;
 
-  const options: Option[] = status.durations[k].map((o) => ({ choice: o.choice, label: o.label, until: o.until, ...(o.note ? { note: o.note } : {}) }));
-  if (k === 'pause') options.push({ choice: 'until-resume', label: 'Until I resume', until: '' });
+  const options: Option[] = status.durations[k].map((o) => ({ choice: o.choice, label: o.label, until: o.until, end: o.end, ...(o.note ? { note: o.note } : {}) }));
+  if (k === 'pause') options.push({ choice: 'until-resume', label: 'Until I resume', until: '', end: '' });
   const picked = options.find((o) => o.choice === choice) ?? options[0]!;
   const name = s?.name ?? '';
   const devices = devicesOf(status);
@@ -82,14 +87,16 @@ export function DurationSheet({ kind, service, status, returnFocus, onClose, onC
   const title = k === 'allow' ? `Allow ${name}` : k === 'block' ? `Block ${name}` : 'Pause everything';
   const sub =
     k === 'pause'
-      ? `Stops ${listOf(status.services.map((x) => x.name))} on ${devices}.`
+      ? status.services.length
+        ? `Pauses ${listOf(status.services.map((x) => x.name))} on ${devices}. Takes up to a minute, and a video that's already playing may finish first.`
+        : `Pauses every app Family time looks after on ${devices}. Takes up to a minute.`
       : k === 'allow'
         ? s?.layer === 'default'
           ? `${status.child.name} hasn't planned any ${name} time today.`
           : s?.reason
         : s?.inPlannedTime
           ? `It's in ${status.child.name}'s planned time right now.`
-          : `It's ${serviceLine(s!).toLowerCase()} at the moment.`;
+          : `It's ${lowerFirst(serviceLine(s!))} at the moment.`;
   const go = k === 'pause' ? `Pause everything ${PHRASE[picked.choice]}` : `${k === 'allow' ? 'Allow' : 'Block'} ${name} ${PHRASE[picked.choice]}`;
 
   return (
@@ -123,7 +130,7 @@ export function DurationSheet({ kind, service, status, returnFocus, onClose, onC
             <Icon name="heart" />
             <span>
               Best for meals and family time, rather than as a punishment.{' '}
-              <button type="button" onClick={(e) => help.open('pause-everything', e.currentTarget)}>
+              <button type="button" aria-label="Why? Help: Pause everything" onClick={(e) => help.open('pause-everything', e.currentTarget)}>
                 Why?
               </button>
             </span>
@@ -134,7 +141,9 @@ export function DurationSheet({ kind, service, status, returnFocus, onClose, onC
             <span>
               {k === 'block' && s?.inPlannedTime
                 ? forChild("{Their} planned time pauses, and the minutes not used go back to {them}. Takes up to a minute.", child)
-                : `Takes up to a minute to start on ${devices}.`}
+                : k === 'block'
+                  ? `Takes up to a minute on ${devices}. A video that's already playing may finish first.`
+                  : `Takes up to a minute to start on ${devices}.`}
             </span>
           </>
         )}

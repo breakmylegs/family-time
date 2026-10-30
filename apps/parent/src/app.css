@@ -3,7 +3,7 @@
  * with its class names, so the two can be read side by side. The mock draws a 390 by 844 phone; here
  * the screen is the viewport, so overlays are fixed and the tab bar sits on the safe area.
  * Motion: ease-out to enter and exit, the drawer curve for the panel and sheet, exits faster than
- * entrances, everything under 330ms, press feedback at 0.97, and prefers-reduced-motion respected.
+ * entrances, everything under 300ms, press feedback at 0.97, and prefers-reduced-motion respected.
  */
 
 svg.ic {
@@ -18,6 +18,21 @@ svg.ic {
 }
 .tnum {
   font-variant-numeric: tabular-nums;
+}
+
+/* Focus that shows on every surface, and is never hidden behind the tab bar or the toast. */
+html {
+  scroll-padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 140px);
+}
+.shell :focus-visible {
+  outline-color: var(--shell-ink);
+}
+.toast :focus-visible {
+  outline-color: var(--ground);
+}
+.opt:focus-visible,
+button.row:focus-visible {
+  outline-offset: -3px;
 }
 .sr {
   position: absolute;
@@ -89,6 +104,9 @@ svg.ic {
   margin-top: 20px;
   padding-top: 20px;
 }
+.rail i {
+  font-style: normal;
+}
 .rail-bar {
   position: relative;
   height: 16px;
@@ -123,12 +141,15 @@ svg.ic {
   box-shadow: 0 0 0 2px var(--shell);
   transform-origin: left center;
   transition:
-    opacity 200ms ease,
+    opacity 200ms var(--ease-out),
     transform 260ms var(--ease-out);
 }
 .rail-pause[data-on='false'] {
   opacity: 0;
   transform: scaleX(0.6);
+  transition:
+    opacity 140ms var(--ease-out),
+    transform 180ms var(--ease-out);
 }
 .rail-now {
   position: absolute;
@@ -197,6 +218,29 @@ svg.ic {
   transform: scale(0.97);
   background: var(--shell-btn-press);
 }
+.shell-note {
+  flex: 1;
+  align-self: center;
+  font-size: 15px;
+  color: var(--shell-ink-2);
+}
+.offline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  font-size: 15px;
+  color: var(--shell-ink);
+}
+.offline .btn {
+  flex: none;
+  height: 44px;
+}
+.list-note {
+  margin: 0 6px 10px;
+  font-size: 15px;
+  color: var(--ink-2);
+}
 .shell-action[data-paused='true'] {
   background: var(--rail-pause);
   color: #2a1e3d;
@@ -227,7 +271,7 @@ svg.ic {
   height: 22px;
 }
 .help-btn:active {
-  transform: scale(0.94);
+  transform: scale(0.97);
   background: var(--surface-2);
 }
 .shell .help-btn {
@@ -351,11 +395,17 @@ svg.ic {
   width: 16px;
   height: 16px;
 }
+.svc-hint {
+  font-size: 14px;
+  color: var(--ink-3);
+  margin-top: 8px;
+}
 .svc-pending[data-done='true'] {
   color: var(--allowed);
 }
 .svc-pending[data-problem='true'] {
-  color: var(--paused);
+  color: var(--ink);
+  font-weight: 600;
 }
 
 .segc {
@@ -377,6 +427,7 @@ svg.ic {
   border-radius: 8px;
   background: var(--surface);
   box-shadow:
+    0 0 0 1px var(--ink-3),
     0 1px 2px rgba(8, 26, 30, 0.12),
     0 2px 6px rgba(8, 26, 30, 0.06);
   transform: translateX(calc(var(--i, 2) * 100%));
@@ -389,6 +440,11 @@ svg.ic {
   :root:not([data-theme='light']) .segc-thumb {
     background: var(--surface-3);
   }
+}
+.segc button::before {
+  content: '';
+  position: absolute;
+  inset: -6px 0;
 }
 .segc button {
   position: relative;
@@ -406,7 +462,7 @@ svg.ic {
   font-weight: 650;
 }
 .segc button:active {
-  transform: scale(0.96);
+  transform: scale(0.97);
 }
 .segc[data-disabled='true'] {
   opacity: 0.5;
@@ -438,7 +494,10 @@ svg.ic {
   flex-wrap: wrap;
 }
 .moods button {
-  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 40px;
   padding: 0 12px;
   border-radius: 17px;
   border: 1px solid var(--line-strong);
@@ -451,7 +510,18 @@ svg.ic {
     color 160ms ease;
 }
 .moods button:active {
-  transform: scale(0.96);
+  transform: scale(0.97);
+}
+.moods-ask {
+  align-self: center;
+  font-size: 14px;
+  color: var(--ink-3);
+  margin-right: 2px;
+}
+.moods button svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2.2;
 }
 .moods button[aria-pressed='true'] {
   background: var(--primary-soft);
@@ -535,7 +605,7 @@ button.row:active {
   transition: transform 140ms var(--ease-out);
 }
 .tab:active {
-  transform: scale(0.94);
+  transform: scale(0.97);
 }
 .tab[aria-current='page'] {
   color: var(--primary);
@@ -547,7 +617,7 @@ button.row:active {
   left: 12px;
   right: 12px;
   bottom: calc(env(safe-area-inset-bottom, 0px) + 78px);
-  z-index: 30;
+  z-index: 19;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -564,22 +634,29 @@ button.row:active {
   box-shadow: 0 10px 30px rgba(8, 26, 30, 0.25);
   transition:
     transform 260ms var(--ease-out),
-    opacity 200ms ease;
+    opacity 200ms var(--ease-out);
 }
 .toast[data-show='false'] {
   opacity: 0;
   transform: translateY(14px) scale(0.98);
   pointer-events: none;
+  transition:
+    transform 180ms var(--ease-out),
+    opacity 140ms var(--ease-out);
 }
 .toast button {
   margin-left: auto;
-  height: 36px;
+  height: 44px;
   padding: 0 12px;
   border-radius: 10px;
   font-weight: 700;
   color: var(--ground);
   background: rgba(255, 255, 255, 0.12);
   flex: none;
+  transition: transform 140ms var(--ease-out);
+}
+.toast button:active {
+  transform: scale(0.97);
 }
 :root[data-theme='dark'] .toast button {
   background: rgba(0, 0, 0, 0.12);
@@ -597,11 +674,14 @@ button.row:active {
   z-index: 20;
   background: var(--scrim);
 }
+.scrim-help {
+  z-index: 23;
+}
 .scrim[data-state='open'] {
-  animation: fade-in 220ms ease;
+  animation: fade-in 280ms var(--ease-drawer);
 }
 .scrim[data-state='closed'] {
-  animation: fade-out 200ms ease;
+  animation: fade-out 220ms var(--ease-drawer);
 }
 
 .panel {
@@ -609,7 +689,7 @@ button.row:active {
   top: 0;
   right: 0;
   bottom: 0;
-  z-index: 21;
+  z-index: 24;
   width: min(92vw, 420px);
   background: var(--surface);
   border-radius: 22px 0 0 22px;
@@ -620,13 +700,14 @@ button.row:active {
   outline: none;
 }
 .panel[data-state='open'] {
-  animation: panel-in 320ms var(--ease-drawer);
+  animation: panel-in 280ms var(--ease-drawer);
+  transition: transform 240ms var(--ease-drawer);
 }
 .panel[data-state='closed'] {
   animation: panel-out 220ms var(--ease-drawer);
 }
 .panel[data-dragging='true'] {
-  animation: none;
+  transition: none;
 }
 .panel-top {
   display: flex;
@@ -663,7 +744,7 @@ button.row:active {
   transition: transform 140ms var(--ease-out);
 }
 .close:active {
-  transform: scale(0.92);
+  transform: scale(0.97);
 }
 .close svg {
   width: 20px;
@@ -795,6 +876,7 @@ button.row:active {
 }
 .p-sec .sees {
   color: var(--k-ink);
+  box-shadow: inset 0 0 0 1px var(--line);
 }
 .dl {
   display: grid;
@@ -854,7 +936,7 @@ details.research p {
 }
 details.research .cite {
   font-size: 14px;
-  color: var(--ink-3);
+  color: var(--ink-2);
 }
 .related {
   display: flex;
@@ -862,7 +944,7 @@ details.research .cite {
   gap: 8px;
 }
 .related button {
-  height: 38px;
+  height: 44px;
   padding: 0 14px;
   border-radius: 19px;
   background: var(--primary-soft);
@@ -872,7 +954,7 @@ details.research .cite {
   transition: transform 140ms var(--ease-out);
 }
 .related button:active {
-  transform: scale(0.96);
+  transform: scale(0.97);
 }
 .helpful {
   display: flex;
@@ -888,7 +970,7 @@ details.research .cite {
   margin-left: auto;
 }
 .helpful button {
-  height: 38px;
+  height: 44px;
   padding: 0 14px;
   border-radius: 12px;
   background: var(--surface-2);
@@ -897,7 +979,7 @@ details.research .cite {
   transition: transform 140ms var(--ease-out);
 }
 .helpful button:active {
-  transform: scale(0.96);
+  transform: scale(0.97);
 }
 
 .sheet {
@@ -918,7 +1000,7 @@ details.research .cite {
   outline: none;
 }
 .sheet[data-state='open'] {
-  animation: sheet-in 320ms var(--ease-drawer);
+  animation: sheet-in 280ms var(--ease-drawer);
 }
 .sheet[data-state='closed'] {
   animation: sheet-out 220ms var(--ease-drawer);
@@ -969,7 +1051,7 @@ details.research .cite {
   width: 22px;
   height: 22px;
   border-radius: 11px;
-  box-shadow: inset 0 0 0 2px var(--line-strong);
+  box-shadow: inset 0 0 0 2px var(--ink-3);
   flex: none;
   display: grid;
   place-items: center;
@@ -1039,9 +1121,15 @@ details.research .cite {
   height: 31px;
   border-radius: 16px;
   background: var(--surface-3);
+  box-shadow: inset 0 0 0 1.5px var(--ink-3);
   position: relative;
   flex: none;
   transition: background-color 200ms ease;
+}
+.switch::before {
+  content: '';
+  position: absolute;
+  inset: -7px -4px;
 }
 .switch::after {
   content: '';
@@ -1057,6 +1145,7 @@ details.research .cite {
 }
 .switch[aria-checked='true'] {
   background: var(--allowed);
+  box-shadow: none;
 }
 .switch[aria-checked='true']::after {
   transform: translateX(20px);
@@ -1085,9 +1174,9 @@ details.research .cite {
   margin-top: 16px;
   height: 54px;
 }
-.child-opt {
-  font-size: 18px;
-  font-weight: 600;
+.sheet .sheet-cancel {
+  width: 100%;
+  margin-top: 8px;
 }
 
 @keyframes fade-in {
@@ -1155,9 +1244,8 @@ details.research .cite {
   .scrim[data-state='closed'] {
     animation: fade-out 160ms ease;
   }
-  .shell-action:active,
-  .tab:active,
-  .child-switch:active {
+  .toast[data-show='false'],
+  .rail-pause[data-on='false'] {
     transform: none;
   }
 }

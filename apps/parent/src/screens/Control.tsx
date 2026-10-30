@@ -6,7 +6,6 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { DurationSheet, devicesOf, PHRASE, serviceLine, type Choice, type SheetKind } from '../components/DurationSheet';
 import { Rail } from '../components/Rail';
-import { Sheet } from '../components/Sheet';
 import { HelpButton } from '../help/HelpButton';
 import { Icon, serviceIcon } from '../icons';
 import { useToast } from '../toast';
@@ -20,7 +19,10 @@ interface Props {
   accept: (s: ChildStatus) => void;
   setHistory: (h: HistoryEntry[]) => void;
   refresh: () => Promise<void>;
-  onPickChild: (id: string) => void;
+  /** Set when the last refresh failed: the screen shows what was last known, and says so. */
+  offline?: string | undefined;
+  /** Opens the child picker, which lives above this screen so it can animate out as the screen changes. */
+  onSwitchChild: (from: HTMLElement) => void;
 }
 
 const MOODS: { mood: Mood; label: string }[] = [
@@ -31,10 +33,9 @@ const MOODS: { mood: Mood; label: string }[] = [
 
 const untilOf = (label: string) => label.replace(/^until /, '') || null;
 
-export function Control({ me, kids, status, history, setStatus, accept, setHistory, refresh, onPickChild }: Props) {
+export function Control({ me, kids, status, history, setStatus, accept, setHistory, refresh, offline, onSwitchChild }: Props) {
   const toast = useToast();
   const [sheet, setSheet] = useState<{ kind: SheetKind; serviceId?: string; from: HTMLElement | null }>();
-  const [picking, setPicking] = useState<HTMLElement | null>();
   const canChange = me.capabilities.includes('control.change');
   const canPause = me.capabilities.includes('control.pause');
   const childId = status.child.id;
@@ -68,6 +69,8 @@ export function Control({ me, kids, status, history, setStatus, accept, setHisto
       void refresh();
       return answer;
     } catch (err) {
+      // No "Working now" tick for a change that never happened.
+      setWatching((w) => new Set([...w].filter((id) => !ids.includes(id))));
       toast((err as Error).message);
       void refresh();
       return undefined;
@@ -111,13 +114,13 @@ export function Control({ me, kids, status, history, setStatus, accept, setHisto
     toast(`${svc.name} back to normal. ${serviceLine(now)}.`, () => void undo(`${base}/normal/undo`, [svc.id], { target }));
   };
 
-  const pause = async (choice: Choice, until: string) => {
+  const pause = async (choice: Choice, until: string, end: string) => {
     setSheet(undefined);
     const untilLabel = choice === 'until-resume' ? null : untilOf(until);
     const guess: ChildStatus = {
       ...status,
-      headline: { lead: 'Everything is paused', rest: `${untilLabel ? `until ${untilLabel}` : 'until you resume'}. ${me.displayName} started it.` },
-      pause: { id: 'pending', by: me.displayName, until: null, untilLabel },
+      headline: { lead: 'Everything is paused', rest: `${untilLabel ? `until ${untilLabel}` : 'until someone resumes it'}. ${me.displayName} started it.` },
+      pause: { id: 'pending', by: me.displayName, byId: me.id, until: end || null, untilLabel },
       services: status.services.map((s) => ({ ...s, state: 'paused', inForce: false })),
     };
     const ids = status.services.map((s) => s.id);
@@ -130,14 +133,14 @@ export function Control({ me, kids, status, history, setStatus, accept, setHisto
   const resume = async () => {
     const ids = status.services.map((s) => s.id);
     const answer = await act({ ...status, pause: null }, () => api<ChildStatus>('POST', `${base}/resume`), ids);
-    if (answer) toast("Everything's back to normal.");
+    if (answer) toast("Everything's back to normal. Takes up to a minute.", () => void undo(`${base}/resume/undo`, ids));
   };
 
   const undo = async (path: string, ids: string[], body?: unknown) => {
     watch(ids);
     try {
       accept(await api<ChildStatus>('POST', path, body));
-      toast('Undone.');
+      toast('Undone. Takes up to a minute to change back.');
     } catch (err) {
       toast((err as Error).message);
     }
@@ -158,6 +161,8 @@ export function Control({ me, kids, status, history, setStatus, accept, setHisto
 
   const sheetService = sheet?.serviceId ? status.services.find((s) => s.id === sheet.serviceId) : undefined;
   const paused = Boolean(status.pause);
+  // A carer can lift only a pause they made.
+  const canResume = canChange || status.pause?.byId === me.id;
   const devices = devicesOf(status);
   const problems = status.devices.filter((d) => d.quietSince || d.sync === 'not-confirmed');
 
@@ -166,24 +171,36 @@ export function Control({ me, kids, status, history, setStatus, accept, setHisto
       <div className="shell">
         <div className="shell-inner">
           {kids.length > 1 ? (
-            <button type="button" className="child-switch" aria-label={`Showing ${status.child.name}. Switch child`} onClick={(e) => setPicking(e.currentTarget)}>
-              {status.child.name}
-              <Icon name="down" />
-            </button>
+            <h1 className="child-name">
+              <button type="button" className="child-switch" aria-label={`Showing ${status.child.name}. Switch child`} onClick={(e) => onSwitchChild(e.currentTarget)}>
+                {status.child.name}
+                <Icon name="down" />
+              </button>
+            </h1>
           ) : (
             <h1 className="child-name">{status.child.name}</h1>
           )}
           <p className="now-line" aria-live="polite">
             <strong>{status.headline.lead}</strong> {status.headline.rest}
           </p>
+          {offline ? (
+            <div className="offline" role="alert">
+              <span>Can&apos;t reach Family time just now. This is what was last known.</span>
+              <button type="button" className="btn btn-shell" onClick={() => void refresh()}>
+                Try again
+              </button>
+            </div>
+          ) : null}
           <Rail status={status} />
           {canPause ? (
             <div className="pause-row">
-              {paused ? (
+              {paused && canResume ? (
                 <button type="button" className="shell-action" data-paused="true" onClick={() => void resume()}>
                   <Icon name="play" />
                   <span>Resume now</span>
                 </button>
+              ) : paused ? (
+                <p className="shell-note">Only a parent can resume this pause.</p>
               ) : (
                 <button type="button" className="shell-action" data-paused="false" onClick={(e) => setSheet({ kind: 'pause', from: e.currentTarget })}>
                   <Icon name="pause" />
@@ -209,8 +226,8 @@ export function Control({ me, kids, status, history, setStatus, accept, setHisto
                   <Icon name="alert" />
                 </span>
                 <span className="row-text">
-                  {d.quietSince ? `${d.label} has gone quiet.` : `Not confirmed on ${d.label}.`}
-                  <small>{d.quietSince ? 'Its apps are not being managed right now.' : 'Family time keeps trying every minute.'}</small>
+                  {d.quietSince ? `${d.label} has gone quiet.` : `${d.label} hasn't picked up the last change yet.`}
+                  <small>{d.quietSince ? "Family time can't block apps on it right now. It's probably off your home Wi-Fi." : "Family time keeps trying every minute. Check it's on your home Wi-Fi."}</small>
                 </span>
                 <span className="row-end">
                   <HelpButton topic={d.quietSince ? 'device-gone-quiet' : 'device-status'} label={d.quietSince ? 'A device has gone quiet' : 'Is it working yet?'} />
@@ -219,6 +236,7 @@ export function Control({ me, kids, status, history, setStatus, accept, setHisto
             ))}
           </div>
         ) : null}
+        {canChange && paused ? <p className="list-note">Everything is paused. Tap Resume now to change an app.</p> : null}
         <ul className="group">
           {status.services.map((s) => (
             <ServiceRow
@@ -239,7 +257,7 @@ export function Control({ me, kids, status, history, setStatus, accept, setHisto
         </ul>
         <p className="foot">
           <Icon name="clock" />
-          <span>Changes take up to a minute. A video that&apos;s already playing may finish first.</span>
+          <span>Changes take up to a minute and work on your home Wi-Fi. A video that&apos;s already playing may finish first.</span>
         </p>
       </section>
 
@@ -258,8 +276,12 @@ export function Control({ me, kids, status, history, setStatus, accept, setHisto
                 <span>{h.text}</span>
                 {h.ending ? (
                   <div className="moods" role="group" aria-label={`How did it go? ${h.text}`}>
+                    <span className="moods-ask" aria-hidden="true">
+                      How did it go?
+                    </span>
                     {MOODS.map((m) => (
                       <button key={m.mood} type="button" aria-pressed={h.ending!.mood === m.mood} onClick={() => void tapMood(h, m.mood)}>
+                        {h.ending!.mood === m.mood ? <Icon name="check" /> : null}
                         {m.label}
                       </button>
                     ))}
@@ -279,33 +301,11 @@ export function Control({ me, kids, status, history, setStatus, accept, setHisto
         returnFocus={sheet?.from ?? null}
         onClose={() => setSheet(undefined)}
         onConfirm={(choice, counts, option) => {
-          if (sheet?.kind === 'pause') void pause(choice, option.until);
+          if (sheet?.kind === 'pause') void pause(choice, option.until, option.end);
           else if (sheet && sheetService) void allowOrBlock(sheet.kind as 'allow' | 'block', sheetService, choice, counts, option.until);
         }}
       />
 
-      <Sheet open={Boolean(picking)} onClose={() => setPicking(null)} title="Show" returnFocus={picking ?? null}>
-        <div className="opts" role="radiogroup" aria-label="Show">
-          {kids.map((k) => (
-            <button
-              key={k.id}
-              type="button"
-              role="radio"
-              className="opt"
-              aria-checked={k.id === childId}
-              onClick={() => {
-                setPicking(null);
-                onPickChild(k.id);
-              }}
-            >
-              <span className="radio" aria-hidden="true" />
-              <span className="opt-text">
-                <span className="opt-label">{k.name}</span>
-              </span>
-            </button>
-          ))}
-        </div>
-      </Sheet>
     </main>
   );
 }
@@ -327,7 +327,7 @@ function ServiceRow({ svc, devices, watching, done, notConfirmed, canChange, pau
   const index = svc.override?.type === 'allow' ? 0 : svc.override?.type === 'block' ? 1 : 2;
   let pending: { text: string; done?: boolean; problem?: boolean } | undefined;
   if (devices) {
-    if (!svc.inForce && notConfirmed) pending = { text: `Not confirmed on ${devices}. Still trying.`, problem: true };
+    if (!svc.inForce && notConfirmed) pending = { text: `${devices} hasn't picked up this change yet. Still trying.`, problem: true };
     else if (!svc.inForce) {
       const verb = svc.state === 'allowed' ? 'Starting' : svc.state === 'paused' ? 'Pausing' : 'Blocking';
       pending = { text: `${verb} on ${devices}. Takes up to a minute.` };
@@ -345,8 +345,8 @@ function ServiceRow({ svc, devices, watching, done, notConfirmed, canChange, pau
         <p className="svc-line tnum">{serviceLine(svc)}</p>
         <p className="svc-reason">{svc.reason}</p>
         {pending ? (
-          <p className="svc-pending" data-done={Boolean(pending.done)} data-problem={Boolean(pending.problem)} role="status">
-            <Icon name={pending.done ? 'check' : 'clock'} />
+          <p className="svc-pending" data-done={Boolean(pending.done)} data-problem={Boolean(pending.problem)}>
+            <Icon name={pending.done ? 'check' : pending.problem ? 'alert' : 'clock'} />
             <span>{pending.text}</span>
           </p>
         ) : null}

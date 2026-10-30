@@ -2,7 +2,7 @@ import type { AdGuard } from '@family-time/adguard-client';
 import { recordHeartbeat, type Db } from '@family-time/db';
 import type { Send, Vapid } from '@family-time/notify';
 import type { PgBoss } from 'pg-boss';
-import { sendDeviceAlerts } from './alerts.js';
+import { sendDeviceAlerts, type DeviceAlertKind } from './alerts.js';
 import { reconcile } from './reconcile.js';
 import { readUsage } from './usage.js';
 
@@ -11,6 +11,8 @@ export const HEARTBEAT_INTERVAL_MS = 30_000;
 /** The api sends a job here after every change, and the worker sends one every minute. */
 export const RECONCILE_QUEUE = 'reconcile';
 export const USAGE_QUEUE = 'usage';
+/** Alerts to parents' phones. Their own queue: a push service that is slow or down never delays AdGuard. */
+export const ALERT_QUEUE = 'alerts';
 export const CONTROL_INTERVAL_MS = 60_000;
 
 export type Log = (level: 'debug' | 'info' | 'warn' | 'error', event: string, fields?: Record<string, unknown>) => void;
@@ -64,15 +66,26 @@ export async function startWorker(deps: WorkerDeps): Promise<RunningWorker> {
       log('warn', 'notify_failed', { error: (err as Error).message });
     }
   };
-  const alert = async (kind: 'not-confirmed' | 'quiet', deviceIds: string[]) => {
+  if (!(await boss.getQueue(ALERT_QUEUE))) await boss.createQueue(ALERT_QUEUE);
+  const alert = async (kind: DeviceAlertKind, deviceIds: string[]) => {
     if (!deviceIds.length) return;
     if (!deps.push) return log('warn', 'alert_skipped', { kind, reason: 'No VAPID key. Run ./scripts/init.sh' });
     try {
-      await sendDeviceAlerts({ db, log, ...deps.push }, kind, deviceIds);
+      await boss.send(ALERT_QUEUE, { kind, deviceIds }, { expireInSeconds: 120 });
     } catch (err) {
-      log('error', 'alert_failed', { kind, error: (err as Error).message });
+      log('error', 'alert_not_queued', { kind, error: (err as Error).message });
     }
   };
+  await boss.work<{ kind: DeviceAlertKind; deviceIds: string[] }>(ALERT_QUEUE, { pollingIntervalSeconds: deps.pollingIntervalSeconds ?? 2 }, async (jobs) => {
+    if (!deps.push) return;
+    for (const job of jobs) {
+      try {
+        await sendDeviceAlerts({ db, log, ...deps.push }, job.data.kind, job.data.deviceIds);
+      } catch (err) {
+        log('error', 'alert_failed', { kind: job.data.kind, error: (err as Error).message });
+      }
+    }
+  });
   await boss.work(RECONCILE_QUEUE, { pollingIntervalSeconds: deps.pollingIntervalSeconds ?? 2 }, async () => {
     if (!adguard) return log('debug', 'reconcile_skipped', { reason: 'AdGuard is not set up. Run ./scripts/ft.sh adguard-setup' });
     const result = await reconcile({ db, adguard, now, log });

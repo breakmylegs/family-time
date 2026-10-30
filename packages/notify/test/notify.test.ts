@@ -45,9 +45,11 @@ describe('sending', () => {
     const [dad] = await db.insert(people).values({ householdId: hh!.id, displayName: 'Dad', role: 'parent' }).returning();
     await db.insert(people).values({ householdId: hh!.id, displayName: 'Gran', role: 'carer' });
     await db.insert(pushSubscriptions).values([
-      { personId: mum!.id, endpoint: 'https://push.example/ok', p256dh: 'k', auth: 'a' },
-      { personId: dad!.id, endpoint: 'https://push.example/gone', p256dh: 'k', auth: 'a' },
-      { personId: dad!.id, endpoint: 'https://push.example/flaky', p256dh: 'k', auth: 'a' },
+      { personId: mum!.id, endpoint: 'https://fcm.googleapis.com/fcm/send/ok', p256dh: 'k', auth: 'a' },
+      { personId: dad!.id, endpoint: 'https://fcm.googleapis.com/fcm/send/gone', p256dh: 'k', auth: 'a' },
+      { personId: dad!.id, endpoint: 'https://fcm.googleapis.com/fcm/send/flaky', p256dh: 'k', auth: 'a' },
+      // Written some other way, around the api's check: never sent to, and removed.
+      { personId: mum!.id, endpoint: 'https://10.0.0.1%2efcm.googleapis.com/fcm/send/x', p256dh: 'k', auth: 'a' },
     ]);
     const parents = await parentsOf(db, hh!.id);
     expect(parents.sort()).toEqual([mum!.id, dad!.id].sort());
@@ -60,12 +62,12 @@ describe('sending', () => {
       return { statusCode: 201 };
     };
     const result = await pushTo({ db, vapid: vapidFromPem(pem), origin: 'https://family.example.com', send }, parents, { title: 't', body: 'b', path: '/' });
-    expect(result).toEqual({ sent: 1, failed: 2 });
-    expect(delivered).toEqual(['https://push.example/ok']);
+    expect(result).toEqual({ sent: 1, failed: 3 });
+    expect(delivered).toEqual(['https://fcm.googleapis.com/fcm/send/ok']);
     const left = await db.select().from(pushSubscriptions);
     expect(left.map((s) => [s.endpoint, s.failures]).sort()).toEqual([
-      ['https://push.example/flaky', 1],
-      ['https://push.example/ok', 0],
+      ['https://fcm.googleapis.com/fcm/send/flaky', 1],
+      ['https://fcm.googleapis.com/fcm/send/ok', 0],
     ]);
   });
 });

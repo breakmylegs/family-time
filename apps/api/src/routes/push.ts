@@ -1,6 +1,9 @@
 import { helpFeedback, pushSubscriptions, type Db } from '@family-time/db';
 import { HelpFeedbackRequest, PushSubscriptionRequest } from '@family-time/schemas';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
+
+/** Phones and browsers per person. The oldest goes when a new one joins. */
+const MAX_SUBSCRIPTIONS = 5;
 import type { FastifyInstance } from 'fastify';
 import { parseBody } from './validate.js';
 
@@ -16,7 +19,7 @@ export async function pushRoutes(app: FastifyInstance, deps: PushRouteDeps): Pro
   const { db, now } = deps;
 
   app.get('/api/push/key', { config: { access: 'status.view' } }, async (_request, reply) => {
-    if (!deps.vapidPublicKey) return reply.code(409).send({ error: 'push_not_set_up', detail: 'Alerts are not set up on the server yet. Run ./scripts/init.sh, then ./scripts/update.sh.' });
+    if (!deps.vapidPublicKey) return reply.code(409).send({ error: 'push_not_set_up', detail: "Alerts aren't ready yet. Ask whoever set up Family time to finish setting up alerts (./scripts/init.sh, then ./scripts/update.sh)." });
     return { publicKey: deps.vapidPublicKey };
   });
 
@@ -29,7 +32,10 @@ export async function pushRoutes(app: FastifyInstance, deps: PushRouteDeps): Pro
     await db
       .insert(pushSubscriptions)
       .values({ personId: me.id, endpoint: body.endpoint, p256dh: body.keys.p256dh, auth: body.keys.auth, userAgent, createdAt: now() })
-      .onConflictDoUpdate({ target: pushSubscriptions.endpoint, set: { personId: me.id, p256dh: body.keys.p256dh, auth: body.keys.auth, userAgent, failures: 0 } });
+      .onConflictDoUpdate({ target: pushSubscriptions.endpoint, set: { personId: me.id, p256dh: body.keys.p256dh, auth: body.keys.auth, userAgent, failures: 0, createdAt: now() } });
+    const mine = await db.select({ id: pushSubscriptions.id }).from(pushSubscriptions).where(eq(pushSubscriptions.personId, me.id)).orderBy(desc(pushSubscriptions.createdAt));
+    const extra = mine.slice(MAX_SUBSCRIPTIONS).map((r) => r.id);
+    if (extra.length) await db.delete(pushSubscriptions).where(inArray(pushSubscriptions.id, extra));
     return reply.code(201).send({ ok: true });
   });
 

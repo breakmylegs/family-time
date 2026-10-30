@@ -1,6 +1,7 @@
 // A bottom sheet on Radix Dialog: focus trap, Escape, tap outside, focus back to what opened it.
 import * as Dialog from '@radix-ui/react-dialog';
 import { useLayoutEffect, useRef, type ReactNode } from 'react';
+import { pinInPlace } from './motion';
 
 interface Props {
   open: boolean;
@@ -14,16 +15,25 @@ interface Props {
 
 export function Sheet({ open, onClose, title, sub, returnFocus, children }: Props) {
   const heading = useRef<HTMLHeadingElement>(null);
+  const content = useRef<HTMLDivElement>(null);
   const returnTo = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
     if (open) returnTo.current = returnFocus ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
   }, [open, returnFocus]);
 
   return (
-    <Dialog.Root open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog.Root
+      open={open}
+      onOpenChange={(o) => {
+        if (o) return;
+        pinInPlace(content.current);
+        onClose();
+      }}
+    >
       <Dialog.Portal>
         <Dialog.Overlay className="scrim" />
         <Dialog.Content
+          ref={content}
           className="sheet"
           aria-describedby={undefined}
           onOpenAutoFocus={(e) => {
@@ -41,6 +51,8 @@ export function Sheet({ open, onClose, title, sub, returnFocus, children }: Prop
           </Dialog.Title>
           {sub ? <p className="sh-sub">{sub}</p> : null}
           {children}
+          {/* A way out that needs no reach to the top of the screen, and that VoiceOver can find. */}
+          <Dialog.Close className="btn btn-quiet sheet-cancel">Cancel</Dialog.Close>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

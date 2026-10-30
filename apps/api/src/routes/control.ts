@@ -3,7 +3,7 @@ import { EndingRequest, NormalRequest, OverrideRequest, type ChildSummary, type 
 import { and, count, eq } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { can } from '../auth/capabilities.js';
-import { childStatus, ControlError, endOverride, endOverrides, findChild, reinstateOverrides, setOverride } from '../control/commands.js';
+import { childStatus, ControlError, endOverride, endOverrides, findChild, reinstateOverrides, reinstatePause, setOverride } from '../control/commands.js';
 import { recordEnding, todayHistory } from '../control/history.js';
 import type { Changes } from '../events.js';
 import { parseBody } from './validate.js';
@@ -57,7 +57,7 @@ export async function controlRoutes(app: FastifyInstance, deps: ControlRouteDeps
 
   app.get<{ Params: { id: string } }>('/api/children/:id/status', { config: { access: 'status.view' } }, async (request, reply) => {
     const child = await findChild(db, request.auth!.person.householdId, request.params.id);
-    if (!child) return reply.code(404).send({ error: 'not_found', detail: 'That child is not in this family.' });
+    if (!child) return reply.code(404).send({ error: 'not_found', detail: "Family time can't find that child. Reload to see who's in your family now." });
     return childStatus(db, child.id, now());
   });
 
@@ -66,11 +66,12 @@ export async function controlRoutes(app: FastifyInstance, deps: ControlRouteDeps
     const body = parseBody(OverrideRequest, request, reply);
     if (!body) return reply;
     const me = request.auth!.person;
-    if (body.type !== 'pause' && !can(me.role, 'control.change')) {
-      return reply.code(403).send({ error: 'forbidden', detail: 'Carers can pause, but not allow or block.' });
+    if (!can(me.role, 'control.change') && (body.type !== 'pause' || body.target.kind !== 'everything')) {
+      // Pausing one app until resumed would be an open-ended Block, which carers do not have.
+      return reply.code(403).send({ error: 'forbidden', detail: 'Carers can pause everything, but only a parent can allow or block apps. Ask a parent if it needs changing.' });
     }
     const child = await findChild(db, me.householdId, request.params.id);
-    if (!child) return reply.code(404).send({ error: 'not_found', detail: 'That child is not in this family.' });
+    if (!child) return reply.code(404).send({ error: 'not_found', detail: "Family time can't find that child. Reload to see who's in your family now." });
     try {
       const t = now();
       await setOverride(db, { householdId: me.householdId, childId: child.id, byPersonId: me.id, request: body, ip: request.ip }, t);
@@ -86,7 +87,7 @@ export async function controlRoutes(app: FastifyInstance, deps: ControlRouteDeps
     if (!body) return reply;
     const me = request.auth!.person;
     const child = await findChild(db, me.householdId, request.params.id);
-    if (!child) return reply.code(404).send({ error: 'not_found', detail: 'That child is not in this family.' });
+    if (!child) return reply.code(404).send({ error: 'not_found', detail: "Family time can't find that child. Reload to see who's in your family now." });
     const t = now();
     await endOverrides(db, { householdId: me.householdId, childId: child.id, byPersonId: me.id, target: body.target, kinds: ['allow', 'block'], ip: request.ip }, t);
     await nudge(me.householdId);
@@ -96,9 +97,15 @@ export async function controlRoutes(app: FastifyInstance, deps: ControlRouteDeps
   app.post<{ Params: { id: string } }>('/api/children/:id/resume', { config: { access: 'control.pause' } }, async (request, reply) => {
     const me = request.auth!.person;
     const child = await findChild(db, me.householdId, request.params.id);
-    if (!child) return reply.code(404).send({ error: 'not_found', detail: 'That child is not in this family.' });
+    if (!child) return reply.code(404).send({ error: 'not_found', detail: "Family time can't find that child. Reload to see who's in your family now." });
     const t = now();
-    await endOverrides(db, { householdId: me.householdId, childId: child.id, byPersonId: me.id, kinds: ['pause'], ip: request.ip }, t);
+    // A carer lifts only a pause they made: a parent's pause is the parent's to end.
+    const parent = can(me.role, 'control.change');
+    const ended = await endOverrides(db, { householdId: me.householdId, childId: child.id, byPersonId: me.id, kinds: ['pause'], ip: request.ip, ...(parent ? {} : { onlyMadeBy: me.id }) }, t);
+    if (!ended && !parent) {
+      const status = await childStatus(db, child.id, t);
+      if (status.pause) return reply.code(403).send({ error: 'forbidden', detail: `${status.pause.by} paused everything, so only a parent can resume it.` });
+    }
     await nudge(me.householdId);
     return childStatus(db, child.id, t);
   });
@@ -107,15 +114,15 @@ export async function controlRoutes(app: FastifyInstance, deps: ControlRouteDeps
   app.post<{ Params: { id: string; overrideId: string } }>('/api/children/:id/overrides/:overrideId/end', { config: { access: 'control.pause' } }, async (request, reply) => {
     const me = request.auth!.person;
     const child = await findChild(db, me.householdId, request.params.id);
-    if (!child) return reply.code(404).send({ error: 'not_found', detail: 'That child is not in this family.' });
-    if (!/^[0-9a-f-]{36}$/i.test(request.params.overrideId)) return reply.code(404).send({ error: 'not_found' });
-    const o = (await db.select({ type: overrides.type }).from(overrides).where(and(eq(overrides.id, request.params.overrideId), eq(overrides.childId, child.id))))[0];
-    if (o && o.type !== 'pause' && !can(me.role, 'control.change')) {
-      return reply.code(403).send({ error: 'forbidden', detail: 'Carers can pause, but not allow or block.' });
+    if (!child) return reply.code(404).send({ error: 'not_found', detail: "Family time can't find that child. Reload to see who's in your family now." });
+    if (!/^[0-9a-f-]{36}$/i.test(request.params.overrideId)) return reply.code(404).send({ error: 'not_found', detail: "That change has already ended, so there's nothing to undo." });
+    const o = (await db.select({ type: overrides.type, createdBy: overrides.createdBy }).from(overrides).where(and(eq(overrides.id, request.params.overrideId), eq(overrides.childId, child.id))))[0];
+    if (o && !can(me.role, 'control.change') && (o.type !== 'pause' || o.createdBy !== me.id)) {
+      return reply.code(403).send({ error: 'forbidden', detail: 'Carers can pause everything, but only a parent can allow or block apps. Ask a parent if it needs changing.' });
     }
     const t = now();
     const ended = o ? await endOverride(db, { householdId: me.householdId, childId: child.id, byPersonId: me.id, overrideId: request.params.overrideId, ip: request.ip }, t) : undefined;
-    if (!ended) return reply.code(409).send({ error: 'already_ended', detail: 'That has already ended.' });
+    if (!ended) return reply.code(409).send({ error: 'already_ended', detail: "That change has already ended, so there's nothing to undo." });
     await nudge(me.householdId);
     return childStatus(db, child.id, t);
   });
@@ -126,7 +133,7 @@ export async function controlRoutes(app: FastifyInstance, deps: ControlRouteDeps
     if (!body) return reply;
     const me = request.auth!.person;
     const child = await findChild(db, me.householdId, request.params.id);
-    if (!child) return reply.code(404).send({ error: 'not_found', detail: 'That child is not in this family.' });
+    if (!child) return reply.code(404).send({ error: 'not_found', detail: "Family time can't find that child. Reload to see who's in your family now." });
     const t = now();
     const count = await reinstateOverrides(db, { householdId: me.householdId, childId: child.id, byPersonId: me.id, target: body.target, ip: request.ip }, t);
     if (!count) return reply.code(409).send({ error: 'too_late', detail: 'That can no longer be undone. Allow or Block it again instead.' });
@@ -134,10 +141,22 @@ export async function controlRoutes(app: FastifyInstance, deps: ControlRouteDeps
     return childStatus(db, child.id, t);
   });
 
+  // Undo of Resume: the pause this person lifted a moment ago comes back as it was.
+  app.post<{ Params: { id: string } }>('/api/children/:id/resume/undo', { config: { access: 'control.pause' } }, async (request, reply) => {
+    const me = request.auth!.person;
+    const child = await findChild(db, me.householdId, request.params.id);
+    if (!child) return reply.code(404).send({ error: 'not_found', detail: "Family time can't find that child. Reload to see who's in your family now." });
+    const t = now();
+    const count = await reinstatePause(db, { householdId: me.householdId, childId: child.id, byPersonId: me.id, ip: request.ip }, t);
+    if (!count) return reply.code(409).send({ error: 'too_late', detail: 'That can no longer be undone. Tap Pause everything to pause again.' });
+    await nudge(me.householdId);
+    return childStatus(db, child.id, t);
+  });
+
   app.get<{ Params: { id: string } }>('/api/children/:id/history', { config: { access: 'status.view' } }, async (request, reply) => {
     const me = request.auth!.person;
     const child = await findChild(db, me.householdId, request.params.id);
-    if (!child) return reply.code(404).send({ error: 'not_found', detail: 'That child is not in this family.' });
+    if (!child) return reply.code(404).send({ error: 'not_found', detail: "Family time can't find that child. Reload to see who's in your family now." });
     return todayHistory(db, me.householdId, child.id, now());
   });
 
@@ -147,9 +166,9 @@ export async function controlRoutes(app: FastifyInstance, deps: ControlRouteDeps
     if (!body) return reply;
     const me = request.auth!.person;
     const child = await findChild(db, me.householdId, request.params.id);
-    if (!child) return reply.code(404).send({ error: 'not_found', detail: 'That child is not in this family.' });
+    if (!child) return reply.code(404).send({ error: 'not_found', detail: "Family time can't find that child. Reload to see who's in your family now." });
     const ok = await recordEnding(db, { householdId: me.householdId, childId: child.id, byPersonId: me.id, request: body }, now());
-    if (!ok) return reply.code(404).send({ error: 'not_found', detail: "That session is not in today's history." });
+    if (!ok) return reply.code(404).send({ error: 'not_found', detail: "That's no longer in today's list, so your answer wasn't saved." });
     deps.changes?.emit(me.householdId);
     return reply.code(201).send({ ok: true });
   });

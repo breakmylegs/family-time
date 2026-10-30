@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@family-time/db": "workspace:*",
+    "@family-time/schemas": "workspace:*",
     "drizzle-orm": "0.45.4",
     "web-push": "3.6.7"
   },

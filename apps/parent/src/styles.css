@@ -135,9 +135,6 @@ a,
 
 @media (prefers-reduced-motion: reduce) {
   .btn {
-    transition: none;
-  }
-  .btn:active {
-    transform: none;
+    transition-duration: 120ms;
   }
 }

@@ -58,7 +58,7 @@ describe('Control screen data', () => {
     expect(status.durations.allow.map((d) => [d.label, d.until, d.note ?? ''])).toEqual([
       ['For 30 minutes', 'until 19:02', ''],
       ['For 1 hour', 'until 19:32', 'Runs into wind-down'],
-      ['Until bedtime', 'until 20:30', 'Overrides wind-down'],
+      ['Until bedtime', 'until 20:30', 'Runs through wind-down'],
       ['Until tomorrow', 'until Tue 07:00', 'Runs through bedtime'],
     ]);
     expect(status.durations.pause).toHaveLength(3);
@@ -76,7 +76,7 @@ describe('Control screen data', () => {
     const headers = await signedIn(s.db, s.carer);
     const res = await s.app.inject({ method: 'POST', url: `/api/children/${s.child}/overrides`, headers, payload: { target: { kind: 'everything' }, type: 'pause', duration: 'until-resume' } });
     const status = ChildStatus.parse(res.json());
-    expect(status.headline).toEqual({ lead: 'Everything is paused', rest: 'until you resume. Gran started it.' });
+    expect(status.headline).toEqual({ lead: 'Everything is paused', rest: 'until someone resumes it. Gran started it.' });
     expect(status.pause).toMatchObject({ by: 'Gran', until: null });
   });
 });
@@ -130,6 +130,38 @@ describe('Undo', () => {
   });
 });
 
+describe('Undo of Resume', () => {
+  it('puts the pause back as it was, but only for whoever resumed it', async () => {
+    const s = await setup();
+    const mum = await signedIn(s.db, s.owner);
+    const gran = await signedIn(s.db, s.carer);
+    await s.app.inject({ method: 'POST', url: `/api/children/${s.child}/overrides`, headers: mum, payload: { target: { kind: 'everything' }, type: 'pause', duration: 'until-resume' } });
+    s.advance(min(2));
+    await s.app.inject({ method: 'POST', url: `/api/children/${s.child}/resume`, headers: mum });
+    expect((await s.app.inject({ method: 'POST', url: `/api/children/${s.child}/resume/undo`, headers: gran })).statusCode).toBe(409);
+    const undo = await s.app.inject({ method: 'POST', url: `/api/children/${s.child}/resume/undo`, headers: mum });
+    expect(ChildStatus.parse(undo.json()).pause).toMatchObject({ by: 'Mum', until: null });
+  });
+});
+
+describe('carers', () => {
+  it("pause everything, but not one app, and cannot lift a parent's pause", async () => {
+    const s = await setup();
+    const mum = await signedIn(s.db, s.owner);
+    const gran = await signedIn(s.db, s.carer);
+    const one = await s.app.inject({ method: 'POST', url: `/api/children/${s.child}/overrides`, headers: gran, payload: { target: { kind: 'service', id: s.youtube.id }, type: 'pause', duration: 'until-resume' } });
+    expect(one.statusCode).toBe(403);
+    const made = await s.app.inject({ method: 'POST', url: `/api/children/${s.child}/overrides`, headers: mum, payload: { target: { kind: 'everything' }, type: 'pause', duration: 'until-resume' } });
+    const pauseId = ChildStatus.parse(made.json()).pause!.id;
+    expect((await s.app.inject({ method: 'POST', url: `/api/children/${s.child}/resume`, headers: gran })).statusCode).toBe(403);
+    expect((await s.app.inject({ method: 'POST', url: `/api/children/${s.child}/overrides/${pauseId}/end`, headers: gran })).statusCode).toBe(403);
+    // Gran's own pause is Gran's to lift.
+    await s.app.inject({ method: 'POST', url: `/api/children/${s.child}/resume`, headers: mum });
+    await s.app.inject({ method: 'POST', url: `/api/children/${s.child}/overrides`, headers: gran, payload: { target: { kind: 'everything' }, type: 'pause', duration: '30m' } });
+    expect((await s.app.inject({ method: 'POST', url: `/api/children/${s.child}/resume`, headers: gran })).statusCode).toBe(200);
+  });
+});
+
 describe('Today history and the conflict tap', () => {
   it('tells the day in plain sentences, newest first, and records calm, grumble or meltdown once per ending', async () => {
     const s = await setup();
@@ -138,7 +170,7 @@ describe('Today history and the conflict tap', () => {
     s.advance(min(31));
     const history = HistoryEntry.array().parse((await s.app.inject({ url: `/api/children/${s.child}/history`, headers })).json());
     expect(history.map((e) => `${e.time} ${e.text}`)).toEqual([
-      "19:02 Ollie's extra YouTube time ended.",
+      "19:02 Ollie's YouTube time ended.",
       '18:32 Mum allowed YouTube until 19:02.',
       '18:15 Tea pause ended.',
       '17:30 Tea pause started.',
@@ -232,7 +264,17 @@ describe('Alerts and help feedback', () => {
   it("refuses a push endpoint that is not a browser's push service", async () => {
     const s = await setup({ vapidPublicKey: 'BPublicKey' });
     const headers = await signedIn(s.db, s.owner);
-    for (const endpoint of ['http://web.push.apple.com/x', 'https://internal:3000/x', 'https://push.apple.com.evil.example/x', 'https://evilpush.apple.com.example/x']) {
+    for (const endpoint of [
+      'http://web.push.apple.com/x',
+      'https://internal:3000/x',
+      'https://push.apple.com.evil.example/x',
+      'https://evilpush.apple.com.example/x',
+      // The legacy URL parser web-push uses stops a hostname at %, so these would connect elsewhere.
+      'https://10.0.0.1%2efcm.googleapis.com/fcm/send/abc',
+      'https://adguard%2epush.apple.com/x',
+      'https://fcm.googleapis.com:9/fcm/send/abc',
+      'https://user@fcm.googleapis.com/fcm/send/abc',
+    ]) {
       const res = await s.app.inject({ method: 'POST', url: '/api/push/subscriptions', headers, payload: { ...sub, endpoint } });
       expect(res.statusCode, endpoint).toBe(400);
     }

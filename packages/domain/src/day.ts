@@ -51,7 +51,7 @@ export function headline(schedules: Schedule[], childId: string, now: Date, time
   const next = blocks.find((b) => b.start.getTime() > t && b.type !== 'free');
   const at = (d: Date) => clockLabel(d, now, timeZone);
   if (!current) {
-    return { lead: 'Nothing scheduled now.', rest: next ? `${name(next)} starts at ${at(next.start)}.` : 'No schedule set for today.' };
+    return { lead: 'Nothing scheduled now.', rest: next ? `${name(next)} starts at ${at(next.start)}.` : 'No routine set for today, so your usual rules apply.' };
   }
   switch (current.type) {
     case 'free':
@@ -59,11 +59,15 @@ export function headline(schedules: Schedule[], childId: string, now: Date, time
     case 'pause':
       return { lead: `${name(current)} now.`, rest: `Everything is paused until ${at(current.end)}.` };
     case 'school':
-      return { lead: `${current.label ?? 'School time'} now.`, rest: `Free time from ${at(current.end)}.` };
+      {
+        // Name what comes next, which is not always free time.
+        const after = blocks.find((b) => b.start.getTime() === current.end.getTime() && b.type !== 'school');
+        return { lead: `${current.label ?? 'School time'} now.`, rest: after ? `${name(after)} from ${at(current.end)}.` : `Until ${at(current.end)}.` };
+      }
     case 'wind-down':
       return { lead: 'Wind-down now.', rest: `Bed at ${at(current.end)}.` };
     case 'bed':
-      return { lead: 'Bedtime.', rest: `Until ${at(current.end)}.` };
+      return { lead: 'Bedtime now.', rest: `Apps are blocked until ${at(current.end)}.` };
   }
 }
 
@@ -90,7 +94,7 @@ export function durationOptions(kind: 'allow' | 'block' | 'pause', schedules: Sc
     let note: string | undefined;
     if (kind === 'allow') {
       if (choice === 'until-tomorrow') note = 'Runs through bedtime';
-      else if (choice === 'until-bedtime' && windDown && windDown.start < w.end) note = 'Overrides wind-down';
+      else if (choice === 'until-bedtime' && windDown && windDown.start < w.end) note = 'Runs through wind-down';
       else if (windDown && windDown.start < w.end && (!bed || w.end <= bed)) note = 'Runs into wind-down';
     }
     return { choice, label: LABELS[choice], until: `until ${clockLabel(w.end, now, timeZone)}`, end: w.end.toISOString(), overridesBedtime: kind === 'allow' && w.overridesBedtime, ...(note ? { note } : {}) };

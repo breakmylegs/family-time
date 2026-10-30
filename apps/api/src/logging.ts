@@ -16,6 +16,7 @@ export function loggerOptions(service: string, level: string, stream?: NodeJS.Wr
     base: { app: APP_NAME, service },
     timestamp: () => `,"time":"${new Date().toISOString()}"`,
     formatters: { level: (label: string) => ({ level: label }) },
+    serializers: { err: safeError },
     redact: {
       paths: [
         'req.headers.cookie',
@@ -35,6 +36,16 @@ export function loggerOptions(service: string, level: string, stream?: NodeJS.Wr
     },
     ...(stream ? { stream } : {}),
   } as LoggerOptions;
+}
+
+/**
+ * An error as logged. Drizzle puts the failed query and its parameters in the message, and a
+ * parameter can be a push key or a session hash, so everything from "params:" on is dropped.
+ */
+export function safeError(err: unknown): { [key: string]: unknown; type: string; message: string; stack: string } {
+  const e = err as { name?: string; message?: string; code?: string; stack?: string };
+  const clean = (s: string | undefined) => (s ?? '').replace(/\nparams:[\s\S]*$/, '\nparams: [redacted]');
+  return { type: e?.name ?? 'Error', message: clean(e?.message) || String(err), ...(e?.code ? { code: e.code } : {}), stack: clean(e?.stack) };
 }
 
 /** Path without the query string, which may one day carry a token. */

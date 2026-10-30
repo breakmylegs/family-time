@@ -139,7 +139,7 @@ function decideRaw(rules: Rules, service: Service, at: Date): Raw {
       state: 'paused',
       layer: 'pause',
       sourceId: pause.id,
-      reason: pause.end ? `Paused by ${pause.createdByName}.` : `Paused by ${pause.createdByName} until they resume.`,
+      reason: pause.end ? `Paused by ${pause.createdByName}.` : `Paused by ${pause.createdByName} until someone resumes it.`,
     };
   }
   const routinePause = blocks.find((b) => b.type === 'pause');
@@ -182,7 +182,7 @@ function decideRaw(rules: Rules, service: Service, at: Date): Raw {
       reason:
         grant.source === 'planned'
           ? // No pronoun: V2 serves any family, and a guessed pronoun is worse than none.
-            `${name} planned ${duration(minutes)} of screen time.`
+            `${name} planned ${durationWords(minutes)} of screen time.`
           : `${grant.approvedByName ?? 'A parent'} said yes to ${name}'s request.`,
     };
   }
@@ -194,7 +194,8 @@ function decideRaw(rules: Rules, service: Service, at: Date): Raw {
   return { state: 'blocked', layer: 'default', reason: `Not planned today.${rule ? ` Usual ${rule.toLowerCase()} rule.` : ''}` };
 }
 
-function duration(minutes: number): string {
+/** "30 minutes", "1 hour", "1 hour 30 minutes". */
+export function durationWords(minutes: number): string {
   if (minutes % 60 === 0) return minutes === 60 ? '1 hour' : `${minutes / 60} hours`;
   if (minutes > 60) return `${Math.floor(minutes / 60)} hour${minutes >= 120 ? 's' : ''} ${minutes % 60} minutes`;
   return `${minutes} minutes`;

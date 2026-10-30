@@ -36,6 +36,10 @@ export async function shot(page: Page, name: string, phase = 'phase-1'): Promise
   const dir = join(DOCS, phase);
   mkdirSync(dir, { recursive: true });
   // Let sheets, the panel and the toast finish moving (all under 330ms).
-  if (phase !== 'phase-1') await page.waitForTimeout(400);
+  if (phase !== 'phase-1') {
+    // A phone has no hover: move the desktop pointer off whatever was last tapped.
+    await page.mouse.move(0, 0);
+    await page.waitForTimeout(400);
+  }
   await page.screenshot({ path: join(dir, `${name}.png`), fullPage: phase === 'phase-1' });
 }

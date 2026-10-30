@@ -91,7 +91,9 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-    networks: [internal]
+    # egress: out to the browsers' push services (Apple, Google, Mozilla, Microsoft) for alerts.
+    # Nothing is published, so nothing can reach the worker from outside.
+    networks: [internal, egress]
     mem_limit: 256m
 
   # Home DNS. Port 53 is published on the server's LAN address only (LAN_IP, from
@@ -117,10 +119,11 @@ services:
   # Added in later phases: besu under profile ledger-besu (Phase 5), ollama under profile ai-local (Phase 7).
 
 networks:
-  # No route out. Postgres and the worker are reachable only from inside the stack.
+  # No route out. Postgres is reachable only from inside the stack.
   internal:
     internal: true
-  # AdGuard's way out to upstream DNS, and where its port 53 is published. Only AdGuard joins it.
+  # The way out: AdGuard to upstream DNS (and where its port 53 is published), the worker to the
+  # push services. Outbound only; the worker publishes no port.
   egress: {}
   # Caddy's network. Only the api joins it.
   proxy:

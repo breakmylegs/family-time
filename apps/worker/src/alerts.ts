@@ -24,14 +24,14 @@ export function deviceAlert(kind: DeviceAlertKind, device: { label: string; chil
   const child = encodeURIComponent(device.childId);
   if (kind === 'not-confirmed') {
     return {
-      title: `Not confirmed on ${device.label}`,
-      body: 'The last change has not been confirmed yet. Family time keeps trying every minute. Open Control to see what is on now.',
+      title: `${device.label} hasn't picked up a change`,
+      body: "Family time keeps trying every minute. Check it's on your home Wi-Fi. Tap to see what's on now.",
       path: `/?child=${child}`,
     };
   }
   return {
     title: `${device.label} has gone quiet`,
-    body: 'It has not checked in with your home server for 30 minutes. That usually means mobile data, a VPN or other DNS.',
+    body: "It hasn't been in touch for 30 minutes, so Family time can't block apps on it. It's usually on mobile data or another network. Tap to see what to do.",
     path: `/?child=${child}&help=device-gone-quiet`,
   };
 }

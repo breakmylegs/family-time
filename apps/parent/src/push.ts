@@ -18,7 +18,21 @@ export async function alertState(): Promise<AlertState> {
   if (Notification.permission === 'denied') return 'denied';
   const reg = await navigator.serviceWorker.getRegistration();
   const sub = await reg?.pushManager.getSubscription();
-  return sub && Notification.permission === 'granted' ? 'on' : 'off';
+  if (!sub || Notification.permission !== 'granted') return 'off';
+  // The browser may still hold a subscription the server has dropped (after failures, or a new
+  // install). Only what the server knows gets alerts, so make sure it knows this one.
+  try {
+    const { endpoints } = await api<{ endpoints: string[] }>('GET', '/api/push/subscriptions/mine');
+    if (!endpoints.includes(sub.endpoint)) await register(sub);
+    return 'on';
+  } catch {
+    return 'off';
+  }
+}
+
+async function register(sub: PushSubscription): Promise<void> {
+  const json = sub.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } };
+  await api('POST', '/api/push/subscriptions', { endpoint: json.endpoint, keys: json.keys });
 }
 
 function keyBytes(base64url: string): Uint8Array<ArrayBuffer> {
@@ -36,8 +50,7 @@ export async function turnOnAlerts(): Promise<AlertState> {
   const { publicKey } = await api<{ publicKey: string }>('GET', '/api/push/key');
   const reg = await navigator.serviceWorker.ready;
   const sub = (await reg.pushManager.getSubscription()) ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) }));
-  const json = sub.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } };
-  await api('POST', '/api/push/subscriptions', { endpoint: json.endpoint, keys: json.keys });
+  await register(sub);
   return 'on';
 }
 

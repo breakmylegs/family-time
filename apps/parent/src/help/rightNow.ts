@@ -9,8 +9,8 @@ const block = (s: ChildStatus, type: string) => s.day.find((b) => b.type === typ
 
 export const RIGHT_NOW: Partial<Record<TopicId, (s: ChildStatus) => Rows>> = {
   'pause-everything': (s) => {
-    const rows: Rows = [['Right now', s.pause ? (s.pause.untilLabel ? `Paused until ${s.pause.untilLabel}` : 'Paused until you resume') : 'Not paused']];
-    for (const b of s.day.filter((d) => d.type === 'pause')) rows.push([`${b.label} pause`, `${b.startLabel} to ${b.endLabel}`]);
+    const rows: Rows = [['Pause everything', s.pause ? (s.pause.untilLabel ? `Paused until ${s.pause.untilLabel}` : 'Paused until you resume') : 'Not paused']];
+    for (const b of s.day.filter((d) => d.type === 'pause')) rows.push([/pause$/i.test(b.label) ? b.label : `${b.label} pause`, `${b.startLabel} to ${b.endLabel}`]);
     const wind = block(s, 'wind-down');
     if (wind) rows.push(['Wind-down', `From ${wind.startLabel}`]);
     return rows;
@@ -23,8 +23,8 @@ export const RIGHT_NOW: Partial<Record<TopicId, (s: ChildStatus) => Rows>> = {
 };
 
 export const SYNC: Record<ChildStatus['devices'][number]['sync'], string> = {
-  confirmed: 'Working',
-  pending: 'Updating',
-  'not-confirmed': 'Not confirmed',
-  never: 'Waiting for its first check',
+  confirmed: 'Working on home Wi-Fi',
+  pending: 'Updating. Takes up to a minute',
+  'not-confirmed': "Hasn't picked up the last change. Still trying every minute",
+  never: 'Not heard from yet. Connect it to your home Wi-Fi',
 };

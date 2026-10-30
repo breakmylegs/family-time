@@ -42,17 +42,22 @@ const listen = async () => {
   client.on('notification', (msg) => {
     if (msg.channel === CHANGE_CHANNEL && msg.payload) changes.emit(msg.payload);
   });
-  client.on('error', () => {
+  let retried = false;
+  const retry = () => {
+    if (retried || stopping) return;
+    retried = true;
     listener = undefined;
     void client.end().catch(() => undefined);
     setTimeout(() => void listen(), 5_000);
-  });
+  };
+  client.on('error', retry);
+  client.on('end', retry);
   try {
     await client.connect();
     await client.query(`LISTEN ${CHANGE_CHANNEL}`);
     listener = client;
   } catch {
-    setTimeout(() => void listen(), 5_000);
+    retry();
   }
 };
 await listen();
