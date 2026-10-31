@@ -118,7 +118,7 @@ describe('a simulated fortnight', () => {
     expect((await approve(garden.id, '2026-10-21 16:00')).paid).toMatchObject({ currency: 'TIME', amount: 33 });
     expect((await approve(lego.id, '2026-10-21 16:30', 'Love the lighthouse')).paid).toBeNull();
     // A daily job is once a day.
-    await expect(logCompletion(db, { childId: ollie, taskId: dishes.id }, L('2026-10-20 19:00'))).rejects.toThrow(/already done that one today/);
+    await expect(logCompletion(db, { childId: ollie, taskId: dishes.id }, L('2026-10-20 19:00'))).rejects.toThrow(/done for today/);
     expect(await balances()).toEqual({ time: 473, money: 50, flex: 20 });
 
     // Wednesday: Ollie asks for Roblox at 17:00; Mum says yes, from his allowance.
@@ -143,8 +143,8 @@ describe('a simulated fortnight', () => {
     expect((await balances()).time).toBe(413);
 
     // Friday: 10 flex points into pocket money; Saturday: Mum pays out 20p.
-    await convertFlex(db, ledger, { householdId: hh, childId: ollie, by: mum, points: 10, to: 'MONEY' }, L('2026-10-23 18:00'));
-    await recordPayout(db, ledger, { householdId: hh, childId: ollie, by: mum, pence: 20 }, L('2026-10-24 10:00'));
+    await convertFlex(db, ledger, { householdId: hh, childId: ollie, by: mum, points: 10, to: 'MONEY', key: '00000000-0000-4000-8000-000000000001' }, L('2026-10-23 18:00'));
+    await recordPayout(db, ledger, { householdId: hh, childId: ollie, by: mum, pence: 20, key: '00000000-0000-4000-8000-000000000002' }, L('2026-10-24 10:00'));
     expect(await balances()).toEqual({ time: 413, money: 40, flex: 10 });
 
     // The summary the Control screen shows.
@@ -188,7 +188,7 @@ describe('a simulated fortnight', () => {
     await tick('2026-11-02 07:31');
     await tick('2026-11-02 07:32');
     expect(await ledger.history(hh, ollie)).toHaveLength(before.length);
-    expect(await ledger.verify(hh)).toEqual({ ok: true, checked: before.length });
+    expect(await ledger.verify(hh)).toMatchObject({ ok: true, checked: before.length });
     expect(await db.select().from(tasks)).toHaveLength(5);
   });
 });

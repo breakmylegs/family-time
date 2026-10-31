@@ -117,18 +117,20 @@ export interface PlanCheck {
   overlapsOwn: boolean;
 }
 
-export type PlanResult = { ok: true } | { ok: false; reason: string };
+/** Why a plan is refused. The api decides on the code, never on the words, which are the child's. */
+export type PlanRefusal = 'blocks' | 'session' | 'past' | 'today' | 'busy' | 'outside' | 'window' | 'overlap' | 'daily' | 'balance';
+export type PlanResult = { ok: true } | { ok: false; code: PlanRefusal; reason: string };
 
 /** Whether the child can plan this, and if not, why, in words for the kiosk. */
 export function checkPlan(p: PlanCheck): PlanResult {
-  const no = (reason: string): PlanResult => ({ ok: false, reason });
-  if (p.minutes <= 0 || p.minutes % BLOCK_MINUTES !== 0) return no('Plan in blocks of 30 minutes.');
-  if (p.sessionCapMinutes && p.minutes > p.sessionCapMinutes) return no(`One go can be ${p.sessionCapMinutes} minutes at most.`);
+  const no = (code: PlanRefusal, reason: string): PlanResult => ({ ok: false, code, reason });
+  if (p.minutes <= 0 || p.minutes % BLOCK_MINUTES !== 0) return no('blocks', 'Plan in blocks of 30 minutes.');
+  if (p.sessionCapMinutes && p.minutes > p.sessionCapMinutes) return no('session', `You can plan up to ${p.sessionCapMinutes} minutes in one go.`);
   // Starting "now" is fine; a minute's grace for the time it took to tap.
-  if (p.start.getTime() < p.now.getTime() - 60_000) return no('That time has gone.');
+  if (p.start.getTime() < p.now.getTime() - 60_000) return no('past', 'That time has already passed. Pick a later one.');
   const today = civilDate(p.now, p.timeZone);
   const day = civilDate(p.start, p.timeZone);
-  if (day.year !== today.year || day.month !== today.month || day.day !== today.day) return no('Planning is for today.');
+  if (day.year !== today.year || day.month !== today.month || day.day !== today.day) return no('today', 'Pick a time today.');
 
   const end = p.start.getTime() + p.minutes * 60_000;
   const blocks = blocksOn(p.schedules, p.childId, today, p.timeZone)
@@ -136,9 +138,9 @@ export function checkPlan(p: PlanCheck): PlanResult {
     .sort((a, b) => a.start.getTime() - b.start.getTime());
   const s = p.start.getTime();
   const holding = blocks.find((b) => b.start.getTime() <= s && s < b.end.getTime() && b.type !== 'free');
-  if (holding) return no(holding.type === 'bed' ? "It's bedtime then." : `It's ${blockName(holding).toLowerCase()} then.`);
+  if (holding) return no('busy', holding.type === 'bed' ? "It's bedtime then." : `${blockName(holding)} is on then. Pick another time.`);
   const free = blocks.find((b) => b.type === 'free' && b.start.getTime() <= s && s < b.end.getTime());
-  if (!free) return no("That's outside free time.");
+  if (!free) return no('outside', 'Pick a time in free time.');
   // Free time may run on into another free block; anything else ends the window.
   let windowEnd = free.end.getTime();
   for (;;) {
@@ -149,12 +151,15 @@ export function checkPlan(p: PlanCheck): PlanResult {
   if (end > windowEnd) {
     const after = blocks.find((b) => b.start.getTime() === windowEnd);
     const at = clockLabel(new Date(windowEnd), p.now, p.timeZone);
-    return no(after ? `${blockName(after)} starts at ${at}.` : `Free time ends at ${at}.`);
+    return no('window', after ? `${blockName(after)} starts at ${at}.` : `Free time ends at ${at}.`);
   }
 
-  if (p.overlapsOwn) return no("You've already planned that then.");
-  if (p.dailyCapMinutes && p.plannedToday + p.minutes > p.dailyCapMinutes) return no("That's today's limit for this one.");
-  if (p.minutes > p.balanceMinutes) return no(p.balanceMinutes <= 0 ? "You've used this week's time." : `You've got ${p.balanceMinutes} minutes left this week.`);
+  if (p.overlapsOwn) return no('overlap', "You've already planned that then.");
+  if (p.dailyCapMinutes && p.plannedToday + p.minutes > p.dailyCapMinutes) return no('daily', "That's today's limit for this one.");
+  // Never a countdown: say what can be planned, or who to ask.
+  if (p.minutes > p.balanceMinutes) {
+    return no('balance', p.balanceMinutes < BLOCK_MINUTES ? "That's this week's time all planned. You can ask a grown-up." : `You've got ${p.balanceMinutes} minutes to plan this week. Try a shorter go.`);
+  }
   return { ok: true };
 }
 

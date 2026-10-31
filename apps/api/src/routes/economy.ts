@@ -60,6 +60,7 @@ export interface EconomyRouteDeps {
 
 type Id = { Params: { id: string } };
 const NO_CHILD = { error: 'not_found', detail: "Family time can't find that child. Reload to see who's in your family now." };
+const NO_JOB = { error: 'not_found', detail: "That job isn't on the list any more. Reload to see the list now." };
 
 export async function economyRoutes(app: FastifyInstance, deps: EconomyRouteDeps): Promise<void> {
   const { db, ledger, now, changes } = deps;
@@ -86,7 +87,8 @@ export async function economyRoutes(app: FastifyInstance, deps: EconomyRouteDeps
     return weekSummary(db, ledger, child.id, now());
   });
 
-  app.get<Id>('/api/children/:id/ledger', { config: { access: 'status.view' } }, async (request, reply) => {
+  // The full history is a parent's: carers see the week's balances on Family, not every entry.
+  app.get<Id>('/api/children/:id/ledger', { config: { access: 'rules.edit' } }, async (request, reply) => {
     const child = await findChild(db, request.auth!.person.householdId, request.params.id);
     if (!child) return reply.code(404).send(NO_CHILD);
     return ledgerLines(db, ledger, child.id, now());
@@ -146,13 +148,19 @@ export async function economyRoutes(app: FastifyInstance, deps: EconomyRouteDeps
     const task = parseBody(TaskInput, request, reply);
     if (!task) return reply;
     const me = request.auth!.person;
-    if (!/^[0-9a-f-]{36}$/i.test(request.params.id)) return reply.code(404).send({ error: 'not_found' });
+    if (!/^[0-9a-f-]{36}$/i.test(request.params.id)) return reply.code(404).send(NO_JOB);
     return act(reply, me.householdId, () => updateTask(db, { householdId: me.householdId, by: me.id, taskId: request.params.id, task }));
   });
   app.delete<Id>('/api/tasks/:id', { config: { access: 'rules.edit' } }, async (request, reply) => {
     const me = request.auth!.person;
-    if (!/^[0-9a-f-]{36}$/i.test(request.params.id)) return reply.code(404).send({ error: 'not_found' });
+    if (!/^[0-9a-f-]{36}$/i.test(request.params.id)) return reply.code(404).send(NO_JOB);
     return act(reply, me.householdId, () => archiveTask(db, { householdId: me.householdId, by: me.id, taskId: request.params.id }));
+  });
+  // Undo of Remove: jobs are archived, so they can come back.
+  app.post<Id>('/api/tasks/:id/restore', { config: { access: 'rules.edit' } }, async (request, reply) => {
+    const me = request.auth!.person;
+    if (!/^[0-9a-f-]{36}$/i.test(request.params.id)) return reply.code(404).send(NO_JOB);
+    return act(reply, me.householdId, () => archiveTask(db, { householdId: me.householdId, by: me.id, taskId: request.params.id, active: true }));
   });
 
   // ---- Money, points and the plan: a parent's
@@ -166,9 +174,9 @@ export async function economyRoutes(app: FastifyInstance, deps: EconomyRouteDeps
       return act(reply, me.householdId, () => fn({ householdId: me.householdId, childId: child.id, by: me.id, body }));
     });
   };
-  childAction('/api/children/:id/payouts', PayoutRequest, 'post', (c) => recordPayout(db, ledger, { ...c, pence: c.body.pence }, now()));
-  childAction('/api/children/:id/convert', ConvertRequest, 'post', (c) => convertFlex(db, ledger, { ...c, points: c.body.points, to: c.body.to }, now()));
-  childAction('/api/children/:id/refund-points', RefundPointsRequest, 'post', (c) => refundPoints(db, ledger, { ...c, points: c.body.points, reason: c.body.reason }, now()));
+  childAction('/api/children/:id/payouts', PayoutRequest, 'post', (c) => recordPayout(db, ledger, { ...c, pence: c.body.pence, key: c.body.key }, now()));
+  childAction('/api/children/:id/convert', ConvertRequest, 'post', (c) => convertFlex(db, ledger, { ...c, points: c.body.points, to: c.body.to, key: c.body.key }, now()));
+  childAction('/api/children/:id/refund-points', RefundPointsRequest, 'post', (c) => refundPoints(db, ledger, { ...c, points: c.body.points, reason: c.body.reason, key: c.body.key }, now()));
   childAction('/api/children/:id/reverse', ReverseRequest, 'post', (c) => reverseEntry(db, ledger, { ...c, entryRef: c.body.entryRef }, now()));
   childAction('/api/children/:id/allowance', AllowanceRequest, 'put', (c) => setAllowance(db, { ...c, minutes: c.body.minutes }, now()));
   childAction('/api/children/:id/plan', PlanRequest, 'put', (c) => setPlan(db, { ...c, plan: c.body }, now()));

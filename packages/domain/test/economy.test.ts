@@ -116,14 +116,14 @@ describe('planning a session', () => {
   });
 
   it('says why not, in words the child can read', () => {
-    expect(checkPlan({ ...base, start: at('2026-10-26 18:45'), minutes: 45 })).toEqual({ ok: false, reason: 'Plan in blocks of 30 minutes.' });
-    expect(checkPlan({ ...base, start: at('2026-10-26 19:15'), minutes: 30 })).toEqual({ ok: false, reason: 'Wind-down starts at 19:30.' });
-    expect(checkPlan({ ...base, start: at('2026-10-26 17:30'), minutes: 30 })).toEqual({ ok: false, reason: 'That time has gone.' });
-    expect(checkPlan({ ...base, start: at('2026-10-27 10:00'), minutes: 30 })).toEqual({ ok: false, reason: 'Planning is for today.' });
-    expect(checkPlan({ ...base, start: at('2026-10-26 18:45'), minutes: 30, balanceMinutes: 0 })).toEqual({ ok: false, reason: "You've used this week's time." });
-    expect(checkPlan({ ...base, start: at('2026-10-26 18:45'), minutes: 60, sessionCapMinutes: 30 })).toEqual({ ok: false, reason: 'One go can be 30 minutes at most.' });
-    expect(checkPlan({ ...base, start: at('2026-10-26 18:45'), minutes: 30, dailyCapMinutes: 60, plannedToday: 60 })).toEqual({ ok: false, reason: "That's today's limit for this one." });
-    expect(checkPlan({ ...base, start: at('2026-10-26 18:45'), minutes: 30, overlapsOwn: true })).toEqual({ ok: false, reason: "You've already planned that then." });
+    expect(checkPlan({ ...base, start: at('2026-10-26 18:45'), minutes: 45 })).toEqual({ ok: false, code: 'blocks', reason: 'Plan in blocks of 30 minutes.' });
+    expect(checkPlan({ ...base, start: at('2026-10-26 19:15'), minutes: 30 })).toEqual({ ok: false, code: 'window', reason: 'Wind-down starts at 19:30.' });
+    expect(checkPlan({ ...base, start: at('2026-10-26 17:30'), minutes: 30 })).toEqual({ ok: false, code: 'past', reason: 'That time has already passed. Pick a later one.' });
+    expect(checkPlan({ ...base, start: at('2026-10-27 10:00'), minutes: 30 })).toEqual({ ok: false, code: 'today', reason: 'Pick a time today.' });
+    expect(checkPlan({ ...base, start: at('2026-10-26 18:45'), minutes: 30, balanceMinutes: 0 })).toEqual({ ok: false, code: 'balance', reason: "That's this week's time all planned. You can ask a grown-up." });
+    expect(checkPlan({ ...base, start: at('2026-10-26 18:45'), minutes: 60, sessionCapMinutes: 30 })).toEqual({ ok: false, code: 'session', reason: 'You can plan up to 30 minutes in one go.' });
+    expect(checkPlan({ ...base, start: at('2026-10-26 18:45'), minutes: 30, dailyCapMinutes: 60, plannedToday: 60 })).toEqual({ ok: false, code: 'daily', reason: "That's today's limit for this one." });
+    expect(checkPlan({ ...base, start: at('2026-10-26 18:45'), minutes: 30, overlapsOwn: true })).toEqual({ ok: false, code: 'overlap', reason: "You've already planned that then." });
   });
 
   it('a session already under way can start now, rounded to the minute', () => {

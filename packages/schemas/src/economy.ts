@@ -69,6 +69,8 @@ export const ApprovalItem = z.discriminatedUnion('kind', [
     childId: z.uuid(),
     childName: z.string(),
     title: z.string(),
+    /** The app asked for: "Roblox". */
+    target: z.string(),
     when: z.string(),
     minutes: z.number().int(),
     /** "19:00 to 19:30". */
@@ -100,7 +102,23 @@ export const WeekSummary = z.object({
   moneyPence: z.number().int(),
   flexPoints: z.number().int(),
   lastWeek: z.object({ minutesLeft: z.number().int(), bonusPence: z.number().int() }).nullable(),
-  nextStep: z.object({ minutes: z.number().int(), on: z.string(), onLabel: z.string(), agreed: z.boolean(), stepMinutes: z.number().int(), everyWeeks: z.number().int(), floorMinutes: z.number().int() }).nullable(),
+  nextStep: z
+    .object({
+      minutes: z.number().int(),
+      on: z.string(),
+      onLabel: z.string(),
+      agreed: z.boolean(),
+      /** False until the pilot reaches its taper phase: until then no step happens, agreed or not. */
+      active: z.boolean(),
+      stepMinutes: z.number().int(),
+      everyWeeks: z.number().int(),
+      floorMinutes: z.number().int(),
+      /** The reset days a step can fall on, for the plan sheet: the next four. */
+      resetDays: z.array(z.object({ on: z.string(), label: z.string() })),
+    })
+    .nullable(),
+  /** The next four reset days, for setting up a plan when there is none yet. */
+  resetDays: z.array(z.object({ on: z.string(), label: z.string() })),
   goal: z.object({ title: z.string(), targetPence: z.number().int(), savedPence: z.number().int() }).nullable(),
   rates: z.object({ pencePerBlock: z.number().int(), weeklyCapPence: z.number().int(), flexPence: z.number().int(), flexMinutes: z.number().int() }),
 });
@@ -118,9 +136,10 @@ export const LedgerLine = z.object({
 });
 export type LedgerLine = z.infer<typeof LedgerLine>;
 
-export const PayoutRequest = z.object({ pence: z.number().int().min(1).max(100_000) });
-export const ConvertRequest = z.object({ points: z.number().int().min(1).max(100_000), to: z.enum(['MONEY', 'TIME']) });
-export const RefundPointsRequest = z.object({ points: z.number().int().min(1).max(1000), reason: z.string().trim().min(1).max(120) });
+/** `key` is made by the app once per tap, so a retry after a lost answer is recorded once. */
+export const PayoutRequest = z.object({ pence: z.number().int().min(1).max(100_000), key: z.uuid() });
+export const ConvertRequest = z.object({ points: z.number().int().min(1).max(100_000), to: z.enum(['MONEY', 'TIME']), key: z.uuid() });
+export const RefundPointsRequest = z.object({ points: z.number().int().min(1).max(1000), reason: z.string().trim().min(1).max(120), key: z.uuid() });
 export const ReverseRequest = z.object({ entryRef: z.string().min(1).max(200) });
 export const AllowanceRequest = z.object({
   minutes: z

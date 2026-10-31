@@ -61,7 +61,7 @@ describe('device alerts', () => {
     const [c] = await handle.db.insert(completions).values({ taskId: task!.id, childId: s.ollie.id, loggedAt: new Date('2026-10-26T17:05:00Z') }).returning();
     expect(await familyAlert(handle.db, { kind: 'completion', id: c!.id })).toMatchObject({
       to: 'parents',
-      alert: { title: 'Ollie did a job', body: 'Emptied the dishwasher. Tap to approve it and send a note.', path: '/approvals' },
+      alert: { title: 'Ollie did a job', body: 'Emptied the dishwasher. Tap to see it and send a note.', path: '/approvals' },
     });
     const [r] = await handle.db
       .insert(requests)

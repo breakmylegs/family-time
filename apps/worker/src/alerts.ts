@@ -54,20 +54,24 @@ export async function familyAlert(db: Db, job: Exclude<AlertJob, { deviceIds: st
     return {
       householdId: job.householdId,
       to: 'owners',
-      alert: { title: 'The points history needs a look', body: `The nightly check found a problem: ${job.problem} Run ./scripts/ft.sh ledger-verify on the server for details.`, path: '/settings' },
+      alert: { title: 'The points history needs a look', body: `The nightly check found a problem: ${job.problem} Balances may be wrong until it's checked. Run ./scripts/ft.sh ledger-verify on the server for details.`, path: '/settings' },
     };
   }
   if (job.kind === 'completion') {
     const row = (
       await db
-        .select({ child: people.displayName, householdId: people.householdId, title: tasks.title })
+        .select({ child: people.displayName, householdId: people.householdId, title: tasks.title, reward: tasks.rewardType })
         .from(completions)
         .innerJoin(tasks, eq(tasks.id, completions.taskId))
         .innerJoin(people, eq(people.id, completions.childId))
         .where(eq(completions.id, job.id))
     )[0];
     if (!row) return undefined;
-    return { householdId: row.householdId, to: 'parents', alert: { title: `${row.child} did a job`, body: `${row.title}. Tap to approve it and send a note.`, path: '/approvals' } };
+    const alert =
+      row.reward === 'praise'
+        ? { title: `${row.child} wants to show you something`, body: `${row.title}. Tap to send some praise.`, path: '/approvals' }
+        : { title: `${row.child} did a job`, body: `${row.title}. Tap to see it and send a note.`, path: '/approvals' };
+    return { householdId: row.householdId, to: 'parents', alert };
   }
   const r = (
     await db

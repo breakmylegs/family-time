@@ -37,8 +37,13 @@ export interface Economy {
 
 export async function loadRates(db: Db, householdId: string): Promise<Rates> {
   const row = (await db.select({ value: settings.value }).from(settings).where(and(eq(settings.householdId, householdId), eq(settings.key, SETTING_ECONOMY))))[0];
-  const v = (row?.value ?? {}) as Partial<Rates>;
-  return { bonus: { ...DEFAULT_RATES.bonus, ...(v.bonus ?? {}) }, flexPence: v.flexPence ?? DEFAULT_RATES.flexPence, flexMinutes: v.flexMinutes ?? DEFAULT_RATES.flexMinutes };
+  const v = (row?.value ?? {}) as { bonus?: Record<string, unknown>; flexPence?: unknown; flexMinutes?: unknown };
+  const whole = (x: unknown, fallback: number) => (typeof x === 'number' && Number.isInteger(x) && x >= 0 ? x : fallback);
+  return {
+    bonus: { pencePerBlock: whole(v.bonus?.pencePerBlock, DEFAULT_RATES.bonus.pencePerBlock), weeklyCapPence: whole(v.bonus?.weeklyCapPence, DEFAULT_RATES.bonus.weeklyCapPence) },
+    flexPence: whole(v.flexPence, DEFAULT_RATES.flexPence),
+    flexMinutes: whole(v.flexMinutes, DEFAULT_RATES.flexMinutes),
+  };
 }
 
 export async function loadEconomy(db: Db, childId: string): Promise<Economy> {

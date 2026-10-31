@@ -1,6 +1,6 @@
 import { completions, households, schedules, services } from '@family-time/db';
 import { postgresLedger } from '@family-time/ledger';
-import { ApprovalItem, Task, WeekSummary } from '@family-time/schemas';
+import { ApprovalItem, LedgerLine, Task, WeekSummary } from '@family-time/schemas';
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
 import { askRequest, logCompletion } from '../src/economy/commands.js';
@@ -99,7 +99,7 @@ describe('approvals', () => {
     const id = await askRequest(s.db, { childId: s.child, target: { kind: 'service', id: s.roblox.id }, start: new Date('2026-10-26T17:00:00Z'), minutes: 30, detail: null }, s.now());
     const [item] = ApprovalItem.array().parse((await s.app.inject({ url: '/api/approvals', headers: s.headers.mum })).json());
     expect(item).toMatchObject({ kind: 'request', title: 'Roblox at 17:00', window: '17:00 to 17:30', extraOnly: true, blockedReason: null });
-    expect(item!.kind === 'request' && item!.detail).toBe('Uses 30 minutes of their own time. They have 0 min left this week, and wind-down starts at 19:30.');
+    expect(item!.kind === 'request' && item!.detail).toBe("They have planned all of this week's time, so a yes would be extra time on top, and wind-down starts at 19:30.");
     expect((await s.app.inject({ method: 'POST', url: `/api/requests/${id}/approve`, headers: s.headers.mum, payload: {} })).statusCode).toBe(409);
     expect((await s.app.inject({ method: 'POST', url: `/api/requests/${id}/approve`, headers: s.headers.gran, payload: { asExtra: true } })).statusCode).toBe(403);
     expect((await s.app.inject({ method: 'POST', url: `/api/requests/${id}/approve`, headers: s.headers.mum, payload: { asExtra: true } })).statusCode).toBe(200);
@@ -118,13 +118,51 @@ describe('approvals', () => {
   });
 });
 
+describe('the ledger cannot be used to take points away', () => {
+  it('an award undone cannot be reversed again with Fix a mistake, and a retried payout is recorded once', async () => {
+    const s = await setup();
+    const task = await job(s);
+    const ledger = postgresLedger(s.db);
+    await ledger.award({ ref: 'earlier', householdId: s.hh, childId: s.child, reason: 'Earlier job', at: s.now(), currency: 'MONEY', amount: 100 });
+    const id = await logCompletion(s.db, { childId: s.child, taskId: task.id }, s.now());
+    await s.app.inject({ method: 'POST', url: `/api/completions/${id}/approve`, headers: s.headers.mum, payload: { note: null } });
+    const award = LedgerLine.array()
+      .parse((await s.app.inject({ url: `/api/children/${s.child}/ledger`, headers: s.headers.mum })).json())
+      .find((l) => l.reason === 'Emptied the dishwasher')!;
+    s.advance(2_000);
+    expect((await s.app.inject({ method: 'POST', url: `/api/completions/${id}/undo`, headers: s.headers.mum })).statusCode).toBe(200);
+    const again = await s.app.inject({ method: 'POST', url: `/api/children/${s.child}/reverse`, headers: s.headers.mum, payload: { entryRef: award.ref } });
+    expect(again.statusCode).toBe(409);
+    expect((await ledger.balances(s.hh, s.child)).money).toBe(100);
+
+    const pay = { pence: 40, key: '00000000-0000-4000-8000-0000000000aa' };
+    await s.app.inject({ method: 'POST', url: `/api/children/${s.child}/payouts`, headers: s.headers.mum, payload: pay });
+    await s.app.inject({ method: 'POST', url: `/api/children/${s.child}/payouts`, headers: s.headers.mum, payload: pay });
+    expect((await ledger.balances(s.hh, s.child)).money).toBe(60);
+  });
+
+  it('keeps the full history to parents', async () => {
+    const s = await setup();
+    expect((await s.app.inject({ url: `/api/children/${s.child}/ledger`, headers: s.headers.gran })).statusCode).toBe(403);
+    expect((await s.app.inject({ url: `/api/children/${s.child}/week`, headers: s.headers.gran })).statusCode).toBe(200);
+  });
+
+  it('a removed job can be put back', async () => {
+    const s = await setup();
+    const task = await job(s);
+    await s.app.inject({ method: 'DELETE', url: `/api/tasks/${task.id}`, headers: s.headers.mum });
+    expect((await s.app.inject({ method: 'POST', url: `/api/tasks/${task.id}/restore`, headers: s.headers.mum })).statusCode).toBe(200);
+    expect(Task.array().parse((await s.app.inject({ url: '/api/tasks', headers: s.headers.mum })).json())).toHaveLength(1);
+  });
+});
+
 describe('money, points and the plan', () => {
   it('pays out only what is owed, and says so', async () => {
     const s = await setup();
-    const res = await s.app.inject({ method: 'POST', url: `/api/children/${s.child}/payouts`, headers: s.headers.mum, payload: { pence: 100 } });
+    const res = await s.app.inject({ method: 'POST', url: `/api/children/${s.child}/payouts`, headers: s.headers.mum, payload: { pence: 100, key: '00000000-0000-4000-8000-000000000003' } });
     expect(res.statusCode).toBe(409);
     expect(res.json().detail).toMatch(/Not enough pocket money/);
-    expect((await s.app.inject({ method: 'POST', url: `/api/children/${s.child}/payouts`, headers: s.headers.gran, payload: { pence: 1 } })).statusCode).toBe(403);
+    expect((await s.app.inject({ method: 'POST', url: `/api/children/${s.child}/payouts`, headers: s.headers.gran, payload: { pence: 1, key: '00000000-0000-4000-8000-000000000004' } })).statusCode).toBe(403);
   });
 
   it('keeps the allowance in 30-minute blocks, and the plan step waits for the tick', async () => {

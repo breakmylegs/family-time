@@ -30,9 +30,13 @@ export interface EconomyResult {
 
 /** The household setting holding the last date the chain was walked. */
 const SETTING_VERIFIED_ON = 'ledger_verified_on';
+/** And the last entry it found, so entries removed from the end show up the next night. */
+const SETTING_HEAD = 'ledger_head';
 /** The chain is walked once a day, after this local hour, when the house is quiet. */
 const VERIFY_AFTER_HOUR = 3;
 
+/** "6 h 30", "7 h". */
+const hours = (m: number) => `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60}` : ''}`;
 const dateLabel = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', timeZone: 'UTC' });
 
 export async function economyTick(deps: EconomyDeps): Promise<EconomyResult> {
@@ -48,9 +52,10 @@ export async function economyTick(deps: EconomyDeps): Promise<EconomyResult> {
       const e = await loadEconomy(db, c.id);
       if (!e.features.economy) continue;
       try {
-        await weekTurn(deps, e.childId, now, result);
+        // Sessions and Allows first, so the week's close counts them in the week they belong to.
         await settleSessions(deps, e.householdId, e.childId, now, result);
         await chargeAllows(deps, e.householdId, e.childId, now, result);
+        await weekTurn(deps, e.childId, now, result);
       } catch (err) {
         log('error', 'economy_failed', { child: c.id, error: (err as Error).message });
       }
@@ -89,8 +94,10 @@ async function weekTurn(deps: EconomyDeps, childId: string, now: Date, result: E
       ref: `close:${childId}:${lastWeek}`,
       householdId: e.householdId,
       childId,
-      reason: `Unused time, week of ${dateLabel(lastWeek)}`,
+      reason: e.features.bonus ? `Week from ${dateLabel(lastWeek)} ended: unused time became pocket money` : `Week from ${dateLabel(lastWeek)} ended: unused time doesn't carry over`,
       at: closesAt,
+      // As it stood at the reset: anything given after it belongs to the new week.
+      asOf: closesAt,
       bonus: e.features.bonus ? e.rates.bonus : null,
       data: { week: lastWeek },
     });
@@ -110,7 +117,7 @@ async function weekTurn(deps: EconomyDeps, childId: string, now: Date, result: E
     ref: allowanceRef,
     householdId: e.householdId,
     childId,
-    reason: step.stepped ? `This week's time, ${step.minutes} minutes after the agreed step` : `This week's time`,
+    reason: step.stepped ? `Weekly time from ${dateLabel(week.date)}, ${hours(step.minutes)} after the agreed step` : `Weekly time from ${dateLabel(week.date)}`,
     at: week.start,
     minutes: step.minutes,
     data: { week: week.date, stepped: step.stepped },
@@ -143,7 +150,7 @@ async function settleSessions(deps: EconomyDeps, householdId: string, childId: s
     if (spent) {
       const lost = minutesLost({ start: g.startsAt, end: g.endsAt }, await stoppingSpans(db, childId, { kind: g.targetKind, id: g.targetId }, g.startsAt, g.endsAt));
       if (lost > 0) {
-        await ledger.refund({ ref: `refund:grant:${g.id}`, householdId, childId, reason: 'Planned time a parent paused', at: g.endsAt, currency: 'TIME', amount: lost, data: { grantId: g.id } });
+        await ledger.refund({ ref: `refund:grant:${g.id}`, householdId, childId, reason: 'Planned time given back after a parent stopped it', at: g.endsAt, currency: 'TIME', amount: lost, data: { grantId: g.id } });
         result.refunds++;
       }
     }
@@ -166,14 +173,15 @@ async function chargeAllows(deps: EconomyDeps, householdId: string, childId: str
         eq(overrides.countsAgainstAllowance, true),
         isNotNull(overrides.endsAt),
         lte(overrides.endsAt, now),
-        gt(overrides.endsAt, week.start),
+        gt(overrides.endsAt, new Date(week.start.getTime() - 7 * 86_400_000)),
       ),
     );
   for (const o of ended) {
     const ref = `allow:${o.id}`;
     if ((await db.select({ ref: ledgerEntries.ref }).from(ledgerEntries).where(and(eq(ledgerEntries.householdId, householdId), eq(ledgerEntries.ref, ref)))).length) continue;
-    // Counted from when this week began, if it started last week.
-    const start = o.startsAt.getTime() < week.start.getTime() ? week.start : o.startsAt;
+    // Counted within the week it ended in: from that week's start, if it began the week before.
+    const endedIn = weekStarting(o.endsAt!, e.weekReset, e.timeZone).start;
+    const start = o.startsAt.getTime() < endedIn.getTime() ? endedIn : o.startsAt;
     const minutes = allowCharge(start, o.endsAt!, (await ledger.balances(householdId, childId)).time);
     if (minutes > 0) {
       await ledger.spendTime({ ref, householdId, childId, reason: 'Extra time a parent allowed, counted in weekly time', at: o.endsAt!, minutes, by: o.createdBy, data: { overrideId: o.id } });
@@ -191,10 +199,27 @@ async function nightlyVerify(deps: EconomyDeps, householdId: string, timeZone: s
   const done = (await db.select({ value: settings.value }).from(settings).where(and(eq(settings.householdId, householdId), eq(settings.key, SETTING_VERIFIED_ON))))[0];
   if (done?.value === stamp) return undefined;
   const v = await ledger.verify(householdId);
-  await db
-    .insert(settings)
-    .values({ householdId, key: SETTING_VERIFIED_ON, value: stamp, updatedAt: now })
-    .onConflictDoUpdate({ target: [settings.householdId, settings.key], set: { value: stamp, updatedAt: now } });
+  // The head from last night: the chain may only grow, and what was there must not change.
+  const before = (await db.select({ value: settings.value }).from(settings).where(and(eq(settings.householdId, householdId), eq(settings.key, SETTING_HEAD))))[0]?.value as { seq: number; hash: string } | undefined;
+  if (v.ok && before) {
+    if (!v.head || v.head.seq < before.seq) {
+      v.ok = false;
+      v.problem = `The history is shorter than last night: ${before.seq} entries then, ${v.head?.seq ?? 0} now.`;
+    } else {
+      const then = (await db.select({ hash: ledgerEntries.hash }).from(ledgerEntries).where(and(eq(ledgerEntries.householdId, householdId), eq(ledgerEntries.seq, before.seq))))[0];
+      if (then?.hash !== before.hash) {
+        v.ok = false;
+        v.problem = `Entry ${before.seq} is not the one it was last night.`;
+      }
+    }
+  }
+  const save = async (key: string, value: unknown) =>
+    db
+      .insert(settings)
+      .values({ householdId, key, value, updatedAt: now })
+      .onConflictDoUpdate({ target: [settings.householdId, settings.key], set: { value, updatedAt: now } });
+  if (v.ok && v.head) await save(SETTING_HEAD, v.head);
+  await save(SETTING_VERIFIED_ON, stamp);
   if (v.ok) {
     log('info', 'ledger_verified', { entries: v.checked });
   } else {

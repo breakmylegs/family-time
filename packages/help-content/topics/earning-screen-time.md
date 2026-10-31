@@ -4,7 +4,7 @@ title: Earning screen time from chores
 evidence: moderate
 evidenceNote: Studies that observed families, plus experiments on food given as a reward.
 sources: [tang-2019, nagata-2024, birch-1980]
-lastReviewed: 2026-10-30
+lastReviewed: 2026-10-31
 related: [praise-not-prizes, weekly-allowance]
 status: needs-review
 ---
@@ -15,8 +15,9 @@ Chores earn pocket money or flex points by default. Screen time as a reward is c
 
 ## How to use it
 
-1. When you make a task, choose pocket money or flex points as the reward.
-2. Use screen time as a reward only now and then. Earned screen time is capped at 15% of the weekly allowance each week.
+1. A new job starts on pocket money. Keep it, or choose flex points under What it earns.
+2. Choose screen time only now and then. Screen time from jobs, and from flex points turned into screen time, is capped at 15% of the weekly allowance each week.
+3. Once the cap is reached, approving a screen-time job pays only what is left of it. The approval card says so before you tap.
 
 ## Why it helps
 

@@ -2,6 +2,17 @@
 
 Release notes the app shows on its System page (from Phase 8). One plain line per change, newest first.
 
+## 0.5.0 (Phase 4, the weekly allowance and jobs)
+
+- A weekly screen time allowance, agreed with your child, given at the start of each week.
+- Jobs that earn pocket money or flex points, and things done for love that get praise only. Screen time from jobs is capped at 15% of the allowance.
+- Approvals: approve a job with a short note, say not yet, or send praise. Answer requests for time. Each can be undone for 10 seconds.
+- Screen time left at the end of the week turns into pocket money, up to a weekly cap.
+- A reduction plan that lowers the allowance a step at a time, only after you tick it agreed at the family review.
+- Family: what each child has, pocket money to mark as paid, flex points to convert, a savings goal, and an agenda for the weekly review.
+- A session you block part way through gives the lost minutes back.
+- The points history is kept as a chain that can be checked, and nobody can take points away as a punishment.
+
 ## 0.4.0 (Phase 3, parent app control)
 
 - Control shows what is on for each child and why, the day as a timetable with a Now marker, and one plain sentence about now.

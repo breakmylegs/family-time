@@ -101,6 +101,53 @@ export function ledgerSuite(name: string, make: () => Promise<LedgerFixture>) {
     );
 
     it(
+      'reverses an entry once only, whichever way it comes, and never a refund the rules gave',
+      withLedger(async (f) => {
+        await f.ledger.award({ ...base(f, 'other job'), currency: 'MONEY', amount: 100 });
+        const award = await f.ledger.award({ ...base(f, 'job'), currency: 'MONEY', amount: 50 });
+        await f.ledger.reverse({ ...base(f, 'undo'), entryRef: award.ref });
+        await expect(f.ledger.reverse({ ...base(f, 'fix'), entryRef: award.ref })).rejects.toMatchObject({ code: 'not_reversible' });
+        expect((await f.ledger.balances(f.householdId, f.childId)).money).toBe(100);
+
+        const ruled = await f.ledger.refund({ ...base(f, 'session refund'), currency: 'TIME', amount: 20 });
+        await expect(f.ledger.reverse({ ...base(f, 'fix'), entryRef: ruled.ref })).rejects.toMatchObject({ code: 'not_reversible' });
+        const chosen = await f.ledger.refund({ ...base(f, 'points back'), currency: 'FLEX', amount: 10, chosen: true });
+        await f.ledger.reverse({ ...base(f, 'fix'), entryRef: chosen.ref });
+        expect((await f.ledger.balances(f.householdId, f.childId)).flex).toBe(0);
+      }),
+    );
+
+    it(
+      'keeps earned screen time under the cap, even when approvals race, and frees what is reversed',
+      withLedger(async (f) => {
+        const cap = { capMinutes: 63, since: new Date(AT.getTime() - 3_600_000) };
+        const both = await Promise.all([
+          f.ledger.award({ ...base(f, 'reading'), currency: 'TIME', amount: 45, cap }),
+          f.ledger.award({ ...base(f, 'garden'), currency: 'TIME', amount: 45, cap }),
+        ]);
+        expect(both.map((x) => x.time).sort((a, b) => a - b)).toEqual([18, 45]);
+        expect(await f.ledger.earnedTime(f.householdId, f.childId, cap.since)).toBe(63);
+        await expect(f.ledger.award({ ...base(f, 'more'), currency: 'TIME', amount: 5, cap })).rejects.toMatchObject({ code: 'capped' });
+        await f.ledger.award({ ...base(f, 'flex job'), currency: 'FLEX', amount: 10 });
+        await expect(f.ledger.convert({ ...base(f, 'convert'), points: 5, to: 'TIME', amount: 5, cap })).rejects.toMatchObject({ code: 'capped' });
+        await f.ledger.reverse({ ...base(f, 'undo'), entryRef: both[0]!.ref });
+        expect(await f.ledger.earnedTime(f.householdId, f.childId, cap.since)).toBe(63 - both[0]!.time);
+      }),
+    );
+
+    it(
+      'closes the week as it stood at the boundary, so time given after the reset belongs to the new week',
+      withLedger(async (f) => {
+        const boundary = new Date(AT.getTime() + 7 * 86_400_000);
+        await f.ledger.allocateAllowance({ ...base(f, 'allowance'), minutes: 60 });
+        await f.ledger.refund({ ...base(f, 'late refund'), at: new Date(boundary.getTime() + 60_000), currency: 'TIME', amount: 30 });
+        const closed = await f.ledger.closeWeek({ ...base(f, 'close'), at: boundary, asOf: boundary, bonus: { pencePerBlock: 10, weeklyCapPence: 100 } });
+        expect(closed).toMatchObject({ time: -60, money: 20 });
+        expect((await f.ledger.balances(f.householdId, f.childId)).time).toBe(30);
+      }),
+    );
+
+    it(
       'rejects amounts that are not whole and positive',
       withLedger(async (f) => {
         await expect(f.ledger.award({ ...base(f, 'job'), currency: 'MONEY', amount: 0 })).rejects.toMatchObject({ code: 'invalid' });
@@ -117,7 +164,7 @@ export function ledgerSuite(name: string, make: () => Promise<LedgerFixture>) {
         const history = await f.ledger.history(f.householdId, f.childId);
         expect(history).toHaveLength(12);
         expect(history[0]!.seq).toBeGreaterThan(history[11]!.seq);
-        expect(await f.ledger.verify(f.householdId)).toEqual({ ok: true, checked: 13 });
+        expect(await f.ledger.verify(f.householdId)).toMatchObject({ ok: true, checked: 13, head: { seq: 13 } });
       }),
     );
   });
