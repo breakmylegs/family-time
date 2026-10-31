@@ -1,13 +1,33 @@
 // "Right now" in the help panel: live values for the topics that have them. Everything comes from
 // the status the server sent, so the panel and the Control screen always agree.
 import type { TopicId } from '@family-time/help-content/content';
-import type { ChildStatus } from '@family-time/schemas';
+import type { ChildStatus, WeekSummary } from '@family-time/schemas';
+import { minutes, pence } from '../economy/data';
 
 type Rows = [string, string][];
 
 const block = (s: ChildStatus, type: string) => s.day.find((b) => b.type === type);
 
-export const RIGHT_NOW: Partial<Record<TopicId, (s: ChildStatus) => Rows>> = {
+export const RIGHT_NOW: Partial<Record<TopicId, (s: ChildStatus, w?: WeekSummary) => Rows>> = {
+  'weekly-allowance': (_s, w) => (w ? [['This week', minutes(w.allowanceMinutes)], ['Left to plan', minutes(w.leftMinutes)], ['Resets', w.resets]] : []),
+  'unused-time-bonus': (_s, w) =>
+    w
+      ? [
+          ['Rate', `${pence(w.rates.pencePerBlock)} per 30 minutes`],
+          ['Weekly cap', pence(w.rates.weeklyCapPence)],
+          ...(w.lastWeek ? ([['Last week', `${minutes(w.lastWeek.minutesLeft)} saved, ${pence(w.lastWeek.bonusPence)}`]] as Rows) : []),
+        ]
+      : [],
+  'gradual-reduction': (_s, w) =>
+    w?.nextStep
+      ? [
+          ['Next step', `${minutes(w.nextStep.minutes)} from ${w.nextStep.onLabel}`],
+          ['Step size', `${minutes(w.nextStep.stepMinutes)} every ${w.nextStep.everyWeeks} weeks`],
+          ['Never below', minutes(w.nextStep.floorMinutes)],
+          ['Agreed at the review', w.nextStep.agreed ? 'Yes' : 'Not yet'],
+        ]
+      : [],
+  'earning-screen-time': (_s, w) => (w ? [['Cap this week', minutes(w.earnedCapMinutes)], ['Earned so far', minutes(w.earnedMinutes)]] : []),
   'pause-everything': (s) => {
     const rows: Rows = [['Pause everything', s.pause ? (s.pause.untilLabel ? `Paused until ${s.pause.untilLabel}` : 'Paused until you resume') : 'Not paused']];
     for (const b of s.day.filter((d) => d.type === 'pause')) rows.push([/pause$/i.test(b.label) ? b.label : `${b.label} pause`, `${b.startLabel} to ${b.endLabel}`]);

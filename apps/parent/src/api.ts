@@ -30,7 +30,7 @@ export function makeApi(options: ApiOptions = {}) {
   const doFetch = options.fetchImpl ?? ((input, init) => fetch(input, init));
   const cookies = options.cookies ?? (() => document.cookie);
 
-  return async function api<T>(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', path: string, body?: unknown): Promise<T> {
+  return async function api<T>(method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, body?: unknown): Promise<T> {
     const headers: Record<string, string> = {};
     if (body !== undefined) headers['content-type'] = 'application/json';
     if (method !== 'GET') {

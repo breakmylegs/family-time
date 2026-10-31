@@ -79,7 +79,7 @@ export async function seedDemo(db: Db, origin: string) {
     createdBy: dad!.id,
     createdAt: at('17:58'),
   });
-  await db.insert(grants).values({
+  const [youtubeGrant] = await db.insert(grants).values({
     householdId,
     childId: ollie!.id,
     targetKind: 'service',
@@ -89,6 +89,6 @@ export async function seedDemo(db: Db, origin: string) {
     source: 'planned',
     status: 'active',
     createdAt: at('16:10'),
-  });
-  return { householdId, mum: mum!, dad: dad!, gran: gran!, ollie: ollie!, jamie: jamie! };
+  }).returning();
+  return { householdId, mum: mum!, dad: dad!, gran: gran!, ollie: ollie!, jamie: jamie!, roblox: roblox!, youtubeGrant: youtubeGrant! };
 }

@@ -27,6 +27,7 @@ import { ownerInvite } from '../src/cli/commands.js';
 import { Changes } from '../src/events.js';
 import { buildServer } from '../src/server.js';
 import { seedDemo } from './demo.js';
+import { resetEconomy, seedEconomy, type EconomySnapshot } from './economy.js';
 
 const port = Number(process.env.PORT ?? 5174);
 const origin = `http://localhost:${port}`;
@@ -36,7 +37,7 @@ const demo = process.env.FT_DEV_DEMO === '1';
 const frozen = demo ? new Date(process.env.FT_DEV_CLOCK ?? '2026-10-26T18:32:00Z') : undefined;
 const now = () => frozen ?? new Date();
 
-const { db } = await testDb(process.env.FT_DEV_DATA ? { dataDir: process.env.FT_DEV_DATA } : {});
+const { db, client } = await testDb(process.env.FT_DEV_DATA ? { dataDir: process.env.FT_DEV_DATA } : {});
 
 // No worker here: keep the heartbeat fresh so /readyz reflects the api alone.
 await recordHeartbeat(db, 'dev', now());
@@ -44,9 +45,11 @@ setInterval(() => void recordHeartbeat(db, 'dev', now()), 30_000).unref();
 
 const changes = new Changes();
 let notifyChange: (() => Promise<void>) | undefined;
+let economy: EconomySnapshot | undefined;
 
 if (demo) {
   const family = await seedDemo(db, origin);
+  economy = await seedEconomy(db, family, { roblox: family.roblox.id, youtubeGrant: family.youtubeGrant.id });
   const fake = new FakeAdGuard();
   const adguard = new AdGuard({ baseUrl: await fake.start(), username: fake.username, password: fake.password });
   const quiet = () => undefined;
@@ -105,6 +108,7 @@ if (demo) {
     await db.update(overrides).set({ endsAt: new Date('2026-10-26T19:30:00Z'), endedBy: null, plannedEndsAt: null });
     await db.delete(sessionEndings);
     await db.delete(helpFeedback);
+    if (economy) await resetEconomy(db, client, economy);
     await notifyChange?.();
     return { ok: true };
   });

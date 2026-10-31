@@ -2,7 +2,7 @@
 // `?help=topic-id` in the address opens one straight away, so a notification can link to it.
 import content, { type TopicId } from '@family-time/help-content/content';
 import type { ChildWords } from '@family-time/help-content';
-import type { ChildStatus } from '@family-time/schemas';
+import type { ChildStatus, WeekSummary } from '@family-time/schemas';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { HelpPanel } from './HelpPanel';
 
@@ -32,7 +32,7 @@ function dropHelpParam() {
   history.replaceState(history.state, '', url.pathname + url.search + url.hash);
 }
 
-export function HelpProvider({ child, status, children }: { child: ChildWords; status: ChildStatus | undefined; children: ReactNode }) {
+export function HelpProvider({ child, status, week, children }: { child: ChildWords; status: ChildStatus | undefined; week?: WeekSummary | undefined; children: ReactNode }) {
   const [trail, setTrail] = useState<TopicId[]>([]);
   const [isOpen, setOpen] = useState(false);
   const [iconsOn, setIcons] = useState(() => localStorage.getItem(ICONS_KEY) !== 'off');
@@ -75,6 +75,7 @@ export function HelpProvider({ child, status, children }: { child: ChildWords; s
         trail={trail}
         child={child}
         status={status}
+        week={week}
         returnTo={returnTo}
         onFollow={(id) => setTrail((t) => [...t, id])}
         onBack={() => setTrail((t) => t.slice(0, -1))}

@@ -12,7 +12,8 @@ export function minutes(m: number): string {
   const a = Math.abs(m);
   const h = Math.floor(a / 60);
   const r = a % 60;
-  if (!h) return `${sign}${r} min`;
+  // "63 min", not "1 h 3": under two hours, anything but whole half-hours reads as minutes.
+  if (!h || (a < 120 && a % 30)) return `${sign}${a} min`;
   return `${sign}${h} h${r ? ` ${r}` : ''}`;
 }
 

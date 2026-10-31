@@ -1,6 +1,7 @@
 @import 'tailwindcss';
 @import '@family-time/tokens/tokens.css';
 @import './app.css';
+@import './economy.css';
 
 /*
  * Colours, fonts and curves come from the shared tokens. These ADD names to Tailwind's theme; no

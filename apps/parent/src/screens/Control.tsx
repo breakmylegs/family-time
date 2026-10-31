@@ -1,11 +1,12 @@
 // Control: what is on and why, and Allow, Block, Normal and Pause everything in a couple of taps.
 // Optimistic: the screen changes at once, the server's answer replaces the guess, and a 10-second
 // toast offers Undo. Only Pause everything asks first.
-import type { ChildStatus, ChildSummary, HistoryEntry, Me, Mood, ServiceStatus } from '@family-time/schemas';
+import type { ChildStatus, ChildSummary, HistoryEntry, Me, Mood, ServiceStatus, WeekSummary } from '@family-time/schemas';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { DurationSheet, devicesOf, PHRASE, serviceLine, type Choice, type SheetKind } from '../components/DurationSheet';
 import { Rail } from '../components/Rail';
+import { ThisWeek } from '../components/ThisWeek';
 import { HelpButton } from '../help/HelpButton';
 import { Icon, serviceIcon } from '../icons';
 import { useToast } from '../toast';
@@ -21,6 +22,8 @@ interface Props {
   refresh: () => Promise<void>;
   /** Set when the last refresh failed: the screen shows what was last known, and says so. */
   offline?: string | undefined;
+  /** This week's allowance, once the pilot has switched the economy on. */
+  week?: WeekSummary | undefined;
   /** Opens the child picker, which lives above this screen so it can animate out as the screen changes. */
   onSwitchChild: (from: HTMLElement) => void;
 }
@@ -33,7 +36,7 @@ const MOODS: { mood: Mood; label: string }[] = [
 
 const untilOf = (label: string) => label.replace(/^until /, '') || null;
 
-export function Control({ me, kids, status, history, setStatus, accept, setHistory, refresh, offline, onSwitchChild }: Props) {
+export function Control({ me, kids, status, history, setStatus, accept, setHistory, refresh, offline, week, onSwitchChild }: Props) {
   const toast = useToast();
   const [sheet, setSheet] = useState<{ kind: SheetKind; serviceId?: string; from: HTMLElement | null }>();
   const canChange = me.capabilities.includes('control.change');
@@ -260,6 +263,8 @@ export function Control({ me, kids, status, history, setStatus, accept, setHisto
           <span>Changes take up to a minute and work on your home Wi-Fi. A video that&apos;s already playing may finish first.</span>
         </p>
       </section>
+
+      {week ? <ThisWeek week={week} /> : null}
 
       <section className="sec" aria-labelledby="today">
         <div className="sec-head">

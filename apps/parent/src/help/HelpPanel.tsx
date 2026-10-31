@@ -2,7 +2,7 @@
 // wiring; the panel itself is styled to the mock. Swiping right closes it too.
 import content, { type TopicId } from '@family-time/help-content/content';
 import { forChild, type ChildWords, type Evidence } from '@family-time/help-content';
-import type { ChildStatus } from '@family-time/schemas';
+import type { ChildStatus, WeekSummary } from '@family-time/schemas';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { api } from '../api';
@@ -27,6 +27,7 @@ interface Props {
   trail: TopicId[];
   child: ChildWords;
   status: ChildStatus | undefined;
+  week?: WeekSummary | undefined;
   /** What opened the panel, to get focus back. */
   returnTo: HTMLElement | null;
   onFollow: (id: TopicId) => void;
@@ -34,7 +35,7 @@ interface Props {
   onClose: () => void;
 }
 
-export function HelpPanel({ open, trail, child, status, returnTo, onFollow, onBack, onClose }: Props) {
+export function HelpPanel({ open, trail, child, status, week, returnTo, onFollow, onBack, onClose }: Props) {
   const id = trail[trail.length - 1];
   const topic = id ? content.topics[id] : undefined;
   const previous = trail.length > 1 ? content.topics[trail[trail.length - 2]!] : undefined;
@@ -102,7 +103,7 @@ export function HelpPanel({ open, trail, child, status, returnTo, onFollow, onBa
     el.style.transform = '';
   };
 
-  const rightNow = id && status ? RIGHT_NOW[id]?.(status) : undefined;
+  const rightNow = id && status ? RIGHT_NOW[id]?.(status, week) : undefined;
 
   return (
     <Dialog.Root open={open} onOpenChange={(o) => !o && close()}>

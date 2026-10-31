@@ -1,9 +1,12 @@
-// Control and Settings only. Approvals, Tasks and Family arrive in Phase 4, when they do something.
+// Control and Settings always; Approvals, Jobs and Family once the pilot switches the economy on.
 import { Icon, type IconName } from '../icons';
 import { navigate } from '../router';
 
-const TABS: { path: string; label: string; icon: IconName }[] = [
+const ALL: { path: string; label: string; icon: IconName; economy?: boolean }[] = [
   { path: '/', label: 'Control', icon: 'shield' },
+  { path: '/approvals', label: 'Approvals', icon: 'inbox', economy: true },
+  { path: '/tasks', label: 'Jobs', icon: 'list', economy: true },
+  { path: '/family', label: 'Family', icon: 'users', economy: true },
   { path: '/settings', label: 'Settings', icon: 'sliders' },
 ];
 
@@ -13,13 +16,26 @@ function childQuery(): string {
   return child ? `?child=${encodeURIComponent(child)}` : '';
 }
 
-export function TabBar({ path }: { path: string }) {
+export function TabBar({ path, economy, waiting }: { path: string; economy: boolean; waiting: number }) {
+  const tabs = ALL.filter((t) => economy || !t.economy);
   return (
-    <nav className="tabbar" aria-label="Main">
-      {TABS.map((t) => (
-        <button key={t.path} type="button" className="tab" aria-current={path === t.path ? 'page' : undefined} onClick={() => navigate(t.path + childQuery())}>
+    <nav className="tabbar" aria-label="Main" data-tabs={tabs.length}>
+      {tabs.map((t) => (
+        <button
+          key={t.path}
+          type="button"
+          className="tab"
+          aria-current={path === t.path ? 'page' : undefined}
+          aria-label={t.path === '/approvals' && waiting ? `Approvals, ${waiting} waiting` : undefined}
+          onClick={() => navigate(t.path + childQuery())}
+        >
           <Icon name={t.icon} />
           {t.label}
+          {t.path === '/approvals' ? (
+            <span className="badge tnum" data-zero={!waiting} aria-hidden="true">
+              {waiting || ''}
+            </span>
+          ) : null}
         </button>
       ))}
     </nav>
