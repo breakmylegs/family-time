@@ -1,9 +1,9 @@
 import { AdGuard, HAGEZI_BYPASS_LIST, SETTING_BYPASS_RULES } from '@family-time/adguard-client';
 import { FakeAdGuard } from '@family-time/adguard-client/fake';
-import { devices, people, policies, schedules, serviceGroups, services, settings } from '@family-time/db';
+import { allowances, devices, people, policies, schedules, serviceGroups, services, settings } from '@family-time/db';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ownerInvite } from '../src/cli/commands.js';
-import { addChild, addDevice, adguardSetup, control, DEFAULT_SCHEDULES, resolveTarget, setChildPronouns, setupDefaults, status, syncServices } from '../src/cli/control.js';
+import { addChild, addDevice, adguardSetup, allowanceFor, control, DEFAULT_SCHEDULES, ledgerVerify, pilotPhase, resolveTarget, setChildPronouns, setupDefaults, status, syncServices } from '../src/cli/control.js';
 import { seedPerson } from './accounts.js';
 import { harness, type Harness } from './helpers.js';
 
@@ -70,6 +70,18 @@ describe('setting up from the command line', () => {
       { name: 'Ollie', pronouns: 'he' },
       { name: 'Sam', pronouns: 'she' },
     ]);
+  });
+
+  it('moves the pilot phase, sets the allowance in blocks, and checks the ledger', async () => {
+    const { db } = await home();
+    await addChild(db, 'Ollie');
+    expect(await pilotPhase(db)).toMatchObject({ phase: 'baseline', features: { economy: false } });
+    expect(await pilotPhase(db, 'reframe')).toMatchObject({ phase: 'reframe', features: { economy: true, bonus: false } });
+    await expect(pilotPhase(db, 'later')).rejects.toThrow(/one of: baseline/);
+    await allowanceFor(db, { child: 'Ollie', minutes: 420 });
+    await expect(allowanceFor(db, { child: 'Ollie', minutes: 425 })).rejects.toThrow(/30-minute blocks/);
+    expect((await db.select().from(allowances))[0]).toMatchObject({ weeklyMinutes: 420 });
+    expect(await ledgerVerify(db)).toEqual({ ok: true, checked: 0 });
   });
 
   it('refuses bad device identifiers and unclear targets, in words', async () => {

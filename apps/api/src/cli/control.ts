@@ -1,7 +1,10 @@
 // Setup and control from the server's command line, for Phase 2 (the app's own screens follow in
 // Phase 3 and use the same commands). Free of Fastify, like the rest of the CLI.
 import { BYPASS_RULES, HAGEZI_BYPASS_LIST, ruleDomainOf, SETTING_BYPASS_RULES, type AdGuard } from '@family-time/adguard-client';
+import { postgresLedger, type Verification } from '@family-time/ledger';
+import { setPilotPhase } from '../economy/commands.js';
 import {
+  allowances,
   devices,
   households,
   people,
@@ -13,8 +16,7 @@ import {
   settings,
   type Db,
 } from '@family-time/db';
-import type { ScheduleBlock } from '@family-time/domain';
-import { parseClock } from '@family-time/domain';
+import { features, parseClock, PILOT_PHASES, type Features, type ScheduleBlock } from '@family-time/domain';
 import type { ChildStatus, ControlTarget } from '@family-time/schemas';
 import { randomUUID } from 'node:crypto';
 import { and, asc, eq, ilike } from 'drizzle-orm';
@@ -342,4 +344,34 @@ export async function adguardSetup(db: Db, adguard: AdGuard, credentials: { user
   }
   if (apply && steps.length) await audit(db, { householdId: hh.id, actor: { label: 'cli' }, action: 'adguard.setup', after: { steps } });
   return steps;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Phase 4: the economy, from the server's command line.
+
+/** Shows the pilot phase, or sets it. Each phase switches features on without code changes. */
+export async function pilotPhase(db: Db, phase?: string): Promise<{ phase: string; features: Features }> {
+  const hh = await household(db);
+  if (phase) {
+    if (!(PILOT_PHASES as readonly string[]).includes(phase)) throw new CliError(`The pilot phase is one of: ${PILOT_PHASES.join(', ')}.`);
+    await setPilotPhase(db, { householdId: hh.id, phase });
+  }
+  const now = (await db.select({ phase: households.pilotPhase }).from(households).where(eq(households.id, hh.id)))[0]!.phase;
+  return { phase: now, features: features(now) };
+}
+
+export async function allowanceFor(db: Db, input: { child: string; minutes: number }): Promise<void> {
+  const hh = await household(db);
+  const child = await childNamed(db, hh.id, input.child);
+  if (!Number.isInteger(input.minutes) || input.minutes < 0 || input.minutes % 30) throw new CliError('--minutes is a whole number of 30-minute blocks, for example 420.');
+  await db
+    .insert(allowances)
+    .values({ childId: child.id, weeklyMinutes: input.minutes })
+    .onConflictDoUpdate({ target: allowances.childId, set: { weeklyMinutes: input.minutes, updatedAt: new Date() } });
+  await audit(db, { householdId: hh.id, actor: { label: 'cli' }, action: 'allowance.set', targetType: 'person', targetId: child.id, after: { minutes: input.minutes } });
+}
+
+export async function ledgerVerify(db: Db): Promise<Verification> {
+  const hh = await household(db);
+  return postgresLedger(db).verify(hh.id);
 }

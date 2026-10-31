@@ -5,7 +5,7 @@ import type { ChildStatus } from '@family-time/schemas';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import { CliError, ownerInvite, recoveryLink } from './cli/commands.js';
-import { addChild, addDevice, adguardSetup, control, resolveTarget, setChildPronouns, setupDefaults, status, syncServices } from './cli/control.js';
+import { addChild, addDevice, adguardSetup, allowanceFor, control, ledgerVerify, pilotPhase, resolveTarget, setChildPronouns, setupDefaults, status, syncServices } from './cli/control.js';
 
 const USAGE = `Usage: ./scripts/ft.sh <command> [options]
 
@@ -32,7 +32,16 @@ Control (the app does the same; changes take up to a minute)
   pause --child "Ollie" [--for 30m|1h|until-bedtime]          until you resume, if no --for
   normal --child "Ollie" (--service ... | --group ... | --everything)
   resume --child "Ollie"
-  status --child "Ollie"`;
+  status --child "Ollie"
+
+The weekly allowance and jobs (the app does the rest)
+  pilot-phase [--phase baseline|reframe|reward-less|transitions|taper]
+      Shows the family's pilot phase, or moves to another. reframe switches on the allowance and
+      jobs; reward-less adds the unused-time bonus and the savings goal; taper lets agreed steps apply.
+  allowance --child "Ollie" --minutes 420
+      Sets the weekly allowance, in 30-minute blocks. It applies from the next week.
+  ledger-verify
+      Walks the ledger's hash chain and says whether every entry checks out.`;
 
 const SWITCHES = new Set(['everything', 'yes']);
 const REPEATABLE = new Set(['id']);
@@ -160,6 +169,27 @@ async function run(db: Db, command: string, args: ReturnType<typeof flags>): Pro
     case 'status':
       printStatus(await status(db, need('child'), now));
       return 0;
+    case 'pilot-phase': {
+      const p = await pilotPhase(db, values.phase);
+      const on = Object.entries(p.features).filter(([, v]) => v).map(([k]) => k);
+      console.log(`Pilot phase: ${p.phase}. Switched on: ${on.length ? on.join(', ') : 'nothing yet (logging only)'}.`);
+      return 0;
+    }
+    case 'allowance': {
+      const minutes = Number(need('minutes'));
+      await allowanceFor(db, { child: need('child'), minutes });
+      console.log(`${values.child}'s allowance is ${minutes} minutes a week, from the next week.`);
+      return 0;
+    }
+    case 'ledger-verify': {
+      const v = await ledgerVerify(db);
+      if (v.ok) {
+        console.log(`The ledger checks out: ${v.checked} entries, every hash in order.`);
+        return 0;
+      }
+      console.log(`The ledger does not check out at entry ${v.brokenAt}: ${v.problem}`);
+      return 1;
+    }
     default:
       throw new CliError(`Unknown command "${command}".\n\n${USAGE}`);
   }
