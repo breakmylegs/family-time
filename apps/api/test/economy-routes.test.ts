@@ -154,6 +154,7 @@ describe('the ledger cannot be used to take points away', () => {
     expect(res.statusCode).toBe(200);
     expect(ChainLedger.parse(res.json())).toMatchObject({ adapter: 'postgres', contract: null, queue: null, entries: [{ childName: 'Ollie', kind: 'refund', reason: 'The Wi-Fi was down', change: '+10 points', status: 'recorded', blockNumber: null }] });
     expect((await s.app.inject({ url: '/api/ledger/entries', headers: s.headers.dad })).statusCode).toBe(403);
+    expect((await s.app.inject({ url: '/api/ledger/entries', headers: s.headers.gran })).statusCode).toBe(403);
   });
 
   it('a removed job can be put back', async () => {

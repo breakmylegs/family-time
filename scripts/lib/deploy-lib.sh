@@ -65,6 +65,11 @@ compose() {
   (
     for env in deploy/.state/network.env deploy/.state/ledger.env; do
       [ -f "$env" ] || continue
+    # Only the two settings it is for, so it can never change LAN_IP, IMAGE_TAG or anything else.
+    if [ "$env" = deploy/.state/ledger.env ] && grep -Evq '^(#.*|LEDGER_ADAPTER=(postgres|besu)|COMPOSE_PROFILES=ledger-besu|)$' "$env"; then
+      echo "deploy/.state/ledger.env may only hold LEDGER_ADAPTER=postgres|besu and COMPOSE_PROFILES=ledger-besu (docs/setup/besu.md)." >&2
+      exit 1
+    fi
       set -a
       # shellcheck source=/dev/null
       . "$env"

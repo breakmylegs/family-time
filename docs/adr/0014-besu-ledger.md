@@ -18,12 +18,13 @@ Status: accepted, 31 October 2026 (Phase 5)
 
 ## Why
 
-Brief Parts 7 and 22. Postgres's hash chain detects tampering; a chain with fixed burn paths makes the rules impossible to break even by the backend that writes it. Keeping Postgres as the system the app reads means the app works the same on either adapter, and a dead Besu node delays confirmation without stopping the family.
+Brief Parts 7 and 22. Postgres's hash chain detects tampering; a chain with fixed burn paths means a backend that is buggy but honest cannot write a deduction, a transfer or a second use of a reference. It does not stop a stolen signer key: whoever holds it can write any of the named entries (spend a child's time, record a payout, set a household's rate and convert), though never move tokens between children. That is why the signer key lives only in the worker, the node only on a network the worker shares, and the worker compares the chain with Postgres every day and alerts the owner when they differ. Keeping Postgres as the system the app reads means the app works the same on either adapter, and a dead Besu node delays confirmation without stopping the family.
 
 ## Consequences
 
 - The chain is a second copy, confirmed a few seconds behind. If the node is down the queue grows and drains when it is back; nothing the family sees changes.
 - A conversion or bonus made at rates that have since changed in Settings would be refused when replayed onto a new contract. Rates are not editable in the app yet; if that changes, rate changes need to become queued entries of their own.
 - An entry written in the instant a contract is activated could be queued after later entries of its household; the signer's catch-up queues anything missed, and the chain would refuse an out-of-order spend, which stops the signer and alerts the owner rather than diverging silently.
-- The Besu container runs as root with every capability dropped, so it can read its key secret, which Compose mounts root-only.
+- The Besu container runs as root with every capability dropped, so it can read its key secret, which Compose mounts root-only. Dropping to the image's own user after reading the key is a Phase 8 hardening item.
+- From the Phase 5 security review, left for later: tying each child to one household on chain (so a conversion or close cannot use another household's rates), giving rate changes to the cold key or a delay, account permissioning on the node (only the signer may send), pinning the Solidity compiler by checksum rather than through Foundry's own download check, and keeping the admin key out of `secrets/` altogether.
 - The chain's volume and the three keys need backing up (Phase 8). The admin key belongs offline once the contract is deployed.

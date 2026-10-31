@@ -29,7 +29,7 @@ x-app: &app
     BESU_RPC_URL: http://besu:8545
     LOG_LEVEL: info
     TZ: Europe/London
-  secrets: [postgres_password, adguard_password, vapid_private.pem, ledger_signer_key]
+  secrets: [postgres_password, adguard_password, vapid_private.pem]
   logging: &logging
     driver: json-file
     options:
@@ -96,8 +96,11 @@ services:
       migrate:
         condition: service_completed_successfully
     # egress: out to the browsers' push services (Apple, Google, Mozilla, Microsoft) for alerts.
-    # Nothing is published, so nothing can reach the worker from outside.
-    networks: [internal, egress]
+    # ledger: the Besu node, which only the worker reaches. Nothing is published, so nothing can
+    # reach the worker from outside. The worker alone holds the ledger signer key; the ledger-*
+    # commands run in this service for that reason (scripts/ft.sh).
+    networks: [internal, egress, ledger]
+    secrets: [postgres_password, adguard_password, vapid_private.pem, ledger_signer_key]
     mem_limit: 256m
 
   # Home DNS. Port 53 is published on the server's LAN address only (LAN_IP, from
@@ -143,10 +146,12 @@ services:
     volumes:
       - ./besu:/besu-setup:ro
       - besu-data:/opt/besu/data
+    # Its own network, shared only with the worker: the api, AdGuard and Postgres cannot reach it.
     networks:
-      internal:
+      ledger:
         aliases: [besu]
     mem_limit: 3g
+    pids_limit: 512
     logging: *logging
 
   # Added in later phases: ollama under profile ai-local (Phase 7).
@@ -158,6 +163,9 @@ networks:
   # The way out: AdGuard to upstream DNS (and where its port 53 is published), the worker to the
   # push services. Outbound only; the worker publishes no port.
   egress: {}
+  # The Besu node and the worker, and nothing else. No route out.
+  ledger:
+    internal: true
   # Caddy's network. Only the api joins it.
   proxy:
     external: true

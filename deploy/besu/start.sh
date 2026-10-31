@@ -1,8 +1,11 @@
 #!/bin/bash
 # Starts the family's single-validator QBFT Besu (ADR 0014). On the first start it writes the
 # genesis, with this node as the only validator, into the data volume; after that it reuses it.
-# Gas is free (min-gas-price 0 and a zero base fee), Cancun is on from block 0 (the contract
-# needs it), and only the ETH, NET, QBFT and WEB3 APIs answer, on the internal network only.
+# Gas is free (min-gas-price 0 and a zero base fee) but each block and call is capped at 50
+# million, Cancun is on from block 0 (the contract needs it), and only the ETH, NET and WEB3 APIs
+# answer: no QBFT, so nothing can vote in another validator and halt the chain.
+#
+# A genesis made before the 50 million block gas limit keeps its own limit; that is fine.
 #
 # The validator key comes from the Docker secret init.sh made. The test project has no secret,
 # so it makes a throwaway key in its temporary data folder.
@@ -11,13 +14,17 @@ set -euo pipefail
 DATA=${BESU_DATA:-/opt/besu/data}
 BLOCK_SECONDS=${BLOCK_SECONDS:-5}
 CHAIN_ID=${CHAIN_ID:-4242}
-KEY=${BESU_NODE_KEY_FILE:-/run/secrets/besu_node_key}
+KEY=${BESU_NODE_KEY_FILE:-}
 
 mkdir -p "$DATA"
-if [ ! -s "$KEY" ]; then
+if [ -z "$KEY" ]; then
+  # The test project only: it sets no key file.
   KEY=$DATA/throwaway-key
   [ -s "$KEY" ] || od -An -tx1 -N32 /dev/urandom | tr -d ' \n' > "$KEY"
-  echo "start.sh: no validator key secret, so using a throwaway one (tests only)"
+  echo "start.sh: no validator key file set, so using a throwaway one (tests only)"
+elif [ ! -r "$KEY" ] || [ ! -s "$KEY" ]; then
+  echo "start.sh: the validator key $KEY is missing or empty. Run ./scripts/init.sh again." >&2
+  exit 1
 fi
 
 if [ ! -s "$DATA/genesis.json" ]; then
@@ -37,7 +44,7 @@ if [ ! -s "$DATA/genesis.json" ]; then
   },
   "nonce": "0x0",
   "timestamp": "0x0",
-  "gasLimit": "0x1fffffffffffff",
+  "gasLimit": "0x2faf080",
   "difficulty": "0x1",
   "mixHash": "0x63746963616c2062797a616e74696e65206661756c7420746f6c6572616e6365",
   "coinbase": "0x0000000000000000000000000000000000000000",
@@ -58,6 +65,7 @@ exec besu \
   --rpc-http-enabled \
   --rpc-http-host=0.0.0.0 \
   --rpc-http-port=8545 \
-  --rpc-http-api=ETH,NET,QBFT,WEB3 \
-  --host-allowlist="*" \
+  --rpc-http-api=ETH,NET,WEB3 \
+  --rpc-gas-cap=50000000 \
+  --host-allowlist=besu,localhost \
   --logging=INFO

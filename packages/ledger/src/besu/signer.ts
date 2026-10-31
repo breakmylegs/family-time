@@ -143,13 +143,17 @@ export async function signerPass(db: Db, chain: ChainClient, options: SignerOpti
 }
 
 /** How the queue stands, for the owner's Ledger screen and readiness. */
-export async function signerStatus(db: Db): Promise<Record<'pending' | 'sent' | 'mined' | 'failed', number> | null> {
+export async function signerStatus(db: Db, householdId?: string): Promise<Record<'pending' | 'sent' | 'mined' | 'failed', number> | null> {
   const c = await activeContract(db);
   if (!c) return null;
+  const conditions = [eq(ledgerTx.contractId, c.id), inArray(ledgerTx.status, ['pending', 'sent', 'mined', 'failed'])];
+  // A household sees its own entries only; the server's command sees the whole queue.
+  if (householdId) conditions.push(eq(ledgerEntries.householdId, householdId));
   const rows = await db
     .select({ status: ledgerTx.status, n: count() })
     .from(ledgerTx)
-    .where(and(eq(ledgerTx.contractId, c.id), inArray(ledgerTx.status, ['pending', 'sent', 'mined', 'failed'])))
+    .innerJoin(ledgerEntries, eq(ledgerEntries.id, ledgerTx.entryId))
+    .where(and(...conditions))
     .groupBy(ledgerTx.status);
   const out = { pending: 0, sent: 0, mined: 0, failed: 0 };
   for (const r of rows) out[r.status] = Number(r.n);

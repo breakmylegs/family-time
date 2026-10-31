@@ -1,6 +1,6 @@
 import type { AdGuard } from '@family-time/adguard-client';
-import { recordHeartbeat, type Db } from '@family-time/db';
-import { activeContract, indexPass, postgresLedger, signerPass, type ChainClient, type LedgerPort } from '@family-time/ledger';
+import { households, recordHeartbeat, type Db } from '@family-time/db';
+import { activeContract, checkAgainstChain, indexPass, postgresLedger, signerPass, type ChainClient, type LedgerPort } from '@family-time/ledger';
 import type { Send, Vapid } from '@family-time/notify';
 import type { PgBoss } from 'pg-boss';
 import { sendDeviceAlerts, sendFamilyAlert, type AlertJob, type DeviceAlertKind } from './alerts.js';
@@ -21,6 +21,8 @@ export const CONTROL_INTERVAL_MS = 60_000;
 /** The Besu signer and indexer (ADR 0014): one queue, one at a time, every few seconds. */
 export const LEDGER_QUEUE = 'ledger-chain';
 export const LEDGER_INTERVAL_MS = 5_000;
+/** How often the chain is compared with Postgres, entry by entry and balance by balance. */
+export const CHAIN_CHECK_MS = 24 * 3_600_000;
 
 export type Log = (level: 'debug' | 'info' | 'warn' | 'error', event: string, fields?: Record<string, unknown>) => void;
 
@@ -109,6 +111,8 @@ export async function startWorker(deps: WorkerDeps): Promise<RunningWorker> {
   });
   // The signer, then the indexer. Singleton, so there is only ever one signer and nonces never clash.
   const chainFor = deps.chain;
+  // When the chain was last compared with Postgres. Once a day, and once after each start.
+  let checkedAt = 0;
   if (chainFor) {
     if (!(await boss.getQueue(LEDGER_QUEUE))) await boss.createQueue(LEDGER_QUEUE, { policy: 'singleton' });
     await boss.work(LEDGER_QUEUE, { pollingIntervalSeconds: 1 }, async () => {
@@ -124,6 +128,19 @@ export async function startWorker(deps: WorkerDeps): Promise<RunningWorker> {
         });
         const indexed = await indexPass(db, chain);
         log(signed.sent || indexed.confirmed ? 'info' : 'debug', 'ledger_chain', { ...signed, confirmed: indexed.confirmed, block: indexed.to });
+        // Only when the queue is empty, so entries on their way are not counted as missing. A
+        // stolen signer key could write named entries Postgres never made; this is how the owner
+        // hears of it (ADR 0014).
+        if (!signed.queued && !signed.waiting && !signed.sent && Date.now() - checkedAt > CHAIN_CHECK_MS) {
+          checkedAt = Date.now();
+          const check = await checkAgainstChain(db, chain);
+          log(check.ok ? 'info' : 'error', 'ledger_chain_checked', { ok: check.ok, entries: check.entries, events: check.events, problems: check.problems.length });
+          if (!check.ok) {
+            for (const h of await db.select({ id: households.id }).from(households)) {
+              await queueAlert({ kind: 'ledger', householdId: h.id, problem: `The chain and Postgres differ (${check.problems.length} problems). Run ./scripts/ft.sh ledger-check for details.` });
+            }
+          }
+        }
       } catch (err) {
         // The node is down or restarting: the queue keeps everything, and the next pass carries on.
         log('warn', 'ledger_chain_unreachable', { error: (err as Error).message });

@@ -173,7 +173,7 @@ export async function chainLedger(db: Db, householdId: string, now: Date, adapte
   return {
     adapter,
     contract: c ? { address: c.address, version: c.version, deployedBlock: c.deployedBlock, indexedBlock: c.indexedBlock } : null,
-    queue: adapter === 'besu' ? await signerStatus(db) : null,
+    queue: adapter === 'besu' ? await signerStatus(db, householdId) : null,
     entries: rows.map(({ entry: x, childName }, i) => {
       const onChain = confirmedBy.get(hashes[i]!);
       const t = txBy.get(x.id);
