@@ -671,3 +671,26 @@ button.job-row:focus-visible {
 .ledger-warning {
   margin: 0 16px 16px;
 }
+
+/* Phase 6: the photo from "I did it", the child's answers, the kiosk code */
+.item-photo {
+  display: block;
+  width: 100%;
+  max-height: 240px;
+  object-fit: cover;
+  margin-top: 12px;
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+.agenda .said {
+  display: block;
+  margin-top: 2px;
+  color: var(--ink-2);
+}
+.pair-code {
+  margin: 18px 0 6px;
+  text-align: center;
+  font-size: 44px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+}

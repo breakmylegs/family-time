@@ -148,6 +148,7 @@ function Completion({ item, titleRef, note, setNote, onDecide }: { item: Extract
           {item.reward.label}
         </span>
       </div>
+      {item.hasPhoto ? <img className="item-photo" src={`/api/completions/${item.id}/photo`} alt={`${item.childName}'s photo of ${item.title}`} loading="lazy" /> : null}
       {item.capNote ? <p className="cap-note">{item.capNote}</p> : null}
       <div className="say">
         <div className="say-head">

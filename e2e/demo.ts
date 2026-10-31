@@ -8,6 +8,8 @@ interface Sessions {
   mum: { session: string; csrf: string };
   dad: { session: string; csrf: string };
   gran: { session: string; csrf: string };
+  /** A paired kiosk's token. */
+  kiosk: string;
   children: { ollie: string; jamie: string };
 }
 

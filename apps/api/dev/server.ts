@@ -12,11 +12,12 @@
 // the owner's Ledger screen shows blocks; each reset starts a fresh chain and replays onto it.
 //
 //   FT_SESSION_FILE  where to write signed-in cookies for Mum, Dad and Gran, for WebKit, which
-//                    cannot make a passkey in a test
+//                    cannot make a passkey in a test, and a paired kiosk's token
+//   KIOSK_PORT       also serve the kiosk (apps/kiosk/dist) and its API on this port
 import { AdGuard } from '@family-time/adguard-client';
 import { FakeAdGuard } from '@family-time/adguard-client/fake';
-import { helpFeedback, ledgerConfirmations, ledgerContracts, ledgerTx, overrides, recordHeartbeat, sessionEndings } from '@family-time/db';
-import { activateContract, besuLedger, fakeChain, indexPass, signerPass, type FakeChain } from '@family-time/ledger';
+import { completionPhotos, helpFeedback, ideas, kioskDevices, ledgerConfirmations, ledgerContracts, ledgerTx, overrides, recordHeartbeat, sessionEndings } from '@family-time/db';
+import { activateContract, besuLedger, fakeChain, indexPass, postgresLedger, signerPass, type FakeChain } from '@family-time/ledger';
 import { eq } from 'drizzle-orm';
 import { testDb } from '@family-time/db/testing';
 import { reconcile } from '@family-time/worker/reconcile';
@@ -28,6 +29,8 @@ import { createSession } from '../src/auth/sessions.js';
 import { readBuildInfo } from '../src/build.js';
 import { ownerInvite } from '../src/cli/commands.js';
 import { Changes } from '../src/events.js';
+import { sha256 } from '../src/auth/tokens.js';
+import { buildKioskServer } from '../src/kiosk/server.js';
 import { buildServer } from '../src/server.js';
 import { seedDemo } from './demo.js';
 import { resetEconomy, seedEconomy, type EconomySnapshot } from './economy.js';
@@ -36,6 +39,7 @@ const port = Number(process.env.PORT ?? 5174);
 const origin = `http://localhost:${port}`;
 const here = dirname(fileURLToPath(import.meta.url));
 const staticDir = join(here, '..', '..', 'parent', 'dist');
+const kioskDir = join(here, '..', '..', 'kiosk', 'dist');
 const demo = process.env.FT_DEV_DEMO === '1';
 const frozen = demo ? new Date(process.env.FT_DEV_CLOCK ?? '2026-10-26T18:32:00Z') : undefined;
 const now = () => frozen ?? new Date();
@@ -49,6 +53,7 @@ setInterval(() => void recordHeartbeat(db, 'dev', now()), 30_000).unref();
 const changes = new Changes();
 let notifyChange: (() => Promise<void>) | undefined;
 let economy: EconomySnapshot | undefined;
+let householdId: string | undefined;
 let chain: FakeChain | undefined;
 let chains = 0;
 
@@ -70,6 +75,14 @@ async function settle() {
 if (demo) {
   const family = await seedDemo(db, origin);
   economy = await seedEconomy(db, family, { roblox: family.roblox.id, youtubeGrant: family.youtubeGrant.id });
+  householdId = family.householdId;
+  // Ollie's own ideas, from the mock.
+  await db.insert(ideas).values([
+    { childId: family.ollie.id, text: 'Trampoline tricks', picture: 'ball' },
+    { childId: family.ollie.id, text: 'Build a den', picture: 'tent' },
+    { childId: family.ollie.id, text: 'Draw a comic', picture: 'pencil' },
+    { childId: family.ollie.id, text: 'Kick-ups', picture: 'ball' },
+  ]);
   await newChain();
   setInterval(() => void settle(), 2_000).unref();
   const fake = new FakeAdGuard();
@@ -100,7 +113,10 @@ if (demo) {
     ] as const) {
       sessions[name] = { session: await createSession(db, person.id, 'e2e', now()), csrf: randomBytes(24).toString('base64url') };
     }
-    writeFileSync(process.env.FT_SESSION_FILE, JSON.stringify({ ...sessions, children: { ollie: family.ollie.id, jamie: family.jamie.id } }));
+    // A kiosk already paired, so the kiosk's tests start at the child's home.
+    const kioskToken = randomBytes(32).toString('base64url');
+    await db.insert(kioskDevices).values({ householdId: family.householdId, label: 'Fire tablet', tokenHash: sha256(kioskToken) });
+    writeFileSync(process.env.FT_SESSION_FILE, JSON.stringify({ ...sessions, kiosk: kioskToken, children: { ollie: family.ollie.id, jamie: family.jamie.id } }));
   }
   console.log(`Demo family ready, clock frozen at ${frozen!.toISOString()}`);
 } else {
@@ -126,12 +142,15 @@ const app = await buildServer({
 if (demo) {
   // For the end-to-end tests only: back to the mock's 18:32 before each test.
   const seeded = new Set((await db.select({ id: overrides.id }).from(overrides)).map((o) => o.id));
+  const seededIdeas = new Set((await db.select({ id: ideas.id }).from(ideas)).map((i) => i.id));
   app.post('/__dev/reset', { config: { access: 'public' } }, async () => {
     for (const o of await db.select({ id: overrides.id }).from(overrides)) if (!seeded.has(o.id)) await db.delete(overrides).where(eq(overrides.id, o.id));
     await db.update(overrides).set({ endsAt: new Date('2026-10-26T19:30:00Z'), endedBy: null, plannedEndsAt: null });
     await db.delete(sessionEndings);
     await db.delete(helpFeedback);
     // The chain cannot forget a reference, and the reset makes the same ones again: a new chain.
+    await db.delete(completionPhotos);
+    for (const i of await db.select({ id: ideas.id }).from(ideas)) if (!seededIdeas.has(i.id)) await db.delete(ideas).where(eq(ideas.id, i.id));
     await db.delete(ledgerTx);
     await db.delete(ledgerConfirmations);
     await db.delete(ledgerContracts);
@@ -144,3 +163,17 @@ if (demo) {
 
 await app.listen({ host: '127.0.0.1', port });
 console.log(`Family time dev server on ${origin}`);
+
+if (process.env.KIOSK_PORT) {
+  const kiosk = await buildKioskServer({
+    db,
+    ledger: demo ? besuLedger(db) : postgresLedger(db),
+    now,
+    changes,
+    logLevel: process.env.LOG_LEVEL ?? 'warn',
+    ...(notifyChange ? { notifyChange } : {}),
+    ...(existsSync(join(kioskDir, 'index.html')) ? { staticDir: kioskDir } : {}),
+  });
+  await kiosk.listen({ host: '127.0.0.1', port: Number(process.env.KIOSK_PORT) });
+  console.log(`Kiosk on http://localhost:${process.env.KIOSK_PORT}${householdId ? ' (demo family, already paired)' : ''}`);
+}

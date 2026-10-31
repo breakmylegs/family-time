@@ -1,6 +1,7 @@
 import type { ChildStatus, ChildSummary, Me } from '@family-time/schemas';
 import { useEffect, useState } from 'react';
 import { api, ApiFailure } from '../api';
+import { KioskSettings } from '../components/KioskSettings';
 import { HelpButton } from '../help/HelpButton';
 import { useHelp } from '../help/HelpContext';
 import { SYNC } from '../help/rightNow';
@@ -142,6 +143,8 @@ export function Settings({ me, kids, onSignedOut }: { me: Me; kids: ChildSummary
           {!statuses ? <p className="empty">Checking devices.</p> : !devices.length ? <p className="empty">No devices yet. Whoever set up Family time can add them.</p> : null}
         </div>
       </section>
+
+      {me.capabilities.includes('system.manage') ? <KioskSettings /> : null}
 
       {getsAlerts ? (
         <section className="sec" aria-labelledby="alerts">

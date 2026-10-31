@@ -5,6 +5,7 @@ import type { Send, Vapid } from '@family-time/notify';
 import type { PgBoss } from 'pg-boss';
 import { sendDeviceAlerts, sendFamilyAlert, type AlertJob, type DeviceAlertKind } from './alerts.js';
 import { economyTick } from './economy.js';
+import { prunePhotos } from './photos.js';
 import { reconcile } from './reconcile.js';
 import { readUsage } from './usage.js';
 
@@ -107,6 +108,8 @@ export async function startWorker(deps: WorkerDeps): Promise<RunningWorker> {
   const ledger = deps.ledger ?? postgresLedger(db);
   await boss.work(ECONOMY_QUEUE, { pollingIntervalSeconds: deps.pollingIntervalSeconds ?? 2 }, async () => {
     const result = await economyTick({ db, ledger, now, log, onChainBroken: (householdId, problem) => queueAlert({ kind: 'ledger', householdId, problem }) });
+    const photos = await prunePhotos(db, now());
+    if (photos) log('info', 'photos_deleted', { count: photos });
     log(result.closed || result.allocated || result.refunds || result.charges ? 'info' : 'debug', 'economy', { ...result });
   });
   // The signer, then the indexer. Singleton, so there is only ever one signer and nonces never clash.

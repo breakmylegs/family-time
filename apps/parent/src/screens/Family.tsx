@@ -284,6 +284,19 @@ function agenda(name: string, w: WeekSummary): ReactNode[] {
       </span>
     </li>,
   );
+  if (w.reflection && (w.reflection.wentWell || w.reflection.wasHard || w.reflection.nextGoal)) {
+    const r = w.reflection;
+    items.push(
+      <li key="reflection">
+        <span>
+          {name}&apos;s answers on the kiosk:
+          {r.wentWell ? <span className="said">Went well: &ldquo;{r.wentWell}&rdquo;</span> : null}
+          {r.wasHard ? <span className="said">Tricky: &ldquo;{r.wasHard}&rdquo;</span> : null}
+          {r.nextGoal ? <span className="said">Next week: &ldquo;{r.nextGoal}&rdquo;</span> : null}
+        </span>
+      </li>,
+    );
+  }
   if (w.goal) {
     items.push(
       <li key="goal">
@@ -379,7 +392,7 @@ function Sheets({ kid, week, kind, from, base, onClosed, onDone }: SheetsProps) 
       <Sheet
         {...common}
         title={`Pay ${kid.name}`}
-        sub={`${pence(week.moneyPence)} is owed. Mark what you handed over.${week.goal ? ' The savings bar counts money still owed, so it goes down by the same amount.' : ''}`}
+        sub={`${pence(week.moneyPence)} is owed. Mark what you handed over.`}
       >
         <div className="form">
           {nStepper('Paid', pence, 10, 1, week.moneyPence)}
@@ -446,7 +459,7 @@ function Sheets({ kid, week, kind, from, base, onClosed, onDone }: SheetsProps) 
   }
   if (kind === 'goal') {
     return (
-      <Sheet {...common} title={`${kid.name}'s savings goal`} sub={`The bar fills with the pocket money you owe ${kid.name}. Marking money as paid moves it back.`}>
+      <Sheet {...common} title={`${kid.name}'s savings goal`} sub={`The bar fills with the pocket money ${kid.name} earns from when the goal is set. Paying it out doesn't move the bar back.`}>
         <div className="form">
           <div>
             <label htmlFor="goal-title">Saving for</label>

@@ -9,7 +9,7 @@ status: needs-review
 
 ## In short
 
-Something {child} is saving for, with its price. The bar shows how close the pocket money owed is to it.
+Something {child} is saving for, with its price. The bar shows how close {child} is, from the pocket money earned since the goal was set.
 
 ## How to use it
 
@@ -19,8 +19,8 @@ Something {child} is saving for, with its price. The bar shows how close the poc
 
 ## How it works
 
-The bar fills with all the pocket money you owe {child}, up to the goal's price: money from jobs, flex points turned into pocket money, and the unused-time bonus.
+The bar fills with the pocket money {child} earns from the day the goal is set, up to its price: money from jobs, flex points turned into pocket money, and the unused-time bonus. Marking money as paid doesn't move the bar back, so it only ever goes forward. Setting a new goal starts a new bar.
 
 ## Watch out for
 
-Marking money as paid moves the bar back, because the bar counts only money you still owe. If {child} is saving up, you could hold on to the money and pay it all when {child} is ready to buy.
+Paying out all the money as it is earned. The bar still fills, but {child} may not have the money when the goal is reached. Talk about keeping some aside until then.

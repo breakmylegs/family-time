@@ -8,6 +8,7 @@
 import { randomUUID } from 'node:crypto';
 import {
   allowances,
+  completionPhotos,
   completions,
   goals,
   grants,
@@ -20,6 +21,7 @@ import {
   people,
   policies,
   reductionPlans,
+  reflections,
   requests,
   serviceGroupMembers,
   serviceGroups,
@@ -136,6 +138,7 @@ export async function weekSummary(db: Db, ledger: LedgerPort, childId: string, n
       : null,
     resetDays: days,
     goal: e.goal ? { title: e.goal.title, targetPence: e.goal.targetPence, savedPence: await goalSaved(db, ledger, e.householdId, childId, e.goal.id, e.goal.targetPence) } : null,
+    reflection: await recentReflection(db, childId, addIsoDays(week.date, -7)),
     rates: { pencePerBlock: e.rates.bonus.pencePerBlock, weeklyCapPence: e.rates.bonus.weeklyCapPence, flexPence: e.rates.flexPence, flexMinutes: e.rates.flexMinutes },
   };
 }
@@ -207,6 +210,12 @@ export async function goalSaved(db: Db, ledger: LedgerPort, householdId: string,
     .filter((x) => x.kind !== 'payout' && !(x.kind === 'reversal' && payouts.has(String(x.data.reverses))))
     .reduce((n, x) => n + x.money, 0);
   return Math.max(0, Math.min(earned, targetPence));
+}
+
+/** The child's latest Sunday answers, if they are from this week or the week before. */
+async function recentReflection(db: Db, childId: string, sinceWeek: string) {
+  const r = (await db.select().from(reflections).where(and(eq(reflections.childId, childId), gte(reflections.week, sinceWeek))).orderBy(desc(reflections.week)).limit(1))[0];
+  return r ? { week: r.week, wentWell: r.wentWell, wasHard: r.wasHard, nextGoal: r.nextGoal } : null;
 }
 
 /** The child's ledger for the Family screen, newest first. */
@@ -500,6 +509,12 @@ export async function approvalsFor(db: Db, ledger: LedgerPort, householdId: stri
     .from(completions)
     .innerJoin(tasks, eq(tasks.id, completions.taskId))
     .where(and(inArray(completions.childId, [...kid.keys()]), eq(completions.status, 'waiting')));
+  // Which of them came with a photo from the kiosk.
+  const withPhoto = new Set(
+    waiting.length
+      ? (await db.select({ id: completionPhotos.completionId }).from(completionPhotos).where(inArray(completionPhotos.completionId, waiting.map((w) => w.c.id)))).map((p) => p.id)
+      : [],
+  );
   for (const { c, t } of waiting) {
     const e = await loadEconomy(db, c.childId);
     let willPay: { amount: number; label: string } | null = null;
@@ -528,7 +543,7 @@ export async function approvalsFor(db: Db, ledger: LedgerPort, householdId: stri
       reward: { type: t.rewardType, amount: t.amount, label: rewardLabel(t.rewardType, t.amount) },
       willPay,
       capNote,
-      hasPhoto: Boolean(c.photoPath),
+      hasPhoto: withPhoto.has(c.id),
       suggestions: suggestions(t.rewardType === 'praise' ? 'praise' : 'job', t.title),
       sortAt: c.loggedAt.getTime(),
     });

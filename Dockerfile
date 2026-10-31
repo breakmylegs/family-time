@@ -18,6 +18,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/api/package.json apps/api/
 COPY apps/worker/package.json apps/worker/
 COPY apps/parent/package.json apps/parent/
+COPY apps/kiosk/package.json apps/kiosk/
 COPY packages/adguard-client/package.json packages/adguard-client/
 COPY packages/db/package.json packages/db/
 COPY packages/domain/package.json packages/domain/
@@ -87,6 +88,7 @@ COPY --from=build /app/contracts/out/FamilyLedger.sol/FamilyLedger.json contract
 COPY --from=build /app/apps/api/dist apps/api/dist
 COPY --from=build /app/apps/worker/dist apps/worker/dist
 COPY --from=build /app/apps/parent/dist apps/parent/dist
+COPY --from=build /app/apps/kiosk/dist apps/kiosk/dist
 COPY --chmod=0755 deploy/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 EXPOSE 3000
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

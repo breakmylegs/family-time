@@ -150,3 +150,13 @@ test('a carer sees Approvals but cannot change jobs or money', async ({ page, co
   await go(page, '/settings');
   await expect(page.getByRole('button', { name: /^Ledger/ })).toHaveCount(0);
 });
+
+test('the owner sets up the kiosk from Settings, with a code that works once', async ({ page }) => {
+  await go(page, '/settings');
+  await expect(page.getByRole('heading', { name: 'Kiosk' })).toBeVisible();
+  await expect(page.getByText('Fire tablet')).toBeVisible();
+  await page.getByRole('button', { name: 'Set up the kiosk' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Set up the kiosk' });
+  await expect(sheet.getByText(/^\d{6}$/)).toBeVisible();
+  await shot(page, 'kiosk-code-light', 'phase-6');
+});

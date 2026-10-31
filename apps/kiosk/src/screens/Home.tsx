@@ -22,15 +22,27 @@ export function Home({ home, go, reload, switchChild }: Props) {
   return (
     <main class="home" aria-label={`${home.child.name}'s screen`}>
       <header class="top">
-        <h1>
-          {switchChild ? (
-            <button type="button" class="hi-switch" onClick={switchChild}>
-              Hi {home.child.name}
-            </button>
-          ) : (
-            <>Hi {home.child.name}</>
-          )}
-        </h1>
+        <div class="hello">
+          <h1>
+            {switchChild ? (
+              <button type="button" class="hi-switch" onClick={switchChild}>
+                Hi {home.child.name}
+              </button>
+            ) : (
+              <>Hi {home.child.name}</>
+            )}
+          </h1>
+          {/* The newest note from Mum or Dad: praise for a job, or an answer to asking. */}
+          {home.notes[0] ? (
+            <p class="note" role="status">
+              <b>{home.notes[0].from}:</b> {home.notes[0].text}
+            </p>
+          ) : null}
+        </div>
+        <button type="button" class="link" onClick={() => go({ name: 'parents' })}>
+          <Icon name="eye" />
+          What Mum and Dad can see
+        </button>
         <p class="clock">{home.clock}</p>
         {home.pill ? (
           <p class={`pill ${home.pill.kind}`}>
@@ -42,16 +54,6 @@ export function Home({ home, go, reload, switchChild }: Props) {
 
       <div class="grid">
         <div class="col">
-          {home.notes.length ? (
-            <section class="card notes" aria-label="Notes from home">
-              {home.notes.slice(0, 2).map((n) => (
-                <p key={n.id} class="note">
-                  <b>{n.from}:</b> {n.text}
-                </p>
-              ))}
-            </section>
-          ) : null}
-
           <section class="card now" aria-label="Right now">
             {home.rightNow ? (
               <>
@@ -100,6 +102,10 @@ export function Home({ home, go, reload, switchChild }: Props) {
                 <button type="button" class="btn" aria-expanded={planned} onClick={() => setPlanned((p) => !p)}>
                   <Icon name="list" />
                   What's planned
+                </button>
+                <button type="button" class="btn" onClick={() => go({ name: 'plan', ask: true })}>
+                  <Icon name="hand" />
+                  Ask a grown-up
                 </button>
               </div>
               {planned ? (
@@ -200,18 +206,6 @@ export function Home({ home, go, reload, switchChild }: Props) {
         ) : (
           <span />
         )}
-        <div class="links">
-          {home.week ? (
-            <button type="button" class="link" onClick={() => go({ name: 'plan', ask: true })}>
-              <Icon name="hand" />
-              Ask a grown-up
-            </button>
-          ) : null}
-          <button type="button" class="link" onClick={() => go({ name: 'parents' })}>
-            <Icon name="eye" />
-            What Mum and Dad can see
-          </button>
-        </div>
       </footer>
 
       {job ? (

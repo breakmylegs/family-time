@@ -120,6 +120,8 @@ export const WeekSummary = z.object({
   /** The next four reset days, for setting up a plan when there is none yet. */
   resetDays: z.array(z.object({ on: z.string(), label: z.string() })),
   goal: z.object({ title: z.string(), targetPence: z.number().int(), savedPence: z.number().int() }).nullable(),
+  /** The child's answers to the Sunday questions on the kiosk, this week's or last week's. */
+  reflection: z.object({ week: z.string(), wentWell: z.string(), wasHard: z.string(), nextGoal: z.string() }).nullable(),
   rates: z.object({ pencePerBlock: z.number().int(), weeklyCapPence: z.number().int(), flexPence: z.number().int(), flexMinutes: z.number().int() }),
 });
 export type WeekSummary = z.infer<typeof WeekSummary>;

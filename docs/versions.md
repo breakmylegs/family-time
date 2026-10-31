@@ -52,6 +52,7 @@ Every version is pinned exactly. Checked on the registry on 26 October 2026 unle
 | @radix-ui/react-dialog | 1.3.1 | parent | asked and approved in the Phase 3 plan. Focus trap, Escape and focus return for the help panel and sheets |
 | @fontsource/lora, @fontsource/poppins | 5.3.0 | parent | asked and approved in the Phase 3 plan. Self-hosted fonts, as the design README suggests |
 | viem | 2.57.13 | ledger | yes (Part 17). Phase 5: the Besu signer, indexer and deploy |
+| preact | 10.29.8 | kiosk | yes (Part 17). Phase 6. 11.x is out, but an old Fire WebView is the wrong place for a new major (reuse report) |
 | @openzeppelin/contracts | 5.6.1 | contracts | yes (Part 17). Phase 5: Solidity sources only, compiled in the image |
 
 ## Checked for later phases, not installed yet
@@ -59,7 +60,6 @@ Every version is pinned exactly. Checked on the registry on 26 October 2026 unle
 | Package | Version on 26 Oct 2026 | Phase |
 |---|---|---|
 | vite-plugin-pwa | 2.0.0 (supports Vite 8). Not used: a hand-written service worker is a few dozen lines (Phase 3 plan, decision 7) | 3 |
-| preact | 10.29.8, not 11.0.2 (see reuse report) | 6 |
 | openid-client | 6.8.8 | when owner OIDC is switched on (deferred from Phase 1) |
 | ai | 7.0.153 | 7 |
 | @ai-sdk/mcp | 2.0.84 | 7 |

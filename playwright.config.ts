@@ -7,6 +7,8 @@ export const SESSION_FILE = join(tmpdir(), 'family-time-e2e-sessions.json');
 const PORT = 5174;
 /** The mock's family, frozen at Monday 26 October 2026, 18:32 London. */
 export const DEMO_PORT = 5175;
+/** The same demo family's kiosk. */
+export const KIOSK_PORT = 5176;
 
 /**
  * End-to-end tests against the real api on PGlite (apps/api/dev/server.ts), serving the parent
@@ -37,7 +39,7 @@ export default defineConfig({
       url: `http://localhost:${DEMO_PORT}/healthz`,
       reuseExistingServer: false,
       timeout: 120_000,
-      env: { PORT: String(DEMO_PORT), FT_DEV_DEMO: '1', FT_SESSION_FILE: SESSION_FILE, COREPACK_ENABLE_DOWNLOAD_PROMPT: '0' },
+      env: { PORT: String(DEMO_PORT), KIOSK_PORT: String(KIOSK_PORT), FT_DEV_DEMO: '1', FT_SESSION_FILE: SESSION_FILE, COREPACK_ENABLE_DOWNLOAD_PROMPT: '0' },
     },
   ],
   projects: [
@@ -54,6 +56,12 @@ export default defineConfig({
       // Playwright's WebKit on Windows hangs the page when asked for a push subscription. Push is
       // checked on a real iPhone instead; the tests block the service worker.
       use: { ...devices['Desktop Safari'], baseURL: `http://localhost:${DEMO_PORT}`, viewport: { width: 390, height: 844 }, serviceWorkers: 'block' },
+    },
+    {
+      // The kiosk in Chromium at the Fire tablet's 1280 by 800 (brief Part 19).
+      name: 'kiosk',
+      testMatch: 'kiosk.spec.ts',
+      use: { ...devices['Desktop Chrome'], baseURL: `http://localhost:${KIOSK_PORT}`, viewport: { width: 1280, height: 800 } },
     },
   ],
 });
