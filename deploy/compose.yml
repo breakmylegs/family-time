@@ -29,6 +29,8 @@ x-app: &app
     BESU_RPC_URL: http://besu:8545
     # The kiosk's address on the LAN, shown with a pairing code in Settings (ADR 0015).
     KIOSK_LAN_URL: http://${LAN_IP}:${KIOSK_HOST_PORT:-8180}
+    # Seals AI keys and signs MCP confirmations (ADR 0016). Only the api has the file; without it AI stays off.
+    MASTER_KEY_FILE: /run/app-secrets/master_key
     LOG_LEVEL: info
     TZ: Europe/London
   secrets: [postgres_password, adguard_password, vapid_private.pem]
@@ -83,12 +85,17 @@ services:
       timeout: 5s
       retries: 6
       start_period: 40s
+    secrets: [postgres_password, adguard_password, vapid_private.pem, master_key]
     # The kiosk (ADR 0015): its own listener in the api, published on the server's LAN address
     # only, never through Caddy. Firewall it to the tablet on the router (docs/setup/kiosk.md).
     ports:
       - "${LAN_IP}:${KIOSK_HOST_PORT:-8180}:3001"
+    # egress: out to the AI providers, an app's client metadata document, the weather service and
+    # the owner's Ollama (ADR 0016). The api only calls out once the owner switches AI or MCP on.
+    # Nothing is published on it.
     networks:
       internal: {}
+      egress: {}
       proxy:
         aliases: [family-time-api]
     mem_limit: 384m
@@ -160,14 +167,14 @@ services:
     pids_limit: 512
     logging: *logging
 
-  # Added in later phases: ollama under profile ai-local (Phase 7).
+  # Ollama is not part of the stack: the owner points Settings at their own (docs/setup/ai-and-mcp.md).
 
 networks:
   # No route out. Postgres is reachable only from inside the stack.
   internal:
     internal: true
   # The way out: AdGuard to upstream DNS (and where its port 53 is published), the worker to the
-  # push services. Outbound only; the worker publishes no port.
+  # push services, the api to AI providers. Outbound only; neither publishes a port on it.
   egress: {}
   # The Besu node and the worker, and nothing else. No route out.
   ledger:
@@ -188,6 +195,8 @@ secrets:
     file: ../secrets/ledger_signer_key
   besu_node_key:
     file: ../secrets/besu_node_key
+  master_key:
+    file: ../secrets/master_key
 
 volumes:
   pgdata:

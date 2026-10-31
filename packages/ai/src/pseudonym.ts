@@ -18,7 +18,8 @@ export function pseudonyms(children: { id: string; name: string }[]): Pseudonyms
   const sorted = [...children].sort((a, b) => b.name.length - a.name.length);
   const label = new Map(children.map((c, i) => [c.id, `Child ${String.fromCharCode(65 + i)}`]));
   return {
-    hide: (text) => sorted.reduce((t, c) => t.replace(new RegExp(`\\b${escape(c.name)}\\b`, 'gi'), label.get(c.id)!), text),
+    // Letter-aware edges, not \b, so names with accents (Zoë, Chloé, Åsa) are replaced too.
+    hide: (text) => sorted.reduce((t, c) => t.replace(new RegExp(`(?<![\\p{L}\\p{N}])${escape(c.name)}(?![\\p{L}\\p{N}])`, 'giu'), label.get(c.id)!), text),
     show: (text) => children.reduce((t, c) => t.replace(new RegExp(`\\b${escape(label.get(c.id)!)}\\b`, 'g'), c.name), text),
     idOf: (l) => children.find((c) => label.get(c.id) === l.trim())?.id,
     labels: children.map((c) => ({ id: c.id, label: label.get(c.id)! })),

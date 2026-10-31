@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { LanguageModel, ProviderId, WeatherServer } from '@family-time/ai';
 import type { Db } from '@family-time/db';
 import { postgresLedger, type LedgerPort } from '@family-time/ledger';
 import type { Liveness, Version } from '@family-time/schemas';
@@ -8,11 +9,14 @@ import { registerAccess } from './auth/access.js';
 import type { RateLimiter } from './auth/ratelimit.js';
 import { readiness } from './health.js';
 import { HEALTH_PATHS, loggerOptions, logPath } from './logging.js';
+import type { FetchClientMetadata } from './mcp/oauth.js';
+import { aiRoutes } from './routes/ai.js';
 import { authRoutes } from './routes/auth.js';
 import { Changes, eventRoutes } from './events.js';
 import { controlRoutes, type QueryLogEntry } from './routes/control.js';
 import { economyRoutes } from './routes/economy.js';
 import { kioskRoutes } from './routes/kiosk.js';
+import { mcpRoutes } from './routes/mcp.js';
 import { peopleRoutes } from './routes/people.js';
 import { pushRoutes } from './routes/push.js';
 import { registerStatic } from './static.js';
@@ -42,6 +46,10 @@ export interface ServerDeps {
   ledgerAdapter?: 'postgres' | 'besu';
   /** The kiosk's address on the LAN, shown with a pairing code. */
   kioskUrl?: string;
+  /** Tests: a mock model instead of a provider, a fake forecast, a client document without fetching. */
+  aiModel?: (provider: ProviderId, name: string) => Promise<LanguageModel>;
+  readWeather?: (server: WeatherServer) => Promise<string | null>;
+  fetchClientMetadata?: FetchClientMetadata;
 }
 
 export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
@@ -113,15 +121,26 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     ...(deps.readQuerylog ? { readQuerylog: deps.readQuerylog } : {}),
   });
   await eventRoutes(app, { db: deps.db, now, changes });
+  const ledger = deps.ledger ?? postgresLedger(deps.db);
   await economyRoutes(app, {
     db: deps.db,
-    ledger: deps.ledger ?? postgresLedger(deps.db),
+    ledger,
     now,
     changes,
     notifyChange: deps.notifyChange ?? (async () => undefined),
     ...(deps.ledgerAdapter ? { ledgerAdapter: deps.ledgerAdapter } : {}),
   });
   await kioskRoutes(app, { db: deps.db, now, ...(deps.kioskUrl ? { kioskUrl: deps.kioskUrl } : {}) });
+  await aiRoutes(app, {
+    db: deps.db,
+    ledger,
+    now,
+    changes,
+    notifyChange: deps.notifyChange ?? (async () => undefined),
+    ...(deps.aiModel ? { model: deps.aiModel } : {}),
+    ...(deps.readWeather ? { readWeather: deps.readWeather } : {}),
+  });
+  await mcpRoutes(app, { db: deps.db, ledger, now, changes, version: deps.build.commit, ...(deps.fetchClientMetadata ? { fetchClientMetadata: deps.fetchClientMetadata } : {}) });
   await pushRoutes(app, { db: deps.db, now, ...(deps.vapidPublicKey ? { vapidPublicKey: deps.vapidPublicKey } : {}) });
   if (deps.staticDir) registerStatic(app, deps.staticDir);
 

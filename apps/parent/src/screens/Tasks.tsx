@@ -3,9 +3,10 @@
 import type { ChildSummary, Recurrence, Task, TaskInput } from '@family-time/schemas';
 import { useState } from 'react';
 import { api } from '../api';
+import { JobIdeas } from '../components/JobIdeas';
 import { Sheet } from '../components/Sheet';
 import { useSheetAction } from '../components/useSheetAction';
-import { minutes, pence, useTasks, useWeek } from '../economy/data';
+import { minutes, pence, useAiFeatures, useTasks, useWeek } from '../economy/data';
 import { HelpButton } from '../help/HelpButton';
 import { Icon, type IconName } from '../icons';
 import { useToast } from '../toast';
@@ -46,6 +47,7 @@ const blank = (): TaskInput => ({ title: '', picture: 'star', rewardType: 'money
 export function Tasks({ kids, canEdit }: { kids: ChildSummary[]; canEdit: boolean }) {
   const toast = useToast();
   const { data: tasks, error, reload } = useTasks();
+  const ai = useAiFeatures().data;
   const [editing, setEditing] = useState<{ id?: string; task: TaskInput; from: HTMLElement | null }>();
 
   const open = (from: HTMLElement, t?: Task) =>
@@ -131,6 +133,13 @@ export function Tasks({ kids, canEdit }: { kids: ChildSummary[]; canEdit: boolea
           </button>
         ) : null}
       </section>
+      {canEdit && ai?.suggestions ? (
+        <JobIdeas
+          onPick={(idea, from) =>
+            setEditing({ from, task: { ...blank(), title: idea.title, picture: picture(idea.picture) as TaskInput['picture'], rewardType: idea.rewardType, amount: idea.amount } })
+          }
+        />
+      ) : null}
       {editing ? (
         <TaskSheet
           key={editing.id ?? 'new'}

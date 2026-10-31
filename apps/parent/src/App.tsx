@@ -9,6 +9,7 @@ import { HelpProvider } from './help/HelpContext';
 import { useLive } from './live';
 import { navigate, usePath } from './router';
 import { Approvals } from './screens/Approvals';
+import { Consent } from './screens/Consent';
 import { Control } from './screens/Control';
 import { Family } from './screens/Family';
 import { Home } from './screens/Home';
@@ -41,8 +42,9 @@ export function App() {
 
   const signedIn = (me: Me) => {
     setState({ setup: 'ready', me });
-    // Replace, so Back does not return to a used invite link.
-    navigate('/', { replace: true });
+    // Replace, so Back does not return to a used invite link. Signing in to connect an app goes
+    // back to the consent screen, with the app's request as it was.
+    navigate(location.pathname === '/oauth/authorize' ? location.pathname + location.search : '/', { replace: true });
   };
 
   if (path === '/join') return <Join onSignedIn={signedIn} />;
@@ -87,16 +89,18 @@ function Screens({ me, path, onSignedOut, onLive }: { me: Me; path: string; onSi
   const pilot = usePilot().data;
   const economy = Boolean(pilot?.features.economy);
   // Undefined until the first answer, so the badge never flashes a zero.
-  const waiting = useWaiting(economy).data?.waiting;
+  const waiting = useWaiting(true).data?.waiting;
   const week = useWeek(economy ? childId : undefined).data;
   const child = cs.status ? { name: cs.status.child.name, pronouns: cs.status.child.pronouns } : { name: 'your child', pronouns: 'they' as const };
   const can = (c: string) => me.capabilities.includes(c);
 
   let screen;
-  if (path === '/people' && can('people.view')) screen = <People me={me} />;
+  if (path === '/oauth/authorize') screen = <Consent me={me} />;
+  else if (path === '/people' && can('people.view')) screen = <People me={me} />;
   else if (path === '/settings') screen = <Settings me={me} kids={kids ?? []} onSignedOut={onSignedOut} />;
   else if (path === '/ledger' && can('system.manage')) screen = <Ledger />;
-  else if (economy && path === '/approvals' && can('approvals.decide')) screen = <Approvals me={me} />;
+  // Suggestions from AI and connected apps arrive here even before the economy is switched on.
+  else if ((economy || waiting) && path === '/approvals' && can('approvals.decide')) screen = <Approvals me={me} />;
   else if (economy && path === '/tasks') screen = <Tasks kids={kids ?? []} canEdit={can('rules.edit')} />;
   else if (economy && path === '/family') screen = <Family kids={kids ?? []} childId={childId} canEdit={can('rules.edit')} onSwitchChild={setPicking} />;
   else if (kidsError || (cs.error && !cs.status)) screen = <Waiting error={kidsError ?? cs.error} onRetry={() => void cs.refresh()} />;
@@ -124,7 +128,9 @@ function Screens({ me, path, onSignedOut, onLive }: { me: Me; path: string; onSi
     <ToastProvider>
       <HelpProvider child={child} status={cs.status} week={week}>
         {screen}
-        {path === '/people' ? null : <TabBar path={path === '/ledger' ? '/settings' : ['/settings', '/approvals', '/tasks', '/family'].includes(path) && (economy || path === '/settings') ? path : '/'} economy={economy} waiting={waiting} />}
+        {path === '/people' || path === '/oauth/authorize' ? null : (
+          <TabBar path={path === '/ledger' ? '/settings' : ['/settings', '/approvals', '/tasks', '/family'].includes(path) && (economy || path === '/settings' || (path === '/approvals' && waiting)) ? path : '/'} economy={economy} waiting={waiting} />
+        )}
         <Sheet open={Boolean(picking)} onClose={() => setPicking(null)} title="Choose a child" returnFocus={picking}>
           <div className="opts" role="radiogroup" aria-label="Choose a child">
             {(kids ?? []).map((k) => (

@@ -6,3 +6,5 @@ export { PROVIDERS, PROVIDER_IDS, ProviderRefused, costCentipence, languageModel
 export { proposeControl, type ControlDraft, type ControlResult, type ControlTarget } from './control.js';
 export { FALLBACK_IDEAS, PICTURES, suggestJobs, type JobIdea } from './suggest.js';
 export { templateSummary, weeklySummary, type WeekTotals } from './summary.js';
+export { readForecast, type WeatherServer } from './weather.js';
+export type { LanguageModel } from 'ai';

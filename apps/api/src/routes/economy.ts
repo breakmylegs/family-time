@@ -3,6 +3,7 @@ import { features, type PilotPhase } from '@family-time/domain';
 import type { LedgerPort } from '@family-time/ledger';
 import {
   AllowanceRequest,
+  type ApprovalItem,
   ApproveRequest,
   ConvertRequest,
   DecideRequestBody,
@@ -47,6 +48,7 @@ import {
   waitingCount,
   weekSummary,
 } from '../economy/commands.js';
+import { proposalItems, waitingProposals } from '../ai/proposals.js';
 import type { Changes } from '../events.js';
 import { parseBody } from './validate.js';
 
@@ -102,8 +104,17 @@ export async function economyRoutes(app: FastifyInstance, deps: EconomyRouteDeps
   // ---- Approvals
   // The owner's Ledger screen: every entry, with its block and transaction on the Besu ledger.
   app.get('/api/ledger/entries', { config: { access: 'system.manage' } }, async (request) => chainLedger(db, request.auth!.person.householdId, now(), deps.ledgerAdapter ?? 'postgres'));
-  app.get('/api/approvals', { config: { access: 'approvals.decide' } }, async (request) => approvalsFor(db, ledger, request.auth!.person.householdId, now()));
-  app.get('/api/approvals/count', { config: { access: 'status.view' } }, async (request) => ({ waiting: await waitingCount(db, request.auth!.person.householdId) }));
+  app.get('/api/approvals', { config: { access: 'approvals.decide' } }, async (request) => {
+    const householdId = request.auth!.person.householdId;
+    const t = now();
+    // Suggestions from AI and connected apps go first, newest first: they go after 30 minutes.
+    const suggested = (await proposalItems(db, householdId, t)).sort((a, b) => b.sortAt - a.sortAt).map(({ sortAt: _sortAt, ...item }): ApprovalItem => item);
+    return [...suggested, ...(await approvalsFor(db, ledger, householdId, t))];
+  });
+  app.get('/api/approvals/count', { config: { access: 'status.view' } }, async (request) => {
+    const householdId = request.auth!.person.householdId;
+    return { waiting: (await waitingCount(db, householdId)) + (await waitingProposals(db, householdId, now())) };
+  });
 
   app.post<Id>('/api/completions/:id/approve', { config: { access: 'approvals.decide' } }, async (request, reply) => {
     const body = parseBody(ApproveRequest, request, reply);

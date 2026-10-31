@@ -13,9 +13,10 @@ import { sameToken } from './tokens.js';
  * Who may call a route:
  * - `public`: anyone. Health checks, sign-in, invite redemption.
  * - `session`: any signed-in person.
+ * - `token`: no session and no cookies; the route checks its own bearer token or OAuth grant (MCP).
  * - a capability: a signed-in person whose role has it.
  */
-export type Access = 'public' | 'session' | Capability;
+export type Access = 'public' | 'session' | 'token' | Capability;
 
 declare module 'fastify' {
   interface FastifyContextConfig {
@@ -66,6 +67,10 @@ export function registerAccess(app: FastifyInstance, deps: AccessDeps): void {
         return reply.code(429).header('retry-after', String(decision.retryAfterSeconds)).send({ error: 'too_many_requests' });
       }
     }
+
+    // Bearer routes never read cookies, so a session cookie can never ride along on them, and they
+    // are called by apps, not pages, so there is no Origin to check.
+    if (access === 'token') return;
 
     const cookies = parseCookies(request.headers.cookie);
     const rawSession = cookies[SESSION_COOKIE];

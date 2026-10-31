@@ -54,6 +54,16 @@ Every version is pinned exactly. Checked on the registry on 26 October 2026 unle
 | viem | 2.57.13 | ledger | yes (Part 17). Phase 5: the Besu signer, indexer and deploy |
 | preact | 10.29.8 | kiosk | yes (Part 17). Phase 6. 11.x is out, but an old Fire WebView is the wrong place for a new major (reuse report) |
 | @openzeppelin/contracts | 5.6.1 | contracts | yes (Part 17). Phase 5: Solidity sources only, compiled in the image |
+| ai | 7.0.159 | ai | yes (Part 17). Phase 7: the gateway, and MockLanguageModelV4 for tests |
+| @ai-sdk/anthropic | 4.0.94 | ai | yes (Part 17). Phase 7 |
+| @ai-sdk/openai | 4.0.106 | ai | yes (Part 17). Phase 7 |
+| @ai-sdk/google | 4.0.109 | ai | yes (Part 17). Phase 7. Paid-plan keys only |
+| @ai-sdk/mistral | 4.0.77 | ai | yes (Part 17). Phase 7 |
+| @ai-sdk/amazon-bedrock | 5.0.130 | ai | yes (Part 17). Phase 7. Session credentials only |
+| @ai-sdk/openai-compatible | 3.0.82 | ai | yes (Part 17). Phase 7. For Ollama |
+| @ai-sdk/mcp | 2.0.88 | ai | yes (Part 17). Phase 7. The weather for job ideas |
+| @modelcontextprotocol/server | 2.4.0 | api | yes (Part 17). Phase 7. The MCP server at /mcp, protocol 2026-07-28 |
+| @modelcontextprotocol/client | 2.4.0 | api (dev) | yes (Part 17). Phase 7. Drives /mcp in the tests |
 
 ## Checked for later phases, not installed yet
 
@@ -61,9 +71,6 @@ Every version is pinned exactly. Checked on the registry on 26 October 2026 unle
 |---|---|---|
 | vite-plugin-pwa | 2.0.0 (supports Vite 8). Not used: a hand-written service worker is a few dozen lines (Phase 3 plan, decision 7) | 3 |
 | openid-client | 6.8.8 | when owner OIDC is switched on (deferred from Phase 1) |
-| ai | 7.0.153 | 7 |
-| @ai-sdk/mcp | 2.0.84 | 7 |
-| @modelcontextprotocol/server, client | 2.4.0 | 7 |
 
 
 ## Tooling

@@ -694,3 +694,58 @@ button.job-row:focus-visible {
   font-weight: 700;
   letter-spacing: 0.18em;
 }
+
+/* AI and connected apps (Phase 7) */
+.suggest-chip {
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+.asked {
+  margin: 10px 0 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--line-strong);
+  color: var(--ink-2);
+  font-size: 15px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.ask textarea {
+  min-height: 64px;
+}
+.ask .btn {
+  width: 100%;
+  margin-top: 10px;
+}
+.link {
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.sub-head {
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--ink-2);
+  margin: 18px 0 8px;
+}
+.ai-feature + .ai-feature {
+  margin-top: 10px;
+}
+.ai-form {
+  padding: 0 16px 16px;
+  margin-top: 0;
+}
+.week-note {
+  margin-top: 12px;
+}
+.week-note p {
+  font-size: 15px;
+  line-height: 1.45;
+  margin-bottom: 10px;
+}
+.week-note small {
+  color: var(--ink-3);
+}
+.week-note .btn {
+  width: 100%;
+}

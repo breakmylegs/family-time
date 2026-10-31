@@ -56,7 +56,7 @@ const WORDS: Record<Refusal, string> = {
   feature_off: 'This AI feature is switched off. The owner can switch it on in Settings.',
   no_provider: 'This AI feature has no provider set up yet. The owner can choose one in Settings.',
   level_not_allowed: "This feature's data can't go to that provider. The owner can choose another in Settings.",
-  model_not_allowed: 'That model is not on the list for this provider.',
+  model_not_allowed: "That model isn't on the list for this provider. The owner can choose another in Settings.",
   cap_reached: "This feature has reached this month's spending limit. It starts again next month.",
   provider_failed: "The AI provider didn't answer. Try again in a minute.",
 };

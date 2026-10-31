@@ -4,6 +4,7 @@ import { testDb, type TestDb } from '@family-time/db/testing';
 import type { FastifyInstance } from 'fastify';
 import { readBuildInfo, type BuildInfo } from '../src/build.js';
 import type { QueryLogEntry } from '../src/routes/control.js';
+import type { ServerDeps } from '../src/server.js';
 import { buildServer } from '../src/server.js';
 
 export const NOW = new Date('2026-10-26T18:32:00Z');
@@ -36,6 +37,9 @@ export async function harness(
     vapidPublicKey?: string;
     notifyChange?: () => Promise<void>;
     readQuerylog?: (limit: number) => Promise<QueryLogEntry[]>;
+    aiModel?: ServerDeps['aiModel'];
+    readWeather?: ServerDeps['readWeather'];
+    fetchClientMetadata?: ServerDeps['fetchClientMetadata'];
   } = {},
 ): Promise<Harness> {
   const handle = await testDb({ migrated: options.migrated ?? true });
@@ -52,6 +56,9 @@ export async function harness(
     logLevel: options.logLevel ?? 'debug',
     ...(options.notifyChange ? { notifyChange: options.notifyChange } : {}),
     ...(options.readQuerylog ? { readQuerylog: options.readQuerylog } : {}),
+    ...(options.aiModel ? { aiModel: options.aiModel } : {}),
+    ...(options.readWeather ? { readWeather: options.readWeather } : {}),
+    ...(options.fetchClientMetadata ? { fetchClientMetadata: options.fetchClientMetadata } : {}),
   });
   return {
     app,

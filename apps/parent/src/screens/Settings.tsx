@@ -1,6 +1,7 @@
 import type { ChildStatus, ChildSummary, Me } from '@family-time/schemas';
 import { useEffect, useState } from 'react';
 import { api, ApiFailure } from '../api';
+import { AiSettings } from '../components/AiSettings';
 import { KioskSettings } from '../components/KioskSettings';
 import { HelpButton } from '../help/HelpButton';
 import { useHelp } from '../help/HelpContext';
@@ -145,6 +146,8 @@ export function Settings({ me, kids, onSignedOut }: { me: Me; kids: ChildSummary
       </section>
 
       {me.capabilities.includes('system.manage') ? <KioskSettings /> : null}
+
+      {me.capabilities.includes('system.manage') ? <AiSettings origin={location.origin} /> : null}
 
       {getsAlerts ? (
         <section className="sec" aria-labelledby="alerts">

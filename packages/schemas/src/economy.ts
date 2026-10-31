@@ -82,6 +82,24 @@ export const ApprovalItem = z.discriminatedUnion('kind', [
     /** True when the only way to say yes is as extra time (the allowance has run out). */
     extraOnly: z.boolean(),
   }),
+  // What AI or a connected app suggests (Phase 7). Nothing happens until a parent taps Approve.
+  z.object({
+    kind: z.literal('proposal'),
+    id: z.uuid(),
+    childId: z.uuid(),
+    childName: z.string(),
+    /** "Allow YouTube for Ollie for an hour". */
+    title: z.string(),
+    /** "Suggested by AI", "Suggested by Claude". */
+    from: z.string(),
+    /** What was typed or asked, shown as it was and never run. */
+    asked: z.string().nullable(),
+    when: z.string(),
+    /** "This card closes at 19:02 if nobody answers it". */
+    expires: z.string(),
+    /** `parent`: an Allow or Block, which carers cannot approve. */
+    needs: z.enum(['parent', 'anyone']),
+  }),
 ]);
 export type ApprovalItem = z.infer<typeof ApprovalItem>;
 

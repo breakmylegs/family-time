@@ -1,5 +1,6 @@
 // Approvals, from the mock: jobs to approve with a note of praise, things done for love that get
-// praise only, and requests for time. Each collapses on decision, with a 10-second Undo.
+// praise only, and requests for time. Each collapses on decision, with a 10-second Undo. Suggestions
+// from AI or a connected app sit at the top: approving one is this parent's own change.
 import type { ApprovalItem, Me } from '@family-time/schemas';
 import { useRef, useState } from 'react';
 import { api } from '../api';
@@ -42,17 +43,23 @@ export function Approvals({ me }: { me: Me }) {
     requestAnimationFrame(() => (next ? titles.current.get(next.id) : doneRef.current)?.focus({ preventScroll: true }));
   };
 
-  const decide = async (item: ApprovalItem, action: 'approve' | 'not-yet', body: Record<string, unknown>, done: string) => {
+  const decide = async (item: ApprovalItem, action: 'approve' | 'not-yet' | 'decline', body: Record<string, unknown>, done: string) => {
     setKept((k) => new Map(k).set(item.id, { item, at: list.findIndex((i) => i.id === item.id) }));
     focusAfter(item.id);
     setGone((g) => new Set([...g, item.id]));
-    const path = `/api/${item.kind === 'completion' ? 'completions' : 'requests'}/${item.id}`;
+    const path = `/api/${item.kind === 'completion' ? 'completions' : item.kind === 'request' ? 'requests' : 'proposals'}/${item.id}`;
     const back = () => {
       setGone((g) => new Set([...g].filter((x) => x !== item.id)));
       requestAnimationFrame(() => titles.current.get(item.id)?.focus({ preventScroll: true }));
     };
     try {
       await api('POST', `${path}/${action}`, body);
+      // A suggestion carried out is a change like any other: Control has its own Undo.
+      if (item.kind === 'proposal') {
+        toast(done);
+        void reload();
+        return;
+      }
       toast(done, async () => {
         try {
           await api('POST', `${path}/undo`);
@@ -99,6 +106,8 @@ export function Approvals({ me }: { me: Me }) {
                     setNote={(v) => setNotes((n) => ({ ...n, [item.id]: v }))}
                     onDecide={decide}
                   />
+                ) : item.kind === 'proposal' ? (
+                  <Proposal item={item} parent={parent} titleRef={(el) => void (el ? titles.current.set(item.id, el) : titles.current.delete(item.id))} onDecide={decide} />
                 ) : (
                   <Request item={item} parent={parent} titleRef={(el) => void (el ? titles.current.set(item.id, el) : titles.current.delete(item.id))} onDecide={decide} />
                 )}
@@ -117,7 +126,7 @@ export function Approvals({ me }: { me: Me }) {
   );
 }
 
-type Decide = (item: ApprovalItem, action: 'approve' | 'not-yet', body: Record<string, unknown>, done: string) => Promise<void>;
+type Decide = (item: ApprovalItem, action: 'approve' | 'not-yet' | 'decline', body: Record<string, unknown>, done: string) => Promise<void>;
 type TitleRef = (el: HTMLHeadingElement | null) => void;
 
 function Completion({ item, titleRef, note, setNote, onDecide }: { item: Extract<ApprovalItem, { kind: 'completion' }>; titleRef: TitleRef; note: string; setNote: (v: string) => void; onDecide: Decide }) {
@@ -223,6 +232,43 @@ function Request({ item, parent, titleRef, onDecide }: { item: Extract<ApprovalI
           Not this time
         </button>
         <HelpButton topic="asking-for-time" label="Asking for time" />
+      </div>
+    </>
+  );
+}
+
+function Proposal({ item, parent, titleRef, onDecide }: { item: Extract<ApprovalItem, { kind: 'proposal' }>; parent: boolean; titleRef: TitleRef; onDecide: Decide }) {
+  const mine = parent || item.needs === 'anyone';
+  return (
+    <>
+      <div className="item-top">
+        <div>
+          <h2 className="item-title" id={`t-${item.id}`} ref={titleRef} tabIndex={-1}>
+            {item.title}
+          </h2>
+          <p className="item-meta">
+            {item.from}, {item.when}
+          </p>
+        </div>
+        <span className="chip suggest-chip">
+          <Icon name="star" />
+          Suggestion
+        </span>
+      </div>
+      {item.asked ? <blockquote className="asked">{item.asked}</blockquote> : null}
+      <p className="req-detail">
+        Nothing has changed yet. {mine ? 'Approve to make this change as you.' : 'Only a parent can approve an Allow or Block.'} {item.expires}.
+      </p>
+      <div className="actions req">
+        {mine ? (
+          <button type="button" className="btn btn-primary" onClick={() => void onDecide(item, 'approve', {}, `Done: ${item.title}. Takes up to a minute on your home Wi-Fi. Set it back on Control if you change your mind.`)}>
+            Approve
+          </button>
+        ) : null}
+        <button type="button" className="btn btn-quiet" onClick={() => void onDecide(item, 'decline', {}, 'Dismissed. Nothing has changed.')}>
+          Dismiss
+        </button>
+        <HelpButton topic="ai-suggestions" label="Suggestions from AI" />
       </div>
     </>
   );

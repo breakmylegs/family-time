@@ -1,4 +1,5 @@
 // Control and Settings always; Approvals, Jobs and Family once the pilot switches the economy on.
+// Approvals also shows whenever something is waiting, such as a suggestion from a connected app.
 import { useState } from 'react';
 import { Icon, type IconName } from '../icons';
 import { navigate } from '../router';
@@ -19,7 +20,7 @@ function childQuery(): string {
 
 /** `waiting` is undefined until the first answer: no badge at all until then. */
 export function TabBar({ path, economy, waiting }: { path: string; economy: boolean; waiting: number | undefined }) {
-  const tabs = ALL.filter((t) => economy || !t.economy);
+  const tabs = ALL.filter((t) => economy || !t.economy || (t.path === '/approvals' && Boolean(waiting)));
   // The last number above zero, so the badge keeps it while it fades out.
   const [last, setLast] = useState(0);
   if (waiting && waiting !== last) setLast(waiting);

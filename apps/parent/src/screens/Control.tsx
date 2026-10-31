@@ -4,9 +4,11 @@
 import type { ChildStatus, ChildSummary, HistoryEntry, Me, Mood, ServiceStatus, WeekSummary } from '@family-time/schemas';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
+import { AskAi } from '../components/AskAi';
 import { DurationSheet, devicesOf, PHRASE, serviceLine, type Choice, type SheetKind } from '../components/DurationSheet';
 import { Rail } from '../components/Rail';
 import { ThisWeek } from '../components/ThisWeek';
+import { useAiFeatures } from '../economy/data';
 import { HelpButton } from '../help/HelpButton';
 import { Icon, serviceIcon } from '../icons';
 import { useToast } from '../toast';
@@ -40,6 +42,7 @@ export function Control({ me, kids, status, history, setStatus, accept, setHisto
   const toast = useToast();
   const [sheet, setSheet] = useState<{ kind: SheetKind; serviceId?: string; from: HTMLElement | null }>();
   const canChange = me.capabilities.includes('control.change');
+  const ai = useAiFeatures().data;
   const canPause = me.capabilities.includes('control.pause');
   const childId = status.child.id;
   const base = `/api/children/${childId}`;
@@ -263,6 +266,8 @@ export function Control({ me, kids, status, history, setStatus, accept, setHisto
           <span>Changes take up to a minute and work on your home Wi-Fi. A video that&apos;s already playing may finish first.</span>
         </p>
       </section>
+
+      {ai?.control && canChange ? <AskAi /> : null}
 
       {week ? <ThisWeek week={week} /> : null}
 

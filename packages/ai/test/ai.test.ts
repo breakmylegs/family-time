@@ -114,6 +114,15 @@ describe("children's names", () => {
     expect(p.show('Child A can play')).toBe('Ollie can play');
     expect(p.idOf('Child B')).toBe('b');
   });
+
+  it('never leave when they have accents, either', () => {
+    const p = pseudonyms([
+      { id: 'z', name: 'Zoë' },
+      { id: 'c', name: 'Chloé' },
+      { id: 'a', name: 'Åsa' },
+    ]);
+    expect(p.hide('Let Zoë have YouTube, Chloé can have Roblox, and åsa wants Minecraft')).toBe('Let Child A have YouTube, Child B can have Roblox, and Child C wants Minecraft');
+  });
 });
 
 describe('plain-English control', () => {

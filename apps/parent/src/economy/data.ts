@@ -1,5 +1,5 @@
 // The economy's data for the screens, refreshed whenever the server says something changed.
-import type { ApprovalItem, LedgerLine, Task, WeekSummary } from '@family-time/schemas';
+import type { AiFeatures, ApprovalItem, LedgerLine, Task, WeekSummary } from '@family-time/schemas';
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { api } from '../api';
 
@@ -36,6 +36,8 @@ export const useWeek = (childId: string | undefined) => useFetched<WeekSummary>(
 export const useApprovals = (enabled: boolean) => useFetched<ApprovalItem[]>(enabled ? '/api/approvals' : undefined);
 export const useWaiting = (enabled: boolean) => useFetched<{ waiting: number }>(enabled ? '/api/approvals/count' : undefined);
 export const useTasks = () => useFetched<Task[]>('/api/tasks');
+/** Which AI features the owner has switched on. All false until the first answer. */
+export const useAiFeatures = () => useFetched<AiFeatures>('/api/ai/features');
 export const useLedger = (childId: string | undefined) => useFetched<LedgerLine[]>(childId ? `/api/children/${childId}/ledger` : undefined);
 
 /** "50p", "£1.20". */
