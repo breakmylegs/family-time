@@ -807,6 +807,171 @@ export const reflections = pgTable(
   (t) => [uniqueIndex('reflections_child_week').on(t.childId, t.week)],
 );
 
+// ---------------------------------------------------------------------------------------------
+// AI and MCP (Phase 7, ADR 0016). Off by default; nothing here is needed for the app to work.
+
+/** The owner's AI switches: the master switch and each feature's provider, model, cap and data level. */
+export const aiSettings = pgTable('ai_settings', {
+  householdId: uuid('household_id')
+    .primaryKey()
+    .references(() => households.id),
+  on: boolean('on').notNull().default(false),
+  /** Per feature: { on, provider, model, monthlyCapPence, levelTwo }. */
+  features: jsonb('features').notNull().default({}),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** A provider's key, sealed with AES-256-GCM under the master key. Only the last four are ever shown. */
+export const aiKeys = pgTable(
+  'ai_keys',
+  {
+    householdId: uuid('household_id')
+      .notNull()
+      .references(() => households.id),
+    provider: text('provider').notNull(),
+    sealed: text('sealed').notNull(),
+    lastFour: text('last_four').notNull(),
+    /** Google only: the owner confirms the key is on a paid plan, or Google is refused. */
+    paidTier: boolean('paid_tier').notNull().default(false),
+    /** Not secret: a Bedrock region, an Ollama address. */
+    options: jsonb('options').notNull().default({}),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.householdId, t.provider] })],
+);
+
+/** Every AI call and refusal: what, where, how much. Never the prompt or the reply. */
+export const aiCalls = pgTable(
+  'ai_calls',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    householdId: uuid('household_id')
+      .notNull()
+      .references(() => households.id),
+    feature: text('feature').notNull(),
+    provider: text('provider'),
+    model: text('model'),
+    outcome: text('outcome').notNull(),
+    inputTokens: integer('input_tokens').notNull().default(0),
+    outputTokens: integer('output_tokens').notNull().default(0),
+    /** Estimated, in hundredths of a penny, so small calls still add up. */
+    costCentipence: integer('cost_centipence').notNull().default(0),
+    level: smallint('level').notNull(),
+    at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('ai_calls_household_at').on(t.householdId, t.at)],
+);
+
+export const PROPOSAL_KINDS = ['override', 'pause', 'approval'] as const;
+
+/**
+ * What AI or an MCP client would like done. Nothing happens until a parent taps Approve, and then
+ * it is the parent's own action, through the same commands as the app's buttons.
+ */
+export const proposals = pgTable(
+  'proposals',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    householdId: uuid('household_id')
+      .notNull()
+      .references(() => households.id),
+    childId: uuid('child_id').references(() => people.id),
+    /** `ai`, or `mcp` with the client. */
+    source: text('source').notNull(),
+    clientId: uuid('client_id'),
+    kind: text('kind').$type<(typeof PROPOSAL_KINDS)[number]>().notNull(),
+    /** The checked arguments: ids from this family only. */
+    payload: jsonb('payload').notNull(),
+    /** For the card: "Allow YouTube until 17:30". */
+    summary: text('summary').notNull(),
+    /** What was asked, if it came from words: shown on the card, never run. */
+    asked: text('asked'),
+    status: text('status').$type<'waiting' | 'approved' | 'declined' | 'expired'>().notNull().default('waiting'),
+    createdAt: createdAt(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    decidedBy: uuid('decided_by').references(() => people.id),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+  },
+  (t) => [index('proposals_household_status').on(t.householdId, t.status)],
+);
+
+/** An MCP client the owner has let in (OAuth 2.1, Client ID Metadata Documents). */
+export const oauthClients = pgTable(
+  'oauth_clients',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    householdId: uuid('household_id')
+      .notNull()
+      .references(() => households.id),
+    /** The client's id: the URL of its metadata document. */
+    clientUri: text('client_uri').notNull(),
+    name: text('name').notNull(),
+    redirectUris: jsonb('redirect_uris').notNull().default([]),
+    /** The scopes it may ask for: read, propose. */
+    scopes: jsonb('scopes').notNull().default(['read']),
+    allowed: boolean('allowed').notNull().default(false),
+    createdAt: createdAt(),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  },
+  (t) => [uniqueIndex('oauth_clients_uri').on(t.householdId, t.clientUri)],
+);
+
+/** An authorisation code: once, for a minute, with its PKCE challenge. Only its hash is kept. */
+export const oauthCodes = pgTable('oauth_codes', {
+  codeHash: text('code_hash').primaryKey(),
+  clientId: uuid('client_id')
+    .notNull()
+    .references(() => oauthClients.id),
+  personId: uuid('person_id')
+    .notNull()
+    .references(() => people.id),
+  redirectUri: text('redirect_uri').notNull(),
+  challenge: text('challenge').notNull(),
+  scope: text('scope').notNull(),
+  resource: text('resource'),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  usedAt: timestamp('used_at', { withTimezone: true }),
+});
+
+/** Access and refresh tokens, hashed. A refresh token is used once and replaced; reuse ends the family. */
+export const oauthTokens = pgTable(
+  'oauth_tokens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tokenHash: text('token_hash').notNull(),
+    kind: text('kind').$type<'access' | 'refresh'>().notNull(),
+    /** Tokens from one sign-in share a family, so a stolen refresh token ends them all. */
+    family: uuid('family').notNull(),
+    clientId: uuid('client_id')
+      .notNull()
+      .references(() => oauthClients.id),
+    personId: uuid('person_id')
+      .notNull()
+      .references(() => people.id),
+    scope: text('scope').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex('oauth_tokens_hash').on(t.tokenHash), index('oauth_tokens_family').on(t.family)],
+);
+
+/** An MCP server the app may call (the weather one in V1). The owner approves it and each tool. */
+export const mcpServers = pgTable('mcp_servers', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  householdId: uuid('household_id')
+    .notNull()
+    .references(() => households.id),
+  name: text('name').notNull(),
+  url: text('url').notNull(),
+  approved: boolean('approved').notNull().default(false),
+  /** Tool names the owner has approved. */
+  tools: jsonb('tools').notNull().default([]),
+  createdAt: createdAt(),
+});
+
 export const goals = pgTable('goals', {
   id: uuid('id').primaryKey().defaultRandom(),
   childId: uuid('child_id')

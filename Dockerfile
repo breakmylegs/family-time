@@ -26,6 +26,7 @@ COPY packages/help-content/package.json packages/help-content/
 COPY packages/ledger/package.json packages/ledger/
 COPY packages/notify/package.json packages/notify/
 COPY packages/schemas/package.json packages/schemas/
+COPY packages/ai/package.json packages/ai/
 COPY packages/tokens/package.json packages/tokens/
 COPY contracts/package.json contracts/
 
@@ -83,6 +84,7 @@ COPY --from=build /app/packages/adguard-client/dist packages/adguard-client/dist
 COPY --from=build /app/packages/db/dist packages/db/dist
 COPY --from=build /app/packages/notify/dist packages/notify/dist
 COPY --from=build /app/packages/ledger/dist packages/ledger/dist
+COPY --from=build /app/packages/ai/dist packages/ai/dist
 COPY --from=build /app/packages/db/migrations packages/db/migrations
 COPY --from=build /app/contracts/out/FamilyLedger.sol/FamilyLedger.json contracts/out/FamilyLedger.sol/FamilyLedger.json
 COPY --from=build /app/apps/api/dist apps/api/dist

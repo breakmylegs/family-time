@@ -17,22 +17,25 @@
     "dev": "tsx dev/server.ts"
   },
   "dependencies": {
+    "@family-time/adguard-client": "workspace:*",
+    "@family-time/ai": "workspace:*",
     "@family-time/db": "workspace:*",
+    "@family-time/domain": "workspace:*",
+    "@family-time/ledger": "workspace:*",
+    "@family-time/notify": "workspace:*",
     "@family-time/schemas": "workspace:*",
+    "@modelcontextprotocol/server": "2.4.0",
     "@simplewebauthn/server": "14.0.3",
     "drizzle-orm": "0.45.4",
     "fastify": "5.12.7",
     "pg": "8.23.1",
-    "zod": "4.6.7",
-    "@family-time/domain": "workspace:*",
-    "@family-time/notify": "workspace:*",
-    "@family-time/ledger": "workspace:*",
-    "@family-time/adguard-client": "workspace:*",
-    "pg-boss": "12.38.0"
+    "pg-boss": "12.38.0",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.11",
     "@family-time/worker": "workspace:*",
+    "@modelcontextprotocol/client": "2.4.0",
     "@types/pg": "8.23.1",
     "tsx": "4.23.15"
   }

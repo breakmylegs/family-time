@@ -71,6 +71,13 @@
       "when": 1793474944581,
       "tag": "0009_kiosk",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793484076207,
+      "tag": "0010_ai_and_mcp",
+      "breakpoints": true
     }
   ]
 }
