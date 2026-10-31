@@ -1,8 +1,10 @@
 import type { AdGuard } from '@family-time/adguard-client';
 import { recordHeartbeat, type Db } from '@family-time/db';
+import { postgresLedger, type LedgerPort } from '@family-time/ledger';
 import type { Send, Vapid } from '@family-time/notify';
 import type { PgBoss } from 'pg-boss';
-import { sendDeviceAlerts, type DeviceAlertKind } from './alerts.js';
+import { sendDeviceAlerts, sendFamilyAlert, type AlertJob, type DeviceAlertKind } from './alerts.js';
+import { economyTick } from './economy.js';
 import { reconcile } from './reconcile.js';
 import { readUsage } from './usage.js';
 
@@ -13,6 +15,8 @@ export const RECONCILE_QUEUE = 'reconcile';
 export const USAGE_QUEUE = 'usage';
 /** Alerts to parents' phones. Their own queue: a push service that is slow or down never delays AdGuard. */
 export const ALERT_QUEUE = 'alerts';
+/** The week close, session refunds, counted Allows and the nightly chain check. */
+export const ECONOMY_QUEUE = 'economy';
 export const CONTROL_INTERVAL_MS = 60_000;
 
 export type Log = (level: 'debug' | 'info' | 'warn' | 'error', event: string, fields?: Record<string, unknown>) => void;
@@ -32,6 +36,8 @@ export interface WorkerDeps {
   notifyChange?: () => Promise<void>;
   /** Web Push to parents. Absent until init.sh has made the VAPID key. */
   push?: { vapid: Vapid; send?: Send };
+  /** The ledger. The Postgres one unless a test or Phase 5 says otherwise. */
+  ledger?: LedgerPort;
 }
 
 export interface RunningWorker {
@@ -54,7 +60,7 @@ export async function startWorker(deps: WorkerDeps): Promise<RunningWorker> {
   });
 
   // Control jobs. Singleton queues: never two reconciles at once, so AdGuard has one writer.
-  for (const queue of [RECONCILE_QUEUE, USAGE_QUEUE]) {
+  for (const queue of [RECONCILE_QUEUE, USAGE_QUEUE, ECONOMY_QUEUE]) {
     if (!(await boss.getQueue(queue))) await boss.createQueue(queue, { policy: 'singleton' });
   }
   const adguard = deps.adguard;
@@ -67,24 +73,33 @@ export async function startWorker(deps: WorkerDeps): Promise<RunningWorker> {
     }
   };
   if (!(await boss.getQueue(ALERT_QUEUE))) await boss.createQueue(ALERT_QUEUE);
-  const alert = async (kind: DeviceAlertKind, deviceIds: string[]) => {
-    if (!deviceIds.length) return;
-    if (!deps.push) return log('warn', 'alert_skipped', { kind, reason: 'No VAPID key. Run ./scripts/init.sh' });
+  const queueAlert = async (job: AlertJob) => {
+    if (!deps.push) return log('warn', 'alert_skipped', { kind: job.kind, reason: 'No VAPID key. Run ./scripts/init.sh' });
     try {
-      await boss.send(ALERT_QUEUE, { kind, deviceIds }, { expireInSeconds: 120 });
+      await boss.send(ALERT_QUEUE, job, { expireInSeconds: 120 });
     } catch (err) {
-      log('error', 'alert_not_queued', { kind, error: (err as Error).message });
+      log('error', 'alert_not_queued', { kind: job.kind, error: (err as Error).message });
     }
   };
-  await boss.work<{ kind: DeviceAlertKind; deviceIds: string[] }>(ALERT_QUEUE, { pollingIntervalSeconds: deps.pollingIntervalSeconds ?? 2 }, async (jobs) => {
+  const alert = async (kind: DeviceAlertKind, deviceIds: string[]) => {
+    if (deviceIds.length) await queueAlert({ kind, deviceIds });
+  };
+  await boss.work<AlertJob>(ALERT_QUEUE, { pollingIntervalSeconds: deps.pollingIntervalSeconds ?? 2 }, async (jobs) => {
     if (!deps.push) return;
     for (const job of jobs) {
       try {
-        await sendDeviceAlerts({ db, log, ...deps.push }, job.data.kind, job.data.deviceIds);
+        const data = job.data;
+        if ('deviceIds' in data) await sendDeviceAlerts({ db, log, ...deps.push }, data.kind, data.deviceIds);
+        else await sendFamilyAlert({ db, log, ...deps.push }, data);
       } catch (err) {
         log('error', 'alert_failed', { kind: job.data.kind, error: (err as Error).message });
       }
     }
+  });
+  const ledger = deps.ledger ?? postgresLedger(db);
+  await boss.work(ECONOMY_QUEUE, { pollingIntervalSeconds: deps.pollingIntervalSeconds ?? 2 }, async () => {
+    const result = await economyTick({ db, ledger, now, log, onChainBroken: (householdId, problem) => queueAlert({ kind: 'ledger', householdId, problem }) });
+    log(result.closed || result.allocated || result.refunds || result.charges ? 'info' : 'debug', 'economy', { ...result });
   });
   await boss.work(RECONCILE_QUEUE, { pollingIntervalSeconds: deps.pollingIntervalSeconds ?? 2 }, async () => {
     if (!adguard) return log('debug', 'reconcile_skipped', { reason: 'AdGuard is not set up. Run ./scripts/ft.sh adguard-setup' });
@@ -112,6 +127,7 @@ export async function startWorker(deps: WorkerDeps): Promise<RunningWorker> {
   const control = async () => {
     await send(RECONCILE_QUEUE, 'tick');
     await send(USAGE_QUEUE, 'tick');
+    await send(ECONOMY_QUEUE, 'tick');
   };
   await beat();
   await control();

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Db } from '@family-time/db';
+import { postgresLedger, type LedgerPort } from '@family-time/ledger';
 import type { Liveness, Version } from '@family-time/schemas';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { BuildInfo } from './build.js';
@@ -10,6 +11,7 @@ import { HEALTH_PATHS, loggerOptions, logPath } from './logging.js';
 import { authRoutes } from './routes/auth.js';
 import { Changes, eventRoutes } from './events.js';
 import { controlRoutes, type QueryLogEntry } from './routes/control.js';
+import { economyRoutes } from './routes/economy.js';
 import { peopleRoutes } from './routes/people.js';
 import { pushRoutes } from './routes/push.js';
 import { registerStatic } from './static.js';
@@ -34,6 +36,8 @@ export interface ServerDeps {
   changes?: Changes;
   /** The VAPID public key, when init.sh has made one. */
   vapidPublicKey?: string;
+  /** The ledger. The Postgres one unless a test or Phase 5 says otherwise. */
+  ledger?: LedgerPort;
 }
 
 export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
@@ -105,6 +109,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     ...(deps.readQuerylog ? { readQuerylog: deps.readQuerylog } : {}),
   });
   await eventRoutes(app, { db: deps.db, now, changes });
+  await economyRoutes(app, { db: deps.db, ledger: deps.ledger ?? postgresLedger(deps.db), now, changes, notifyChange: deps.notifyChange ?? (async () => undefined) });
   await pushRoutes(app, { db: deps.db, now, ...(deps.vapidPublicKey ? { vapidPublicKey: deps.vapidPublicKey } : {}) });
   if (deps.staticDir) registerStatic(app, deps.staticDir);
 

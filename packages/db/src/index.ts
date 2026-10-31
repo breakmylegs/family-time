@@ -46,3 +46,4 @@ export { readSecret } from './secrets.js';
 export { migrationsFolder, latestMigrationTag, shippedMigrationCount, appliedMigrationCount } from './migrations.js';
 export { recordHeartbeat, readHeartbeat, heartbeatFresh, HEARTBEAT_STALE_AFTER_MS } from './heartbeat.js';
 export { loadRules } from './control.js';
+export { loadEconomy, loadRates, DEFAULT_RATES, DEFAULT_ALLOWANCE_MINUTES, SETTING_ECONOMY, type Economy, type Rates } from './economy.js';

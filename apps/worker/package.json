@@ -11,6 +11,10 @@
     "./reconcile": {
       "types": "./dist/reconcile.d.ts",
       "default": "./dist/reconcile.js"
+    },
+    "./economy": {
+      "types": "./dist/economy.d.ts",
+      "default": "./dist/economy.js"
     }
   },
   "scripts": {
@@ -26,7 +30,8 @@
     "pg-boss": "12.38.0",
     "@family-time/adguard-client": "workspace:*",
     "@family-time/domain": "workspace:*",
-    "@family-time/notify": "workspace:*"
+    "@family-time/notify": "workspace:*",
+    "@family-time/ledger": "workspace:*"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.11",

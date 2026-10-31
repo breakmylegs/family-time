@@ -50,6 +50,9 @@ importers:
       '@family-time/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@family-time/ledger':
+        specifier: workspace:*
+        version: link:../../packages/ledger
       '@family-time/notify':
         specifier: workspace:*
         version: link:../../packages/notify
@@ -148,6 +151,9 @@ importers:
       '@family-time/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@family-time/ledger':
+        specifier: workspace:*
+        version: link:../../packages/ledger
       '@family-time/notify':
         specifier: workspace:*
         version: link:../../packages/notify

@@ -26,6 +26,7 @@
     "zod": "4.6.7",
     "@family-time/domain": "workspace:*",
     "@family-time/notify": "workspace:*",
+    "@family-time/ledger": "workspace:*",
     "@family-time/adguard-client": "workspace:*",
     "pg-boss": "12.38.0"
   },
