@@ -1,0 +1,9 @@
+{
+  "name": "@family-time/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The Besu ledger's contract. Built and tested with Foundry in the image's contracts stage; OpenZeppelin comes from here.",
+  "dependencies": {
+    "@openzeppelin/contracts": "5.6.1"
+  }
+}

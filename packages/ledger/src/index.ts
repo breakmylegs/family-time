@@ -1,3 +1,11 @@
 export * from './port.js';
 export { canonicalJson, entryHash, GENESIS, type HashedFields } from './chain.js';
-export { postgresLedger, reversible } from './postgres.js';
+export { postgresLedger, reversible, type PostgresLedgerOptions, type Tx } from './postgres.js';
+export { familyLedgerAbi, TOKEN, CONTRACT_VERSION } from './besu/abi.js';
+export { callFor, childAddress, effectOf, householdKey, refHash, type ChainCall, type ChainEvent } from './besu/calls.js';
+export { ChainRefusal, type ChainClient, type Receipt } from './besu/client.js';
+export { fakeChain, type FakeChain } from './besu/fake.js';
+export { activateContract, activeContract, besuLedger, queueReplay } from './besu/ledger.js';
+export { signerPass, signerStatus, type SignerOptions, type SignerResult } from './besu/signer.js';
+export { checkAgainstChain, indexPass, type ChainCheck } from './besu/indexer.js';
+export { DEFAULT_CHAIN_ID, deployFamilyLedger, readArtifact, signerAddress, viemChain, type ViemOptions } from './besu/viem.js';

@@ -9,7 +9,8 @@ import { entryHash, GENESIS } from './chain.js';
 import { LedgerError, type Balances, type Currency, type EarnedCap, type EntryInput, type EntryKind, type LedgerEntry, type LedgerPort, type Verification } from './port.js';
 
 type Row = typeof ledgerEntries.$inferSelect;
-type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
+/** A transaction on the ledger's database, as the append hook receives it. */
+export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 type Delta = { time?: number; money?: number; flex?: number; data?: Record<string, unknown> };
 
 function toEntry(r: Row): LedgerEntry {
@@ -87,7 +88,16 @@ async function capped(tx: Tx, input: EntryInput, minutes: number, cap: EarnedCap
   return Math.min(minutes, left);
 }
 
-export function postgresLedger(db: Db): LedgerPort {
+export interface PostgresLedgerOptions {
+  /**
+   * Runs inside the append's transaction, after the entry is written and before the lock is let
+   * go: the Besu adapter queues the entry's chain transaction here, so neither exists without the
+   * other.
+   */
+  onAppend?: (tx: Tx, entry: LedgerEntry) => Promise<void>;
+}
+
+export function postgresLedger(db: Db, options: PostgresLedgerOptions = {}): LedgerPort {
   /** Appends one entry under the household's lock, or returns the entry already made for this ref. */
   const append = (raw: EntryInput, kind: EntryKind, compute: (now: Balances, tx: Tx) => Delta | Promise<Delta>): Promise<LedgerEntry> => {
     const input = { ...raw, householdId: id(raw.householdId), childId: id(raw.childId), ...(raw.by ? { by: id(raw.by) } : {}) };
@@ -128,7 +138,9 @@ export function postgresLedger(db: Db): LedgerPort {
         .insert(ledgerEntries)
         .values({ ...fields, prevHash, hash: entryHash(prevHash, fields) })
         .returning();
-      return toEntry(row!);
+      const entry = toEntry(row!);
+      await options.onAppend?.(tx, entry);
+      return entry;
     });
   };
 

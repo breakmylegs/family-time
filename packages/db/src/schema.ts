@@ -530,6 +530,90 @@ export const ledgerEntries = pgTable(
   ],
 );
 
+/**
+ * The Besu ledger's contracts (ADR 0014), one row per deployment. Contracts are immutable, so a
+ * new version is a new row and the history is replayed onto it; only one is active at a time.
+ * `indexedBlock` is how far the indexer has read its events.
+ */
+export const ledgerContracts = pgTable(
+  'ledger_contracts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    address: text('address').notNull(),
+    chainId: integer('chain_id').notNull(),
+    version: text('version').notNull(),
+    deployedBlock: bigint('deployed_block', { mode: 'number' }).notNull(),
+    indexedBlock: bigint('indexed_block', { mode: 'number' }),
+    active: boolean('active').notNull().default(false),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex('ledger_contracts_address').on(t.chainId, t.address), uniqueIndex('ledger_contracts_one_active').on(t.active).where(sql`${t.active}`)],
+);
+
+export const LEDGER_TX_STATUSES = ['pending', 'sent', 'mined', 'failed'] as const;
+export type LedgerTxStatus = (typeof LEDGER_TX_STATUSES)[number];
+
+/**
+ * The signer's queue: one transaction per ledger entry per contract, written in the same database
+ * transaction as the entry. The signer sends them in `position` order, one at a time per nonce.
+ * Unlike the ledger itself, rows here change: pending, sent, then mined or failed.
+ */
+export const ledgerTx = pgTable(
+  'ledger_tx',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    position: bigserial('position', { mode: 'number' }).notNull(),
+    contractId: uuid('contract_id')
+      .notNull()
+      .references(() => ledgerContracts.id),
+    entryId: uuid('entry_id')
+      .notNull()
+      .references(() => ledgerEntries.id),
+    /** The keccak-256 of the entry's ref: what the contract sees. */
+    refHash: text('ref_hash').notNull(),
+    status: text('status').$type<LedgerTxStatus>().notNull().default('pending'),
+    nonce: integer('nonce'),
+    txHash: text('tx_hash'),
+    blockNumber: bigint('block_number', { mode: 'number' }),
+    error: text('error'),
+    attempts: integer('attempts').notNull().default(0),
+    createdAt: createdAt(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check('ledger_tx_status', sql`${t.status} in ('pending', 'sent', 'mined', 'failed')`),
+    uniqueIndex('ledger_tx_contract_entry').on(t.contractId, t.entryId),
+    index('ledger_tx_contract_status').on(t.contractId, t.status, t.position),
+  ],
+);
+
+/**
+ * What the indexer read from the chain: one row per ledger event, idempotent on block and log
+ * index. The ledger's own rows never change, so the chain's confirmation lives here.
+ */
+export const ledgerConfirmations = pgTable(
+  'ledger_confirmations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    contractId: uuid('contract_id')
+      .notNull()
+      .references(() => ledgerContracts.id),
+    refHash: text('ref_hash').notNull(),
+    event: text('event').notNull(),
+    childAddress: text('child_address').notNull(),
+    time: integer('time').notNull().default(0),
+    money: integer('money').notNull().default(0),
+    flex: integer('flex').notNull().default(0),
+    blockNumber: bigint('block_number', { mode: 'number' }).notNull(),
+    logIndex: integer('log_index').notNull(),
+    txHash: text('tx_hash').notNull(),
+    /** The entry's time as the app wrote it, carried in the event. */
+    at: timestamp('at', { withTimezone: true }).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex('ledger_confirmations_log').on(t.contractId, t.blockNumber, t.logIndex), uniqueIndex('ledger_confirmations_ref').on(t.contractId, t.refHash)],
+);
+
 /** A child's weekly screen time allowance, agreed at the family review. */
 export const allowances = pgTable('allowances', {
   childId: uuid('child_id')

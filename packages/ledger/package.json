@@ -18,7 +18,8 @@
   "dependencies": {
     "@family-time/db": "workspace:*",
     "@family-time/domain": "workspace:*",
-    "drizzle-orm": "0.45.4"
+    "drizzle-orm": "0.45.4",
+    "viem": "2.57.13"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.11",

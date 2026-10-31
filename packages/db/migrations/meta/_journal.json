@@ -57,6 +57,13 @@
       "when": 1793441057601,
       "tag": "0007_ledger_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793457681984,
+      "tag": "0008_besu_ledger",
+      "breakpoints": true
     }
   ]
 }

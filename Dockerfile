@@ -26,12 +26,31 @@ COPY packages/ledger/package.json packages/ledger/
 COPY packages/notify/package.json packages/notify/
 COPY packages/schemas/package.json packages/schemas/
 COPY packages/tokens/package.json packages/tokens/
+COPY contracts/package.json contracts/
 
 FROM manifests AS deps
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --frozen-lockfile
 
+# The ledger contract (ADR 0014), built and tested with Foundry here so the laptop never needs it.
+# A failing forge test fails the build. Only the compiled contract goes on, never Foundry. The
+# release tarball is checked against its published SHA-256; forge-std is pinned by commit.
+FROM deps AS contracts
+ARG FOUNDRY_VERSION=v1.8.7
+ARG FOUNDRY_SHA256_AMD64=ba470eb718e779e4b0e3f1520b5284231b1bf98e9a39de07fb8f77ed70525bcf
+ARG FOUNDRY_SHA256_ARM64=6f0e5697801cbdd059553360b2cb54ff52870789a0249a16da2a07c157a18534
+ARG FORGE_STD_COMMIT=f3dae6e6ee381f25eb6a246f7da9b85c91a68219
+RUN apt-get update  && apt-get install -y --no-install-recommends ca-certificates curl git  && rm -rf /var/lib/apt/lists/*
+RUN set -eu;     arch=$(dpkg --print-architecture);     case "$arch" in       amd64) sum=$FOUNDRY_SHA256_AMD64 ;;       arm64) sum=$FOUNDRY_SHA256_ARM64 ;;       *) echo "No Foundry release for $arch" >&2; exit 1 ;;     esac;     curl -fsSL -o /tmp/foundry.tar.gz "https://github.com/foundry-rs/foundry/releases/download/${FOUNDRY_VERSION}/foundry_${FOUNDRY_VERSION}_linux_${arch}.tar.gz";     echo "$sum  /tmp/foundry.tar.gz" | sha256sum -c -;     tar -xzf /tmp/foundry.tar.gz -C /usr/local/bin forge;     rm /tmp/foundry.tar.gz;     forge --version
+WORKDIR /app/contracts
+RUN set -eu;     mkdir -p lib/forge-std && cd lib/forge-std;     git init -q;     git fetch -q --depth 1 https://github.com/foundry-rs/forge-std "$FORGE_STD_COMMIT";     git checkout -q FETCH_HEAD
+COPY contracts/foundry.toml ./
+COPY contracts/src src
+COPY contracts/test test
+RUN forge build --sizes && forge test -vv
+
 FROM deps AS build
 COPY . .
+COPY --from=contracts /app/contracts/out/FamilyLedger.sol/FamilyLedger.json contracts/out/FamilyLedger.sol/FamilyLedger.json
 RUN pnpm exec turbo run build
 
 # The gate: the same script as on the laptop. update.sh runs this image with no network, before
@@ -64,6 +83,7 @@ COPY --from=build /app/packages/db/dist packages/db/dist
 COPY --from=build /app/packages/notify/dist packages/notify/dist
 COPY --from=build /app/packages/ledger/dist packages/ledger/dist
 COPY --from=build /app/packages/db/migrations packages/db/migrations
+COPY --from=build /app/contracts/out/FamilyLedger.sol/FamilyLedger.json contracts/out/FamilyLedger.sol/FamilyLedger.json
 COPY --from=build /app/apps/api/dist apps/api/dist
 COPY --from=build /app/apps/worker/dist apps/worker/dist
 COPY --from=build /app/apps/parent/dist apps/parent/dist

@@ -11,3 +11,6 @@ deploy/.state
 docs/design/screenshots
 docs/screens
 *.log
+contracts/out
+contracts/cache
+contracts/lib

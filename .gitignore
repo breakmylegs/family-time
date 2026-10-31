@@ -16,6 +16,7 @@ dist/
 /contracts/out/
 /contracts/cache/
 /contracts/broadcast/
+/contracts/lib/
 
 # Local data and deploy state on the server
 /data/
