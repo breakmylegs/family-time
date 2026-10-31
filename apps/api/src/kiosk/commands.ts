@@ -61,14 +61,14 @@ export async function pairKiosk(db: Db, code: string, now: Date): Promise<{ toke
       .from(kioskPairings)
       .where(and(eq(kioskPairings.codeHash, sha256(code)), isNull(kioskPairings.usedAt), gt(kioskPairings.expiresAt, now)))
   )[0];
-  if (!pairing) throw new KioskError('bad_code', "That code didn't work. Ask a grown-up for a new one.", 400);
+  if (!pairing) throw new KioskError('bad_code', "That code didn't work. Check the six numbers, or make a new code on your phone in Settings, then Kiosk.", 400);
   const token = randomToken();
   const used = await db
     .update(kioskPairings)
     .set({ usedAt: now })
     .where(and(eq(kioskPairings.id, pairing.id), isNull(kioskPairings.usedAt)))
     .returning({ id: kioskPairings.id });
-  if (!used.length) throw new KioskError('bad_code', "That code didn't work. Ask a grown-up for a new one.", 400);
+  if (!used.length) throw new KioskError('bad_code', "That code didn't work. Check the six numbers, or make a new code on your phone in Settings, then Kiosk.", 400);
   await db.insert(kioskDevices).values({ householdId: pairing.householdId, label: pairing.label, tokenHash: sha256(token), createdBy: pairing.createdBy, createdAt: now, lastSeenAt: now });
   const [hh] = await db.select({ name: households.name }).from(households).where(eq(households.id, pairing.householdId));
   return { token, householdName: hh?.name ?? '' };
@@ -171,7 +171,14 @@ export async function kioskHome(db: Db, ledger: LedgerPort, householdId: string,
     const icon = running.targetKind === 'service' ? ((await db.select({ icon: services.icon }).from(services).where(eq(services.id, running.targetId)))[0]?.icon ?? null) : null;
     const end = hhmm(running.endsAt, tz);
     // DNS cannot see the end of a video (brief Part 11): new ones stop, the one playing can finish.
-    const detail = icon === 'video' ? `New videos won't start after ${end}. The one you're watching can finish.` : `It ends at ${end}. Save your game a few minutes before.`;
+    const detail =
+      icon === 'video'
+        ? `New videos won't start after ${end}. The one you're watching can finish.`
+        : running.targetKind === 'group'
+          ? `It ends at ${end}. Save your game a few minutes before. A video you're watching can finish.`
+          : icon === 'pad' || icon === 'cube'
+            ? `It ends at ${end}. Save your game a few minutes before.`
+            : `It ends at ${end}.`;
     const used = (now.getTime() - running.startsAt.getTime()) / (running.endsAt.getTime() - running.startsAt.getTime());
     rightNow = { title: `${name} until ${end}`, detail, icon, used: Math.max(0, Math.min(1, used)) };
   }
@@ -358,7 +365,7 @@ export async function kioskDone(db: Db, input: { householdId: string; childId: s
 export async function addIdea(db: Db, input: { householdId: string; childId: string; text: string; picture: string }, now: Date) {
   await kioskChild(db, input.householdId, input.childId);
   const count = await db.select({ id: ideas.id }).from(ideas).where(and(eq(ideas.childId, input.childId), isNull(ideas.removedAt)));
-  if (count.length >= 12) throw new KioskError('too_many', 'That is lots of ideas! Ask a grown-up to tidy some away first.', 409);
+  if (count.length >= 12) throw new KioskError('too_many', "That's 12 ideas, the most there's room for. Why not try one of them?", 409);
   const [row] = await db.insert(ideas).values({ childId: input.childId, text: input.text, picture: input.picture, createdAt: now }).returning({ id: ideas.id });
   return row!.id;
 }

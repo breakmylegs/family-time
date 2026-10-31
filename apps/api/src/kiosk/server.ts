@@ -82,7 +82,7 @@ export async function buildKioskServer(deps: KioskServerDeps): Promise<FastifyIn
     const rule = request.routeOptions.config?.kiosk;
     if (rule === 'public') {
       const d = limiter.hit(`${url}|${request.ip}`, { max: 10, windowMs: 10 * 60_000 });
-      if (!d.allowed) return reply.code(429).header('retry-after', String(d.retryAfterSeconds)).send({ error: 'rate_limited', message: 'Too many tries. Wait a few minutes, then try again.' });
+      if (!d.allowed) return reply.code(429).header('retry-after', String(d.retryAfterSeconds)).send({ error: 'rate_limited', message: 'Too many tries. Wait 10 minutes, then try again.' });
       return;
     }
     const header = request.headers.authorization ?? '';

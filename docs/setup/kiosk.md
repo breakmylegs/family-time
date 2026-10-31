@@ -17,7 +17,7 @@ Fire tablets don't have Google Play.
 1. In Fully's settings, Web Content Settings, set the Start URL to `http://LAN_IP:8180` (your server's address, for example `http://192.168.1.10:8180`).
 2. Turn on Enable JavaScript Interface (Advanced Web Settings). The kiosk uses it to turn the screen off at bedtime.
 3. Under Motion Detection, turn on Enable Visual Motion Detection and Turn Screen On on Motion.
-4. Under Device Management, turn on Keep Screen On, and set the screen to stay off at bedtime if it asks.
+4. Under Device Management, turn on Keep Screen On. At bedtime the kiosk turns the screen off itself, through the JavaScript Interface from step 2.
 5. Allow the camera when the kiosk first asks, so "I did it" can take a photo.
 
 ## 3. Pair it
@@ -26,7 +26,7 @@ Fire tablets don't have Google Play.
 2. Type the six numbers on the tablet. They work once, for ten minutes.
 3. The tablet shows your child's home. It stays set up after restarts.
 
-If the tablet is lost or handed on, tap Remove next to it in Settings. It stops working at once.
+If the tablet is lost or handed on, tap Remove this tablet next to it in Settings. It stops working at once.
 
 ## 4. Lock it down
 
@@ -52,5 +52,5 @@ The kiosk works without the firewall; the rule just makes sure the tablet can't 
 ## If something is wrong
 
 - **"Set up this kiosk" appears again**: the kiosk was removed in Settings, or the server's data was reset. Make a new code.
-- **"Can't reach home"**: the tablet isn't on the home Wi-Fi, or the server is down. If Family time opens on your phone at home, the server is up and the tablet's Wi-Fi is the thing to check.
+- **"Can't connect right now"**: the tablet isn't on the home Wi-Fi, or the server is down. If Family time opens on your phone at home, the server is up and the tablet's Wi-Fi is the thing to check.
 - **The screen stays on at night**: turn on Enable JavaScript Interface (step 2.2).

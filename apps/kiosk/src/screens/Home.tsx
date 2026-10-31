@@ -77,7 +77,7 @@ export function Home({ home, go, reload, switchChild }: Props) {
                 </span>
                 <div>
                   <h2>Nothing on right now</h2>
-                  <p>{home.week ? 'Plan some time, or try one of your ideas.' : 'Have a look at your ideas, or ask a grown-up.'}</p>
+                  <p>{home.week ? (home.features.ideas ? 'Plan some time, or try one of your ideas.' : 'Plan some time, or ask a grown-up.') : "Ask a grown-up if you'd like some screen time."}</p>
                 </div>
               </div>
             )}
@@ -130,11 +130,11 @@ export function Home({ home, go, reload, switchChild }: Props) {
 
         <div class="col">
           {home.reflection && !home.reflection.answered ? (
-            <section class="card reflect" aria-label="Sunday reflection">
+            <section class="card reflect" aria-label="How was your week?">
               <h2>How was your week?</h2>
-              <p>Three quick questions, for the family chat.</p>
+              <p>Three quick questions. Mum or Dad will read your answers, then you can talk about them together.</p>
               <button type="button" class="btn primary" onClick={() => go({ name: 'reflection' })}>
-                Answer them
+                Answer the questions
               </button>
             </section>
           ) : null}

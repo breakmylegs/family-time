@@ -13,19 +13,19 @@ status: needs-review
 
 ## How to use it
 
-1. Set the tablet up once, following the steps in the setup guide (Fully Kiosk Browser, kiosk mode).
+1. Whoever set up Family time gets the tablet ready first, using the kiosk setup guide.
 2. Tap Set up the kiosk here. A six-number code appears for ten minutes.
 3. Type the code on the tablet. It stays set up after that, even when it restarts.
 
 ## How it works
 
-The kiosk can only do what {child} can do: plan time from {their} week, say a job is done, add ideas and ask a grown-up. It can't change rules, allow or block apps, or see anything about other families.
+The kiosk can plan time, say a job is done, add ideas and ask a grown-up. It can't change rules or allow or block apps. On a tablet your children share, any of them can tap the name at the top to switch, so each can see the others' screens.
 
-If a tablet is lost or handed on, tap Remove. It stops working at once and needs a new code.
+If a tablet is lost or handed on, tap Remove this tablet. It stops working at once and needs a new code.
 
 ## What {child} sees
 
-Hi! Plan my time, My jobs with I did it, the savings goal, ideas for when bored, and a page saying in plain words what Mum and Dad can see.
+A hello and the time, what's on now, {their} week with Plan my time, {their} jobs with I did it, {their} savings goal and ideas, and a page that says in plain words what you can see.
 
 ## Watch out for
 

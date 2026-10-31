@@ -32,7 +32,8 @@ export function KioskSettings() {
   const setUp = async (from: HTMLElement) => {
     setError(undefined);
     try {
-      const code = await api<KioskPairing>('POST', '/api/kiosks/pairing', { label: 'Kiosk' });
+      // Numbered, so two tablets never look the same in the list.
+      const code = await api<KioskPairing>('POST', '/api/kiosks/pairing', { label: `Kiosk ${(kiosks?.length ?? 0) + 1}` });
       setPairing({ code, from });
       setOpen(true);
     } catch (err) {
@@ -66,8 +67,8 @@ export function KioskSettings() {
               <small>{seen(k.lastSeen)}</small>
             </span>
             <span className="row-end">
-              <button type="button" className="btn btn-quiet row-btn" aria-label={`Remove ${k.label}`} onClick={() => void remove(k)}>
-                Remove
+              <button type="button" className="btn btn-quiet row-btn" aria-label={`Remove ${k.label}, ${seen(k.lastSeen)}`} onClick={() => void remove(k)}>
+                Remove this tablet
               </button>
             </span>
           </div>
@@ -95,7 +96,7 @@ export function KioskSettings() {
           }}
           title="Set up the kiosk"
           returnFocus={pairing.from}
-          sub={`On the tablet, open ${pairing.code.kioskUrl ?? 'the kiosk address from docs/setup/kiosk.md'} and type this code. It works once, until ${pairing.code.expires}.`}
+          sub={`Type this code on the kiosk tablet. It works once, until ${pairing.code.expires}.${pairing.code.kioskUrl ? ` If the tablet isn't showing the code screen, open ${pairing.code.kioskUrl}.` : ''}`}
         >
           <p className="pair-code tnum" aria-label={`Code ${pairing.code.code.split('').join(' ')}`}>
             {pairing.code.code}

@@ -46,7 +46,7 @@ test('setting up asks for the code, and says when it is wrong', async ({ page })
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Set up this kiosk' })).toBeVisible();
   for (const n of '123456') await page.getByRole('button', { name: n, exact: true }).click();
-  await expect(page.getByRole('alert')).toHaveText("That code didn't work. Ask a grown-up for a new one.");
+  await expect(page.getByRole('alert')).toHaveText("That code didn't work. Check the six numbers, or make a new code on your phone in Settings, then Kiosk.");
   await shot(page, 'kiosk-setup-light', PHASE);
 });
 

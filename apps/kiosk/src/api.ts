@@ -29,7 +29,7 @@ export async function api<T>(method: 'GET' | 'POST', path: string, body?: unknow
   try {
     res = await fetch(`/api${path}`, { method, headers, body: body === undefined ? null : JSON.stringify(body) });
   } catch {
-    throw new ApiError(0, "Can't reach home. Check the tablet is on the home Wi-Fi.");
+    throw new ApiError(0, "Can't connect right now. Check the tablet is on the home Wi-Fi, or ask a grown-up.");
   }
   const data = (await res.json().catch(() => ({}))) as { message?: string };
   if (!res.ok) {

@@ -7,7 +7,7 @@ import { Icon } from '../icons';
 
 const QUESTIONS = [
   { key: 'wentWell', label: 'What went well this week?', hint: 'Something you enjoyed, or something you did well.' },
-  { key: 'wasHard', label: 'What was tricky?', hint: 'Stopping when time was up, or a day without much to do.' },
+  { key: 'wasHard', label: 'What was tricky?', hint: 'Anything that felt hard, big or small.' },
   { key: 'nextGoal', label: 'What would you like to try next week?', hint: 'One small thing.' },
 ] as const;
 
@@ -61,7 +61,7 @@ export function Reflection({ home, onDone }: { home: KioskHome; onDone: () => vo
           <div class="actions">
             <button type="button" class="btn primary big" disabled={busy} onClick={() => void save()}>
               <Icon name="check" />
-              {busy ? 'Saving' : 'Done'}
+              {busy ? 'Sending' : 'Send my answers'}
             </button>
           </div>
         </div>

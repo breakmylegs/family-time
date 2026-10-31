@@ -18,10 +18,11 @@ export function ParentsSee({ home, onDone }: { home: KioskHome; onDone: () => vo
           <h2>They can see</h2>
           <ul>
             <li>Which apps and games are on or off for you, and when.</li>
-            <li>The time you plan, and how much of your week is left.</li>
+            {home.features.economy ? <li>The time you plan, and how much you have left to plan this week.</li> : null}
             {home.features.economy ? <li>The jobs you say you did, and any photo you take of one.</li> : null}
-            <li>Roughly how long each app was used today. The home Wi-Fi notices when an app is busy; it is a guess, not exact.</li>
-            {home.features.goal ? <li>Your savings goal, your ideas, and your answers to the Sunday questions.</li> : null}
+            {home.features.economy ? <li>When you ask a grown-up: what you asked for, and when.</li> : null}
+            <li>Roughly how long each app was used today. The home Wi-Fi notices when an app is busy, so it's a guess, not exact.</li>
+            {home.features.goal ? <li>Your savings goal, and your answers to How was your week?</li> : null}
           </ul>
         </section>
         <section class="card">
