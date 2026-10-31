@@ -1,0 +1,54 @@
+// The parent app's side of the kiosk (ADR 0015): set one up with a pairing code, see the kiosks
+// the family has, remove one (which stops it at once), and the photo from "I did it".
+import type { Db } from '@family-time/db';
+import { KioskPairingRequest, type KioskPairing } from '@family-time/schemas';
+import type { FastifyInstance } from 'fastify';
+import { z } from 'zod';
+import { audit } from '../audit.js';
+import { createPairing, listKiosks, photoFor, removeKiosk } from '../kiosk/commands.js';
+import { parseBody } from './validate.js';
+
+export interface KioskRouteDeps {
+  db: Db;
+  now: () => Date;
+  /** Where the kiosk lives on the LAN, shown with the code: `http://192.168.1.10:8180`. */
+  kioskUrl?: string;
+}
+
+const Id = z.object({ id: z.uuid() });
+
+export async function kioskRoutes(app: FastifyInstance, deps: KioskRouteDeps): Promise<void> {
+  const { db, now } = deps;
+
+  app.get('/api/kiosks', { config: { access: 'system.manage' } }, async (request) => listKiosks(db, request.auth!.person.householdId));
+
+  app.post('/api/kiosks/pairing', { config: { access: 'system.manage', rateLimit: { max: 10, windowMs: 10 * 60_000 } } }, async (request, reply) => {
+    const body = parseBody(KioskPairingRequest, request, reply);
+    if (!body) return reply;
+    const person = request.auth!.person;
+    const { code, expiresAt } = await createPairing(db, { householdId: person.householdId, by: person.id, label: body.label }, now());
+    await audit(db, { householdId: person.householdId, actor: { personId: person.id }, action: 'kiosk.pairing', targetType: 'kiosk', after: { label: body.label } });
+    const out: KioskPairing = {
+      code,
+      expires: expiresAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' }),
+      label: body.label,
+      kioskUrl: deps.kioskUrl ?? null,
+    };
+    return reply.code(201).send(out);
+  });
+
+  app.delete<{ Params: { id: string } }>('/api/kiosks/:id', { config: { access: 'system.manage' } }, async (request, reply) => {
+    const { id } = Id.parse(request.params);
+    const person = request.auth!.person;
+    if (!(await removeKiosk(db, person.householdId, id, now()))) return reply.code(404).send({ error: 'not_found' });
+    await audit(db, { householdId: person.householdId, actor: { personId: person.id }, action: 'kiosk.removed', targetType: 'kiosk', targetId: id });
+    return { ok: true };
+  });
+
+  app.get<{ Params: { id: string } }>('/api/completions/:id/photo', { config: { access: 'approvals.decide' } }, async (request, reply) => {
+    const { id } = Id.parse(request.params);
+    const jpeg = await photoFor(db, request.auth!.person.householdId, id);
+    if (!jpeg) return reply.code(404).send({ error: 'not_found' });
+    return reply.header('content-type', 'image/jpeg').header('cache-control', 'private, max-age=3600').send(Buffer.from(jpeg));
+  });
+}

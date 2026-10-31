@@ -64,6 +64,13 @@
       "when": 1793457681984,
       "tag": "0008_besu_ledger",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793474944581,
+      "tag": "0009_kiosk",
+      "breakpoints": true
     }
   ]
 }

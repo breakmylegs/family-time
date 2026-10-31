@@ -725,6 +725,88 @@ export const requests = pgTable(
 );
 
 /** The child's savings goal. Progress reads from the MONEY balance. */
+/**
+ * A kiosk tablet (ADR 0015). Its long-lived token is stored as a SHA-256 hash; removing the kiosk
+ * in Settings sets `revokedAt`, and the next request it makes is refused.
+ */
+export const kioskDevices = pgTable(
+  'kiosk_devices',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    householdId: uuid('household_id')
+      .notNull()
+      .references(() => households.id),
+    label: text('label').notNull(),
+    tokenHash: text('token_hash').notNull(),
+    createdBy: uuid('created_by').references(() => people.id),
+    createdAt: createdAt(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  },
+  (t) => [uniqueIndex('kiosk_devices_token').on(t.tokenHash)],
+);
+
+/** A 6-digit code a parent makes in Settings, swapped once by the kiosk for its token. */
+export const kioskPairings = pgTable(
+  'kiosk_pairings',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    householdId: uuid('household_id')
+      .notNull()
+      .references(() => households.id),
+    codeHash: text('code_hash').notNull(),
+    label: text('label').notNull(),
+    createdBy: uuid('created_by').references(() => people.id),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [index('kiosk_pairings_code').on(t.codeHash)],
+);
+
+/** The photo from "I did it": a JPEG the kiosk has already shrunk. Deleted 30 days after the decision. */
+export const completionPhotos = pgTable('completion_photos', {
+  completionId: uuid('completion_id')
+    .primaryKey()
+    .references(() => completions.id),
+  jpeg: bytea('jpeg').notNull(),
+  createdAt: createdAt(),
+});
+
+/** The child's own boredom ideas, shown on the kiosk as a row of chips. */
+export const ideas = pgTable(
+  'ideas',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    childId: uuid('child_id')
+      .notNull()
+      .references(() => people.id),
+    text: text('text').notNull(),
+    picture: text('picture').notNull().default('star'),
+    createdAt: createdAt(),
+    removedAt: timestamp('removed_at', { withTimezone: true }),
+  },
+  (t) => [index('ideas_child').on(t.childId)],
+);
+
+/** The Sunday reflection: three short answers about the week, one per child per week. */
+export const reflections = pgTable(
+  'reflections',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    childId: uuid('child_id')
+      .notNull()
+      .references(() => people.id),
+    /** The week it is about: the date that week began. */
+    week: date('week').notNull(),
+    wentWell: text('went_well').notNull().default(''),
+    wasHard: text('was_hard').notNull().default(''),
+    nextGoal: text('next_goal').notNull().default(''),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex('reflections_child_week').on(t.childId, t.week)],
+);
+
 export const goals = pgTable('goals', {
   id: uuid('id').primaryKey().defaultRandom(),
   childId: uuid('child_id')

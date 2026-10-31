@@ -135,7 +135,7 @@ export async function weekSummary(db: Db, ledger: LedgerPort, childId: string, n
         }
       : null,
     resetDays: days,
-    goal: e.goal ? { title: e.goal.title, targetPence: e.goal.targetPence, savedPence: Math.max(0, Math.min(balance.money, e.goal.targetPence)) } : null,
+    goal: e.goal ? { title: e.goal.title, targetPence: e.goal.targetPence, savedPence: await goalSaved(db, ledger, e.householdId, childId, e.goal.id, e.goal.targetPence) } : null,
     rates: { pencePerBlock: e.rates.bonus.pencePerBlock, weeklyCapPence: e.rates.bonus.weeklyCapPence, flexPence: e.rates.flexPence, flexMinutes: e.rates.flexMinutes },
   };
 }
@@ -191,6 +191,22 @@ export async function chainLedger(db: Db, householdId: string, now: Date, adapte
       };
     }),
   };
+}
+
+/**
+ * How far a savings goal has come: pocket money earned since it was set (jobs, the bonus, points
+ * turned into money, less any of those put right), up to its price. Paying money out does not
+ * move it back, so the kiosk's bar never goes backwards.
+ */
+export async function goalSaved(db: Db, ledger: LedgerPort, householdId: string, childId: string, goalId: string, targetPence: number): Promise<number> {
+  const g = (await db.select({ createdAt: goals.createdAt }).from(goals).where(eq(goals.id, goalId)))[0];
+  if (!g) return 0;
+  const entries = await ledger.history(householdId, childId, { since: g.createdAt, limit: 5000 });
+  const payouts = new Set(entries.filter((x) => x.kind === 'payout').map((x) => x.ref));
+  const earned = entries
+    .filter((x) => x.kind !== 'payout' && !(x.kind === 'reversal' && payouts.has(String(x.data.reverses))))
+    .reduce((n, x) => n + x.money, 0);
+  return Math.max(0, Math.min(earned, targetPence));
 }
 
 /** The child's ledger for the Family screen, newest first. */
@@ -315,7 +331,7 @@ async function capsFor(db: Db, childId: string, target: { kind: 'service' | 'gro
   return { daily: own?.dailyCapMinutes ?? null, session: own?.sessionCapMinutes ?? null };
 }
 
-async function targetName(db: Db, householdId: string, target: { kind: 'service' | 'group'; id: string }): Promise<string> {
+export async function targetName(db: Db, householdId: string, target: { kind: 'service' | 'group'; id: string }): Promise<string> {
   const table = target.kind === 'service' ? services : serviceGroups;
   const row = (await db.select({ name: table.name }).from(table).where(and(eq(table.id, target.id), eq(table.householdId, householdId))))[0];
   if (!row) throw new EconomyError('unknown_target', "That app isn't on your family's list.", 404);
@@ -349,6 +365,44 @@ async function sessionCheck(db: Db, ledger: LedgerPort, input: { childId: string
     overlapsOwn: same.some((g) => g.start.getTime() < end.getTime() && input.start.getTime() < g.end.getTime()),
   });
   return { e, result, balance, end };
+}
+
+/**
+ * The same check for many start times at once, from one load of the rules and balances: the
+ * kiosk's list of times to plan, each with its reason in the child's words when it won't fit.
+ */
+export async function planChecks(db: Db, ledger: LedgerPort, input: { childId: string; target: { kind: 'service' | 'group'; id: string }; minutes: number; starts: Date[] }, now: Date) {
+  const e = await loadEconomy(db, input.childId);
+  const rules = await loadRules(db, input.childId, now);
+  const today = civilDate(now, e.timeZone);
+  const midnight = zonedTime(today.year, today.month, today.day, 0, e.timeZone);
+  const same = await db
+    .select({ start: grants.startsAt, end: grants.endsAt })
+    .from(grants)
+    .where(and(eq(grants.childId, input.childId), eq(grants.targetKind, input.target.kind), eq(grants.targetId, input.target.id), inArray(grants.status, ['scheduled', 'active']), gte(grants.endsAt, midnight)));
+  const caps = await capsFor(db, input.childId, input.target);
+  const balance = await ledger.balances(e.householdId, input.childId);
+  const plannedToday = same.reduce((n, g) => n + Math.round((g.end.getTime() - g.start.getTime()) / 60_000), 0);
+  return {
+    e,
+    balance,
+    results: input.starts.map((start) => {
+      const end = new Date(start.getTime() + input.minutes * 60_000);
+      return checkPlan({
+        schedules: rules.schedules,
+        childId: input.childId,
+        timeZone: e.timeZone,
+        now,
+        start,
+        minutes: input.minutes,
+        balanceMinutes: balance.time,
+        plannedToday,
+        dailyCapMinutes: caps.daily,
+        sessionCapMinutes: caps.session,
+        overlapsOwn: same.some((g) => g.start.getTime() < end.getTime() && start.getTime() < g.end.getTime()),
+      });
+    }),
+  };
 }
 
 /** Writes a session: its TIME first (when it costs any), then the grant AdGuard will honour. */

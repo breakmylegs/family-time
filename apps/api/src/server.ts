@@ -12,6 +12,7 @@ import { authRoutes } from './routes/auth.js';
 import { Changes, eventRoutes } from './events.js';
 import { controlRoutes, type QueryLogEntry } from './routes/control.js';
 import { economyRoutes } from './routes/economy.js';
+import { kioskRoutes } from './routes/kiosk.js';
 import { peopleRoutes } from './routes/people.js';
 import { pushRoutes } from './routes/push.js';
 import { registerStatic } from './static.js';
@@ -39,6 +40,8 @@ export interface ServerDeps {
   /** The ledger. The Postgres one unless a test or the Besu adapter says otherwise. */
   ledger?: LedgerPort;
   ledgerAdapter?: 'postgres' | 'besu';
+  /** The kiosk's address on the LAN, shown with a pairing code. */
+  kioskUrl?: string;
 }
 
 export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
@@ -118,6 +121,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     notifyChange: deps.notifyChange ?? (async () => undefined),
     ...(deps.ledgerAdapter ? { ledgerAdapter: deps.ledgerAdapter } : {}),
   });
+  await kioskRoutes(app, { db: deps.db, now, ...(deps.kioskUrl ? { kioskUrl: deps.kioskUrl } : {}) });
   await pushRoutes(app, { db: deps.db, now, ...(deps.vapidPublicKey ? { vapidPublicKey: deps.vapidPublicKey } : {}) });
   if (deps.staticDir) registerStatic(app, deps.staticDir);
 

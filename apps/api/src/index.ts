@@ -6,10 +6,11 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { PgBoss } from 'pg-boss';
-import { besuLedger } from '@family-time/ledger';
+import { besuLedger, postgresLedger } from '@family-time/ledger';
 import { CHANGE_CHANNEL, vapidFromFile } from '@family-time/notify';
 import { readBuildInfo } from './build.js';
 import { Changes } from './events.js';
+import { buildKioskServer } from './kiosk/server.js';
 import { buildServer } from './server.js';
 
 const pool = new pg.Pool({ ...connectionConfig(), max: 10 });
@@ -69,9 +70,12 @@ const vapid = vapidFromFile(process.env.VAPID_PRIVATE_KEY_FILE);
 // the worker's signer sends them. The api never talks to the node itself.
 const besu = process.env.LEDGER_ADAPTER === 'besu';
 
+const ledger = besu ? besuLedger(db) : postgresLedger(db);
 const app = await buildServer({
   db,
-  ...(besu ? { ledger: besuLedger(db), ledgerAdapter: 'besu' as const } : {}),
+  ...(process.env.KIOSK_LAN_URL ? { kioskUrl: process.env.KIOSK_LAN_URL } : {}),
+  ledger,
+  ...(besu ? { ledgerAdapter: 'besu' as const } : {}),
   changes,
   ...(vapid ? { vapidPublicKey: vapid.publicKey } : {}),
   build,
@@ -82,9 +86,32 @@ const app = await buildServer({
   ...(existsSync(join(staticDir, 'index.html')) ? { staticDir } : {}),
 });
 
+// The kiosk's own server, on its own port, which Compose publishes on the LAN address only (ADR
+// 0015). Its jobs and requests become phone alerts for parents through the worker's alert queue.
+const kioskDir = process.env.KIOSK_DIST ?? join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'kiosk', 'dist');
+const kiosk = await buildKioskServer({
+  db,
+  ledger,
+  logLevel: process.env.LOG_LEVEL ?? 'info',
+  notifyChange,
+  changes,
+  queueAlert: async (job) => {
+    try {
+      await boss.send('alerts', job, { expireInSeconds: 120 });
+    } catch (err) {
+      kioskLog('alert_not_queued', (err as Error).message);
+    }
+  },
+  ...(existsSync(join(kioskDir, 'index.html')) ? { staticDir: kioskDir } : {}),
+});
+function kioskLog(event: string, error: string) {
+  kiosk.log.error({ event, error });
+}
+
 const shutdown = async (signal: string) => {
   app.log.info({ event: 'shutdown', signal });
   stopping = true;
+  await kiosk.close();
   await app.close();
   await listener?.end().catch(() => undefined);
   await boss.stop({ graceful: true, timeout: 5_000 });
@@ -95,4 +122,5 @@ process.once('SIGTERM', () => void shutdown('SIGTERM'));
 process.once('SIGINT', () => void shutdown('SIGINT'));
 
 await app.listen({ host: '0.0.0.0', port: Number(process.env.PORT ?? 3000) });
-app.log.info({ event: 'started', commit: build.commit, schema: build.schema });
+await kiosk.listen({ host: '0.0.0.0', port: Number(process.env.KIOSK_PORT ?? 3001) });
+app.log.info({ event: 'started', commit: build.commit, schema: build.schema, kioskPort: Number(process.env.KIOSK_PORT ?? 3001) });
