@@ -23,9 +23,13 @@ x-app: &app
     ADGUARD_USER: familytime
     ADGUARD_PASSWORD_FILE: /run/app-secrets/adguard_password
     VAPID_PRIVATE_KEY_FILE: /run/app-secrets/vapid_private.pem
+    # The ledger: postgres (the default), or besu with the ledger-besu profile (docs/setup/besu.md).
+    LEDGER_ADAPTER: ${LEDGER_ADAPTER:-postgres}
+    LEDGER_SIGNER_KEY_FILE: /run/app-secrets/ledger_signer_key
+    BESU_RPC_URL: http://besu:8545
     LOG_LEVEL: info
     TZ: Europe/London
-  secrets: [postgres_password, adguard_password, vapid_private.pem]
+  secrets: [postgres_password, adguard_password, vapid_private.pem, ledger_signer_key]
   logging: &logging
     driver: json-file
     options:
@@ -116,7 +120,36 @@ services:
     mem_limit: 256m
     logging: *logging
 
-  # Added in later phases: besu under profile ledger-besu (Phase 5), ollama under profile ai-local (Phase 7).
+  # The Besu ledger (ADR 0014), only with the ledger-besu profile: a single QBFT validator, free
+  # gas, five-second blocks. Its RPC answers on the internal network only and nothing is
+  # published, so nothing outside the stack can reach it. The validator key is a Docker secret
+  # init.sh made; the chain lives in its own volume, which backups snapshot (Phase 8).
+  besu:
+    profiles: [ledger-besu]
+    image: hyperledger/besu:26.10.2
+    restart: unless-stopped
+    # Root, so it can read its key secret (mounted root-only, mode 0600), but with every
+    # capability dropped: it reads files it owns and nothing more.
+    user: "0:0"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    entrypoint: ["/bin/bash", "/besu-setup/start.sh"]
+    environment:
+      BLOCK_SECONDS: "5"
+      BESU_DATA: /opt/besu/data
+      BESU_NODE_KEY_FILE: /run/secrets/besu_node_key
+      JAVA_OPTS: -Xmx2g
+    secrets: [besu_node_key]
+    volumes:
+      - ./besu:/besu-setup:ro
+      - besu-data:/opt/besu/data
+    networks:
+      internal:
+        aliases: [besu]
+    mem_limit: 3g
+    logging: *logging
+
+  # Added in later phases: ollama under profile ai-local (Phase 7).
 
 networks:
   # No route out. Postgres is reachable only from inside the stack.
@@ -137,8 +170,13 @@ secrets:
     file: ../secrets/adguard_password
   vapid_private.pem:
     file: ../secrets/vapid_private.pem
+  ledger_signer_key:
+    file: ../secrets/ledger_signer_key
+  besu_node_key:
+    file: ../secrets/besu_node_key
 
 volumes:
   pgdata:
   adguard-work:
   adguard-conf:
+  besu-data:

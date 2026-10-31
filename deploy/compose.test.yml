@@ -28,6 +28,24 @@ services:
       - /opt/adguardhome/conf
     networks: [test]
 
+  # A throwaway single-validator Besu, the same start script as the live one, with one-second
+  # blocks so the ledger's real-chain tests are quick. Its key is made fresh in its temporary
+  # folder. No route out and no published port.
+  besu:
+    image: hyperledger/besu:26.10.2
+    entrypoint: ["/bin/bash", "/besu-setup/start.sh"]
+    environment:
+      BLOCK_SECONDS: "1"
+      BESU_DATA: /opt/besu/data
+      JAVA_OPTS: -Xmx1g
+    volumes:
+      - ./besu:/besu-setup:ro
+      - type: tmpfs
+        target: /opt/besu/data
+        tmpfs:
+          mode: 01777
+    networks: [test]
+
   tests:
     image: family-time:test-${IMAGE_TAG:?IMAGE_TAG is set by scripts/update.sh}
     command: ["node", "scripts/test-pg.mjs"]
@@ -36,10 +54,13 @@ services:
       ADGUARD_URL: http://adguard:3000
       ADGUARD_USER: familytime
       ADGUARD_PASSWORD: contract-test-password
+      BESU_RPC_URL: http://besu:8545
     depends_on:
       postgres:
         condition: service_healthy
       adguard:
+        condition: service_started
+      besu:
         condition: service_started
     networks: [test]
 

@@ -32,9 +32,9 @@ export interface FakeChain extends ChainClient {
   readonly sent: ChainCall[];
 }
 
-export function fakeChain(options: { manual?: boolean } = {}): FakeChain {
+export function fakeChain(options: { manual?: boolean; contract?: Address } = {}): FakeChain {
   const signer = '0x00000000000000000000000000000000005191e5' as Address;
-  const contract = '0x000000000000000000000000000000000000f00d' as Address;
+  const contract = (options.contract ?? '0x000000000000000000000000000000000000f00d') as Address;
   const balances = new Map<string, bigint>();
   const used = new Set<Hex>();
   const effects = new Map<Hex, Effect>();

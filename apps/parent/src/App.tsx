@@ -12,6 +12,7 @@ import { Approvals } from './screens/Approvals';
 import { Control } from './screens/Control';
 import { Family } from './screens/Family';
 import { Home } from './screens/Home';
+import { Ledger } from './screens/Ledger';
 import { Join } from './screens/Join';
 import { People } from './screens/People';
 import { Settings } from './screens/Settings';
@@ -94,6 +95,7 @@ function Screens({ me, path, onSignedOut, onLive }: { me: Me; path: string; onSi
   let screen;
   if (path === '/people' && can('people.view')) screen = <People me={me} />;
   else if (path === '/settings') screen = <Settings me={me} kids={kids ?? []} onSignedOut={onSignedOut} />;
+  else if (path === '/ledger' && can('system.manage')) screen = <Ledger />;
   else if (economy && path === '/approvals' && can('approvals.decide')) screen = <Approvals me={me} />;
   else if (economy && path === '/tasks') screen = <Tasks kids={kids ?? []} canEdit={can('rules.edit')} />;
   else if (economy && path === '/family') screen = <Family kids={kids ?? []} childId={childId} canEdit={can('rules.edit')} onSwitchChild={setPicking} />;
@@ -122,7 +124,7 @@ function Screens({ me, path, onSignedOut, onLive }: { me: Me; path: string; onSi
     <ToastProvider>
       <HelpProvider child={child} status={cs.status} week={week}>
         {screen}
-        {path === '/people' ? null : <TabBar path={['/settings', '/approvals', '/tasks', '/family'].includes(path) && (economy || path === '/settings') ? path : '/'} economy={economy} waiting={waiting} />}
+        {path === '/people' ? null : <TabBar path={path === '/ledger' ? '/settings' : ['/settings', '/approvals', '/tasks', '/family'].includes(path) && (economy || path === '/settings') ? path : '/'} economy={economy} waiting={waiting} />}
         <Sheet open={Boolean(picking)} onClose={() => setPicking(null)} title="Choose a child" returnFocus={picking}>
           <div className="opts" role="radiogroup" aria-label="Choose a child">
             {(kids ?? []).map((k) => (

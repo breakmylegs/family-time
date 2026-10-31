@@ -5,6 +5,8 @@ export default defineConfig({
   test: {
     include: ['test/**/*.pg.test.ts'],
     maxWorkers: 1,
-    testTimeout: 30_000,
+    // The real chain makes a block a second, and each ledger test waits for its entries to land.
+    testTimeout: 180_000,
+    hookTimeout: 300_000,
   },
 });

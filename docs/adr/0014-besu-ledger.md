@@ -1,0 +1,29 @@
+# ADR 0014: The Besu ledger
+
+Status: accepted, 31 October 2026 (Phase 5)
+
+## Decision
+
+- **A second adapter behind `LedgerPort`, not a second ledger.** The Besu adapter validates and writes exactly as the Postgres one does (ADR 0012), under the same advisory lock, and in the same database transaction queues the entry's chain transaction in `ledger_tx` for the active contract. The api answers at once; the chain confirms a few seconds later. Postgres stays the default and the V2 default; Besu is switched on per install with `LEDGER_ADAPTER=besu` and the `ledger-besu` Compose profile.
+- **One contract, `contracts/src/FamilyLedger.sol`**: ERC-1155 (ERC1155Supply) and AccessControl on OpenZeppelin 5.6.1, Solidity 0.8.38, no proxy. Token ids 1 TIME (minutes), 2 MONEY (pence), 3 FLEX (points). Soulbound: `_update` reverts unless it mints or burns, and `setApprovalForAll` reverts.
+- **The house rules are true on chain.** One function per kind of entry; no general mint or burn. TIME burns only through a planned session or the week's close; MONEY only through a payout; FLEX only through a conversion, at the household's rate on chain. The week's bonus can never exceed the household's rule (pence per full 30 minutes, capped). The rules give back only minutes. A correction (`reverse`) undoes exactly one earlier award, conversion, payout or chosen refund, once, and never takes back screen time once its week has closed (the same rule now holds in Postgres). Every entry carries a `bytes32` reference (keccak of the household and the app's ref) that can be used once. The event name is the reason code; `Refunded` (with the token and a `chosen` flag) stands for the brief's `TimeRefunded`, because refunds can also be points.
+- **Roles**: the cold admin key holds only `DEFAULT_ADMIN_ROLE` and never signs: the deploy passes its address, worked out from the key piped into `ledger-deploy` once. The backend signer holds `MINTER_ROLE`, `BURNER_ROLE` and `RATES_ROLE`. The contract refuses an admin that is the signer or zero.
+- **Rates and the bonus rule on chain come from the household's settings**, copied by the signer before a conversion or a close when they differ (a `RateSet` or `BonusRuleSet` event each time), never from the entry being checked, so the chain checks Postgres's arithmetic rather than echoing it.
+- **The signer**: one pg-boss queue (`ledger-chain`), singleton, run every five seconds by the worker. A pass settles what it sent (mined, reverted, or dropped by the node, found by the pending nonce count, which is also the restart reconcile), and only when nothing is in flight sends the next batch, in order, with a fixed gas limit and a gas price of zero. It does not estimate first: estimates run against the last block, so a call that depends on one still waiting would be refused wrongly. A reverted transaction stops all sending and alerts the owner: Postgres and the chain disagree, and carrying on would compound it.
+- **The indexer** reads the contract's events from the last block it read into `ledger_confirmations`, idempotent on block number and log index. QBFT blocks are final, so one confirmation is enough. `ledger_entries` never changes: its block and transaction columns stay empty, and history joins the confirmations.
+- **Rebuild**: `checkAgainstChain` (and `./scripts/ft.sh ledger-check`) reads every event since the deploy, matches each to its Postgres entry by reference, compares kind, child, amounts and time, then checks every child's three balances on the contract against what the events add up to. Reason text stays off chain: it can name a child, and a chain cannot forget.
+- **Redeploy and replay**: `ledger-deploy` deploys a new contract and, in one transaction with making it active, queues the whole Postgres history onto it, each household in order. The same path switches an existing install from Postgres to Besu.
+- **Besu 26.10.2**, single validator, QBFT, five-second blocks, `min-gas-price=0`, zero base fee and Cancun from block 0 (OpenZeppelin 5.6 uses `mcopy`), RPC APIs `ETH,NET,QBFT,WEB3` on the internal network only, nothing published, JVM capped at 2 GB in a 3 GB container. `deploy/besu/start.sh` writes the genesis on first start from the validator key `init.sh` made.
+- **Foundry stays off the laptop.** The contract is built and tested (unit, fuzz and invariant tests) in the image's `contracts` stage, from the v1.8.7 release tarball checked by SHA-256. The laptop runs the signer, indexer and adapter against an in-memory chain that keeps the contract's rules (`fakeChain`); the server's test project runs the whole ledger suite against a real Besu.
+
+## Why
+
+Brief Parts 7 and 22. Postgres's hash chain detects tampering; a chain with fixed burn paths makes the rules impossible to break even by the backend that writes it. Keeping Postgres as the system the app reads means the app works the same on either adapter, and a dead Besu node delays confirmation without stopping the family.
+
+## Consequences
+
+- The chain is a second copy, confirmed a few seconds behind. If the node is down the queue grows and drains when it is back; nothing the family sees changes.
+- A conversion or bonus made at rates that have since changed in Settings would be refused when replayed onto a new contract. Rates are not editable in the app yet; if that changes, rate changes need to become queued entries of their own.
+- An entry written in the instant a contract is activated could be queued after later entries of its household; the signer's catch-up queues anything missed, and the chain would refuse an out-of-order spend, which stops the signer and alerts the owner rather than diverging silently.
+- The Besu container runs as root with every capability dropped, so it can read its key secret, which Compose mounts root-only.
+- The chain's volume and the three keys need backing up (Phase 8). The admin key belongs offline once the contract is deployed.

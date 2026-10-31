@@ -12,11 +12,13 @@ if [ ! -s deploy/.state/image.env ]; then
   exit 1
 fi
 
-if [ -f deploy/.state/network.env ]; then
+# LAN_IP, and the ledger choice if the owner made one (docs/setup/besu.md).
+for env in deploy/.state/network.env deploy/.state/ledger.env; do
+  [ -f "$env" ] || continue
   set -a
-  . deploy/.state/network.env
+  . "$env"
   set +a
-fi
+done
 
 exec docker compose --env-file deploy/.state/image.env -f deploy/compose.yml \
   run --rm --no-deps -T api node apps/api/dist/cli.js "$@"

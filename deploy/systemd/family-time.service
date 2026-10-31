@@ -11,6 +11,8 @@ Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=/opt/family-time
 EnvironmentFile=/opt/family-time/deploy/.state/network.env
+# The ledger choice, only if the owner switched the Besu ledger on (the dash makes it optional).
+EnvironmentFile=-/opt/family-time/deploy/.state/ledger.env
 ExecStart=/usr/bin/docker compose --env-file deploy/.state/image.env -f deploy/compose.yml up -d
 ExecStop=/usr/bin/docker compose --env-file deploy/.state/image.env -f deploy/compose.yml stop
 TimeoutStartSec=300

@@ -36,6 +36,8 @@ make_template() {
   echo pw > "$t/host/secrets/postgres_password"
   echo pw > "$t/host/secrets/adguard_password"
   echo pem > "$t/host/secrets/vapid_private.pem"
+  echo key > "$t/host/secrets/ledger_signer_key"
+  echo key > "$t/host/secrets/besu_node_key"
   echo LAN_IP=192.0.2.10 > "$t/host/deploy/.state/network.env"
 }
 

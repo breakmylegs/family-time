@@ -630,3 +630,44 @@ button.job-row:focus-visible {
     transform: none;
   }
 }
+
+/* The owner's Ledger screen */
+.large .back {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 44px;
+  margin: -8px 0 4px -8px;
+  padding: 0 8px 0 2px;
+  font-size: 17px;
+  color: var(--primary);
+  border-radius: 10px;
+  transition: opacity 140ms ease;
+}
+.large .back:active {
+  opacity: 0.6;
+}
+.large .back svg {
+  width: 22px;
+  height: 22px;
+  stroke-width: 2.2;
+}
+.mono {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 13px;
+}
+.chain-status {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+.chain-status.confirmed {
+  color: var(--allowed);
+}
+.chain-status.refused {
+  color: var(--blocked);
+}
+.ledger-warning {
+  margin: 0 16px 16px;
+}

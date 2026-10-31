@@ -9,6 +9,10 @@ Every version is pinned exactly. Checked on the registry on 26 October 2026 unle
 | Node.js | 24.15.0 | `.node-version`, `engines`, and the base image |
 | Base image | `node:24.15.0-trixie-slim` | Official, publishes linux/amd64 and linux/arm64 |
 | PostgreSQL | `postgres:18.6-trixie` | Data under `/var/lib/postgresql` (Postgres 18 layout) |
+| Besu | `hyperledger/besu:26.10.2` | Newest 26.10 on 31 Oct 2026, multi-arch (amd64 and arm64) on Docker Hub. Only with the `ledger-besu` profile and in the test project |
+| Foundry | v1.8.7 | Release tarball in the image's `contracts` stage, checked by SHA-256 (amd64 `ba470eb7…25bcf`, arm64 `6f0e5697…18534`, full values in the Dockerfile). Never on the laptop |
+| Solidity | 0.8.38 | `contracts/foundry.toml`, EVM version Cancun |
+| forge-std | v1.17.0, commit `f3dae6e6ee381f25eb6a246f7da9b85c91a68219` | Fetched by commit in the `contracts` stage |
 | AdGuard Home | `adguard/adguardhome:v0.107.79` | Newest stable 0.107 on 27 Oct 2026 (v0.108 and v1.0 are betas). Spec vendored in `packages/adguard-client/spec/` |
 | pnpm | 10.34.9 | Through corepack. pnpm 12.15.0 is current, but did not start through corepack on the laptop. Revisit |
 
@@ -47,6 +51,8 @@ Every version is pinned exactly. Checked on the registry on 26 October 2026 unle
 | @types/web-push | 3.6.4 | notify (dev) | types only |
 | @radix-ui/react-dialog | 1.3.1 | parent | asked and approved in the Phase 3 plan. Focus trap, Escape and focus return for the help panel and sheets |
 | @fontsource/lora, @fontsource/poppins | 5.3.0 | parent | asked and approved in the Phase 3 plan. Self-hosted fonts, as the design README suggests |
+| viem | 2.57.13 | ledger | yes (Part 17). Phase 5: the Besu signer, indexer and deploy |
+| @openzeppelin/contracts | 5.6.1 | contracts | yes (Part 17). Phase 5: Solidity sources only, compiled in the image |
 
 ## Checked for later phases, not installed yet
 
@@ -55,13 +61,10 @@ Every version is pinned exactly. Checked on the registry on 26 October 2026 unle
 | vite-plugin-pwa | 2.0.0 (supports Vite 8). Not used: a hand-written service worker is a few dozen lines (Phase 3 plan, decision 7) | 3 |
 | preact | 10.29.8, not 11.0.2 (see reuse report) | 6 |
 | openid-client | 6.8.8 | when owner OIDC is switched on (deferred from Phase 1) |
-| viem | 2.57.11 | 5 |
-| @openzeppelin/contracts | 5.6.1 | 5 |
 | ai | 7.0.153 | 7 |
 | @ai-sdk/mcp | 2.0.84 | 7 |
 | @modelcontextprotocol/server, client | 2.4.0 | 7 |
 
-The Besu image tag, including arm64, is checked in Phase 5.
 
 ## Tooling
 

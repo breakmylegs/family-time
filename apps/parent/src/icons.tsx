@@ -19,6 +19,7 @@ const PATHS = {
   x: <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />,
   down: <path d="M6 9.5l6 6 6-6" />,
   right: <path d="M9.5 6l6 6-6 6" />,
+  left: <path d="M14.5 6l-6 6 6 6" />,
   clock: (
     <>
       <circle cx="12" cy="12" r="9" />

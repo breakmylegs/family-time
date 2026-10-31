@@ -94,6 +94,20 @@ export function Settings({ me, kids, onSignedOut }: { me: Me; kids: ChildSummary
               </span>
             </button>
           ) : null}
+          {me.capabilities.includes('system.manage') ? (
+            <button type="button" className="row" onClick={() => navigate('/ledger')}>
+              <span className="row-icon">
+                <Icon name="list" />
+              </span>
+              <span className="row-text">
+                Ledger
+                <small>Every change to time, money and points</small>
+              </span>
+              <span className="row-end">
+                <Icon name="right" />
+              </span>
+            </button>
+          ) : null}
           {kids.map((k) => (
             <div key={k.id} className="row">
               <span className="row-icon">

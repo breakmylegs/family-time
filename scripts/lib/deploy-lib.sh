@@ -59,15 +59,17 @@ run_logged() {
   return "$rc"
 }
 
-# The production stack. LAN_IP (where AdGuard publishes port 53) comes from the file init.sh writes.
+# The production stack. LAN_IP (where AdGuard publishes port 53) comes from the file init.sh writes;
+# the ledger choice (LEDGER_ADAPTER and COMPOSE_PROFILES) from ledger.env, if the owner made one.
 compose() {
   (
-    if [ -f deploy/.state/network.env ]; then
+    for env in deploy/.state/network.env deploy/.state/ledger.env; do
+      [ -f "$env" ] || continue
       set -a
       # shellcheck source=/dev/null
-      . deploy/.state/network.env
+      . "$env"
       set +a
-    fi
+    done
     docker compose -f deploy/compose.yml "$@"
   )
 }

@@ -8,7 +8,7 @@ Status: accepted, 31 October 2026 (Phase 4)
 - **The Postgres adapter is one append-only table, `ledger_entries`.** A trigger refuses UPDATE, DELETE and TRUNCATE. One row is one event with signed changes to the child's three balances: TIME in minutes, MONEY in pence, FLEX in points. Rows are numbered per household and each stores the SHA-256 of the previous row's hash plus its own canonical JSON (keys sorted, no whitespace, our own few lines). `verify` walks the chain and names the first entry that is missing, out of order or changed. The worker runs it nightly after 03:00 local time and alerts owners on a break; `./scripts/ft.sh ledger-verify` runs it on demand.
 - **One writer at a time**: each append runs in a transaction holding the household's advisory lock, so the balance checks (enough time left, enough owed) and the chain see the latest state. The api gets its answer at once, without a queue round trip.
 - **There is no deduction.** Kinds are allowance, award, spend, refund, convert, close, payout and reversal. TIME goes down only through the child's own plan, a counted Allow the parent chose, the week's close and a conversion; MONEY only through a payout; FLEX only through a conversion. A correction (`reverse`, "Fix a mistake" in the app) can only exactly reverse one award, conversion, refund or payout, once, and never takes a balance below zero.
-- **The same table is the read model** for Phase 5: the Besu indexer inserts rows with their block number and transaction hash, never updating one.
+- **The same table is the read model** for Phase 5. (Changed by ADR 0014: the Besu adapter writes entries here first, exactly as this adapter does, and the chain's confirmations go in their own table, because these rows can never be updated.)
 
 ## Why
 

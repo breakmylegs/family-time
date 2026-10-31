@@ -123,6 +123,20 @@ test('tick the step agreed at the review, and mark pocket money paid', async ({ 
   await expect(page.getByRole('button', { name: 'Mark as paid' })).toBeVisible();
 });
 
+for (const scheme of ['light', 'dark'] as const) {
+  test(`the owner's Ledger, with each entry's block on the chain, ${scheme}`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme: scheme });
+    await go(page, '/settings');
+    await page.getByRole('button', { name: /^Ledger/ }).click();
+    await expect(page.getByRole('heading', { name: 'Ledger', level: 1 })).toBeVisible();
+    await expect(page.getByText(/entries on the chain|on the chain/).first()).toBeVisible();
+    await expect(page.locator('.chain-status.confirmed').first()).toContainText('Block');
+    await shot(page, `ledger-${scheme}`, 'phase-5');
+    await page.getByRole('button', { name: 'Settings' }).first().click();
+    await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
+  });
+}
+
 test('a carer sees Approvals but cannot change jobs or money', async ({ page, context }) => {
   await signInAs(context, 'gran');
   await go(page, '/tasks');
@@ -132,4 +146,7 @@ test('a carer sees Approvals but cannot change jobs or money', async ({ page, co
   await expect(page.getByRole('button', { name: 'Mark as paid' })).toHaveCount(0);
   // The history, and with it Fix a mistake, is for those who can change the money.
   await expect(page.getByRole('heading', { name: 'History' })).toHaveCount(0);
+  // And the Ledger screen is the owner's alone.
+  await go(page, '/settings');
+  await expect(page.getByRole('button', { name: /^Ledger/ })).toHaveCount(0);
 });

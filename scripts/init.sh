@@ -38,6 +38,12 @@ make_secret postgres_password 32
 make_secret session_key 48
 make_secret master_key 32
 make_secret adguard_password 24
+# The Besu ledger's keys (ADR 0014): 32 random bytes is a secp256k1 private key. The signer writes
+# the ledger; the admin key is the cold key, used once by ledger-deploy and then kept offline; the
+# node key is the validator's. Made for every install, used only with the ledger-besu profile.
+make_secret ledger_signer_key 32
+make_secret ledger_admin_key 32
+make_secret besu_node_key 32
 
 # The Web Push (VAPID) key: a P-256 private key in PEM. The api gives browsers its public half.
 if [ -s secrets/vapid_private.pem ]; then

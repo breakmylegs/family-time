@@ -10,11 +10,13 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-if [ -f deploy/.state/network.env ]; then
+# LAN_IP, and the ledger choice if the owner made one (docs/setup/besu.md).
+for env in deploy/.state/network.env deploy/.state/ledger.env; do
+  [ -f "$env" ] || continue
   set -a
-  . deploy/.state/network.env
+  . "$env"
   set +a
-fi
+done
 
 current=$(cat deploy/.state/current 2>/dev/null || true)
 if [ -z "$current" ]; then

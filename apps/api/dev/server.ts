@@ -7,13 +7,16 @@
 //
 // With FT_DEV_DEMO=1 it is the mock's family instead of a fresh install: a fake AdGuard, the real
 // reconciler running in-process every few seconds, and a frozen clock (FT_DEV_CLOCK, default
-// Monday 26 October 2026, 18:32 London), so screenshots match the mock and repeat exactly.
+// Monday 26 October 2026, 18:32 London), so screenshots match the mock and repeat exactly. Its
+// ledger is the Besu adapter on the fake chain, with the signer and indexer running in-process, so
+// the owner's Ledger screen shows blocks; each reset starts a fresh chain and replays onto it.
 //
 //   FT_SESSION_FILE  where to write signed-in cookies for Mum, Dad and Gran, for WebKit, which
 //                    cannot make a passkey in a test
 import { AdGuard } from '@family-time/adguard-client';
 import { FakeAdGuard } from '@family-time/adguard-client/fake';
-import { helpFeedback, overrides, recordHeartbeat, sessionEndings } from '@family-time/db';
+import { helpFeedback, ledgerConfirmations, ledgerContracts, ledgerTx, overrides, recordHeartbeat, sessionEndings } from '@family-time/db';
+import { activateContract, besuLedger, fakeChain, indexPass, signerPass, type FakeChain } from '@family-time/ledger';
 import { eq } from 'drizzle-orm';
 import { testDb } from '@family-time/db/testing';
 import { reconcile } from '@family-time/worker/reconcile';
@@ -46,10 +49,29 @@ setInterval(() => void recordHeartbeat(db, 'dev', now()), 30_000).unref();
 const changes = new Changes();
 let notifyChange: (() => Promise<void>) | undefined;
 let economy: EconomySnapshot | undefined;
+let chain: FakeChain | undefined;
+let chains = 0;
+
+/** A fresh fake chain with the history replayed onto a new contract, as ledger-deploy would. */
+async function newChain() {
+  chain = fakeChain({ contract: `0x${(++chains).toString(16).padStart(40, '0')}` });
+  await activateContract(db, { address: chain.contract, chainId: 1, version: '1', deployedBlock: 1 });
+  await settle();
+}
+/** Sends and confirms what is queued: twice, so what one pass sends the next sees mined. */
+async function settle() {
+  if (!chain) return;
+  for (let i = 0; i < 3; i++) {
+    await signerPass(db, chain);
+    await indexPass(db, chain);
+  }
+}
 
 if (demo) {
   const family = await seedDemo(db, origin);
   economy = await seedEconomy(db, family, { roblox: family.roblox.id, youtubeGrant: family.youtubeGrant.id });
+  await newChain();
+  setInterval(() => void settle(), 2_000).unref();
   const fake = new FakeAdGuard();
   const adguard = new AdGuard({ baseUrl: await fake.start(), username: fake.username, password: fake.password });
   const quiet = () => undefined;
@@ -98,6 +120,7 @@ const app = await buildServer({
   changes,
   logLevel: process.env.LOG_LEVEL ?? 'warn',
   ...(notifyChange ? { notifyChange } : {}),
+  ...(demo ? { ledger: besuLedger(db), ledgerAdapter: 'besu' as const } : {}),
   ...(existsSync(join(staticDir, 'index.html')) ? { staticDir } : {}),
 });
 if (demo) {
@@ -108,7 +131,12 @@ if (demo) {
     await db.update(overrides).set({ endsAt: new Date('2026-10-26T19:30:00Z'), endedBy: null, plannedEndsAt: null });
     await db.delete(sessionEndings);
     await db.delete(helpFeedback);
+    // The chain cannot forget a reference, and the reset makes the same ones again: a new chain.
+    await db.delete(ledgerTx);
+    await db.delete(ledgerConfirmations);
+    await db.delete(ledgerContracts);
     if (economy) await resetEconomy(db, client, economy);
+    await newChain();
     await notifyChange?.();
     return { ok: true };
   });
