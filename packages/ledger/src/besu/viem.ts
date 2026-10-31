@@ -80,6 +80,10 @@ export function viemChain(o: ViemOptions & { contract: Address }): ChainClient {
     },
     balanceOf: (child, id) => publicClient.readContract({ address: o.contract, abi: familyLedgerAbi, functionName: 'balanceOf', args: [child, id] }),
     rate: (household, id) => publicClient.readContract({ address: o.contract, abi: familyLedgerAbi, functionName: 'rate', args: [household, id] }),
+    async bonusRule(household) {
+      const [pencePerBlock, weeklyCapPence] = await publicClient.readContract({ address: o.contract, abi: familyLedgerAbi, functionName: 'bonusRule', args: [household] });
+      return { pencePerBlock, weeklyCapPence };
+    },
   };
 }
 

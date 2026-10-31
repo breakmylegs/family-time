@@ -7,7 +7,7 @@
 // Only when nothing is in flight does it send more, so the chain always sees each household's
 // entries in order. A failed transaction stops all sending: Postgres and the chain disagree, and
 // the owner is told rather than the signer carrying on past it.
-import { ledgerEntries, ledgerTx, type Db } from '@family-time/db';
+import { ledgerEntries, ledgerTx, loadRates, type Db, type Rates } from '@family-time/db';
 import { and, asc, count, eq, inArray, sql } from 'drizzle-orm';
 import type { Hex } from 'viem';
 import { callFor, householdKey } from './calls.js';
@@ -94,22 +94,34 @@ export async function signerPass(db: Db, chain: ChainClient, options: SignerOpti
     .where(and(eq(ledgerTx.contractId, c.id), eq(ledgerTx.status, 'pending')))
     .orderBy(asc(ledgerTx.position))
     .limit(options.batch ?? 50);
-  // Rates this batch has set already, so two conversions in one batch set it once.
-  const rates = new Map<string, bigint>();
+  // The chain checks conversions and bonuses against its own copy of each household's settings,
+  // which the signer keeps in step from the settings themselves, never from the entry being
+  // checked: a RateSet or BonusRuleSet event each time one changes. What this batch has set
+  // already is remembered, so it is set once.
+  const settings = new Map<string, Rates>();
+  const chainCopy = new Map<string, bigint>();
+  const ratesOf = async (householdId: string) => settings.get(householdId) ?? settings.set(householdId, await loadRates(db, householdId)).get(householdId)!;
   for (const { tx: t, entry: e } of batch) {
     const call = callFor({ ...e, data: e.data as Record<string, unknown> });
     try {
       if (call.fn === 'convert') {
-        // The rate the app used is exactly amount / points; the chain checks the conversion against
-        // its own copy, which the signer keeps in step (a RateSet event each time it changes).
-        const [, household, , points, toId, amount] = call.args;
-        const each = amount / points;
-        const k = `${household}:${toId}`;
-        const onChain = rates.get(k) ?? (await chain.rate(household, toId));
-        if (onChain !== each) {
-          await chain.send({ fn: 'setRate', args: [householdKey(e.householdId), toId === TOKEN.TIME ? TOKEN.TIME : TOKEN.MONEY, each] });
-        }
-        rates.set(k, each);
+        const household = householdKey(e.householdId);
+        const toId = call.args[4];
+        const r = await ratesOf(e.householdId);
+        const each = BigInt(toId === TOKEN.TIME ? r.flexMinutes : r.flexPence);
+        const k = `rate:${household}:${toId}`;
+        if ((chainCopy.get(k) ?? (await chain.rate(household, toId))) !== each) await chain.send({ fn: 'setRate', args: [household, toId, each] });
+        chainCopy.set(k, each);
+      }
+      if (call.fn === 'closeWeek') {
+        const household = householdKey(e.householdId);
+        const r = await ratesOf(e.householdId);
+        const per = BigInt(r.bonus.pencePerBlock);
+        const cap = BigInt(r.bonus.weeklyCapPence);
+        const k = `bonus:${household}`;
+        const now = chainCopy.get(k) ?? (await chain.bonusRule(household).then((b) => (b.pencePerBlock === per && b.weeklyCapPence === cap ? -1n : 0n)));
+        if (now !== -1n) await chain.send({ fn: 'setBonusRule', args: [household, per, cap] });
+        chainCopy.set(k, -1n);
       }
       const { hash, nonce } = await chain.send(call);
       await db

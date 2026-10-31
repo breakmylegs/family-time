@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { PgBoss } from 'pg-boss';
+import { besuLedger } from '@family-time/ledger';
 import { CHANGE_CHANNEL, vapidFromFile } from '@family-time/notify';
 import { readBuildInfo } from './build.js';
 import { Changes } from './events.js';
@@ -64,8 +65,13 @@ await listen();
 
 const vapid = vapidFromFile(process.env.VAPID_PRIVATE_KEY_FILE);
 
+// The Besu ledger (ADR 0014) writes as the Postgres one does and queues each entry for the chain;
+// the worker's signer sends them. The api never talks to the node itself.
+const besu = process.env.LEDGER_ADAPTER === 'besu';
+
 const app = await buildServer({
   db,
+  ...(besu ? { ledger: besuLedger(db), ledgerAdapter: 'besu' as const } : {}),
   changes,
   ...(vapid ? { vapidPublicKey: vapid.publicKey } : {}),
   build,

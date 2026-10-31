@@ -22,6 +22,7 @@ contract FamilyLedgerTest is Test {
         vm.startPrank(signer);
         ledger.setRate(HOUSE, MONEY, 1);
         ledger.setRate(HOUSE, TIME, 1);
+        ledger.setBonusRule(HOUSE, 10, 100);
         vm.stopPrank();
     }
 
@@ -34,7 +35,7 @@ contract FamilyLedgerTest is Test {
         ledger.allocateAllowance(ref(), ollie, 420, 1);
         ledger.spendTime(ref(), ollie, 30, 2);
         assertEq(ledger.balanceOf(ollie, TIME), 390);
-        ledger.closeWeek(ref(), ollie, 390, 100, 3);
+        ledger.closeWeek(ref(), HOUSE, ollie, 390, 100, 3);
         assertEq(ledger.balanceOf(ollie, TIME), 0);
         assertEq(ledger.balanceOf(ollie, MONEY), 100);
         assertEq(ledger.balanceOf(jamie, TIME), 0);
@@ -218,5 +219,120 @@ contract FamilyLedgerTest is Test {
         vm.stopPrank();
         assertEq(ledger.balanceOf(ollie, MONEY), uint256(points) * each);
         assertEq(ledger.balanceOf(ollie, FLEX), 0);
+    }
+
+    function test_theBonusFollowsTheHouseholdRule() public {
+        vm.startPrank(signer);
+        ledger.allocateAllowance(ref(), ollie, 75, 1);
+        // 75 minutes left is two full half hours: 20p at most.
+        vm.expectRevert(abi.encodeWithSelector(FamilyLedger.BonusTooHigh.selector, 20, 21));
+        ledger.closeWeek(ref(), HOUSE, ollie, 75, 21, 2);
+        // A household with no bonus rule gives none.
+        vm.expectRevert(abi.encodeWithSelector(FamilyLedger.BonusTooHigh.selector, 0, 1));
+        ledger.closeWeek(ref(), keccak256("other"), ollie, 75, 1, 2);
+        ledger.closeWeek(ref(), HOUSE, ollie, 75, 20, 2);
+        vm.stopPrank();
+        assertEq(ledger.balanceOf(ollie, MONEY), 20);
+    }
+
+    function test_theBonusIsCappedEachWeek() public {
+        vm.startPrank(signer);
+        ledger.allocateAllowance(ref(), ollie, 600, 1);
+        vm.expectRevert(abi.encodeWithSelector(FamilyLedger.BonusTooHigh.selector, 100, 200));
+        ledger.closeWeek(ref(), HOUSE, ollie, 600, 200, 2);
+        vm.stopPrank();
+    }
+
+    function test_screenTimeFromAClosedWeekCannotBeTakenBack() public {
+        bytes32 job = ref();
+        bytes32 money = ref();
+        vm.startPrank(signer);
+        ledger.award(job, ollie, TIME, 30, 1);
+        ledger.award(money, ollie, MONEY, 50, 1);
+        ledger.closeWeek(ref(), HOUSE, ollie, 30, 10, 2);
+        ledger.allocateAllowance(ref(), ollie, 420, 3);
+        // The 30 minutes are gone with the week; taking 30 now would cut the new allowance.
+        vm.expectRevert(abi.encodeWithSelector(FamilyLedger.WeekAlreadyClosed.selector, job));
+        ledger.reverse(ref(), job, 4);
+        // Money carries over the week, so a mistake in it can still be put right.
+        ledger.reverse(ref(), money, 4);
+        vm.stopPrank();
+        assertEq(ledger.balanceOf(ollie, TIME), 420);
+        assertEq(ledger.balanceOf(ollie, MONEY), 10);
+    }
+
+    function test_theRulesOnlyGiveMinutesBack() public {
+        vm.startPrank(signer);
+        vm.expectRevert(abi.encodeWithSelector(FamilyLedger.WrongToken.selector, MONEY));
+        ledger.refund(ref(), ollie, MONEY, 5000, false, 1);
+        vm.expectRevert(abi.encodeWithSelector(FamilyLedger.WrongToken.selector, FLEX));
+        ledger.refund(ref(), ollie, FLEX, 10, false, 1);
+        vm.stopPrank();
+    }
+
+    function test_theSignerIsNeverTheAdmin() public {
+        vm.expectRevert(FamilyLedger.BadSetup.selector);
+        new FamilyLedger(signer, signer);
+        vm.expectRevert(FamilyLedger.BadSetup.selector);
+        new FamilyLedger(address(0), signer);
+        vm.expectRevert(FamilyLedger.BadSetup.selector);
+        new FamilyLedger(admin, address(0));
+        // And it cannot make itself one.
+        bytes32 adminRole = ledger.DEFAULT_ADMIN_ROLE();
+        vm.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, signer, adminRole));
+        vm.prank(signer);
+        ledger.grantRole(adminRole, signer);
+    }
+
+    function test_burningEntriesNeedBothRoles() public {
+        address minterOnly = makeAddr("minter only");
+        bytes32 minter = ledger.MINTER_ROLE();
+        bytes32 burner = ledger.BURNER_ROLE();
+        vm.prank(admin);
+        ledger.grantRole(minter, minterOnly);
+        vm.startPrank(minterOnly);
+        vm.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, minterOnly, burner));
+        ledger.convert(ref(), HOUSE, ollie, 1, MONEY, 1, 1);
+        vm.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, minterOnly, burner));
+        ledger.closeWeek(ref(), HOUSE, ollie, 0, 0, 1);
+        vm.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, minterOnly, burner));
+        ledger.reverse(ref(), keccak256("nothing"), 1);
+        vm.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, minterOnly, ledger.RATES_ROLE()));
+        ledger.setRate(HOUSE, MONEY, 1000);
+        vm.stopPrank();
+    }
+
+    function testFuzz_refundThenUndoIsNoChange(uint8 idSeed, uint64 amount) public {
+        uint256 id = (idSeed % 3) + 1;
+        amount = uint64(bound(amount, 1, type(uint64).max));
+        bytes32 r = ref();
+        vm.startPrank(signer);
+        ledger.refund(r, ollie, id, amount, true, 1);
+        assertEq(ledger.balanceOf(ollie, id), amount);
+        ledger.reverse(ref(), r, 2);
+        vm.stopPrank();
+        assertEq(ledger.totalSupply(id), 0);
+    }
+
+    function testFuzz_payoutNeverBeyondWhatIsOwed(uint32 owed, uint32 paid) public {
+        vm.assume(owed > 0);
+        vm.startPrank(signer);
+        ledger.award(ref(), ollie, MONEY, owed, 1);
+        if (paid == 0) vm.expectRevert(FamilyLedger.ZeroAmount.selector);
+        else if (paid > owed) vm.expectRevert();
+        ledger.recordPayout(ref(), ollie, paid, 2);
+        vm.stopPrank();
+        assertLe(ledger.balanceOf(ollie, MONEY), owed);
+    }
+
+    function testFuzz_closeWeekBonusNeverAboveTheRule(uint32 left, uint32 bonus) public {
+        vm.startPrank(signer);
+        ledger.allocateAllowance(ref(), ollie, left, 1);
+        uint256 allowed = (uint256(left) / 30) * 10;
+        if (allowed > 100) allowed = 100;
+        if (bonus > allowed) vm.expectRevert(abi.encodeWithSelector(FamilyLedger.BonusTooHigh.selector, allowed, bonus));
+        ledger.closeWeek(ref(), HOUSE, ollie, left, bonus, 2);
+        vm.stopPrank();
+        assertLe(ledger.balanceOf(ollie, MONEY), 100);
     }
 }

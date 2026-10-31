@@ -137,6 +137,28 @@ export const LedgerLine = z.object({
 export type LedgerLine = z.infer<typeof LedgerLine>;
 
 /** `key` is made by the app once per tap, so a retry after a lost answer is recorded once. */
+/** The owner's Ledger screen: every entry, and on the Besu ledger, where it is on the chain. */
+export const ChainLedger = z.object({
+  adapter: z.enum(['postgres', 'besu']),
+  contract: z.object({ address: z.string(), version: z.string(), deployedBlock: z.number().int(), indexedBlock: z.number().int().nullable() }).nullable(),
+  queue: z.object({ pending: z.number().int(), sent: z.number().int(), mined: z.number().int(), failed: z.number().int() }).nullable(),
+  entries: z.array(
+    z.object({
+      seq: z.number().int(),
+      when: z.string(),
+      childName: z.string(),
+      kind: z.string(),
+      reason: z.string(),
+      change: z.string(),
+      /** On the Postgres ledger, always `recorded`. */
+      status: z.enum(['recorded', 'waiting', 'sent', 'confirmed', 'refused']),
+      blockNumber: z.number().int().nullable(),
+      txHash: z.string().nullable(),
+    }),
+  ),
+});
+export type ChainLedger = z.infer<typeof ChainLedger>;
+
 export const PayoutRequest = z.object({ pence: z.number().int().min(1).max(100_000), key: z.uuid() });
 export const ConvertRequest = z.object({ points: z.number().int().min(1).max(100_000), to: z.enum(['MONEY', 'TIME']), key: z.uuid() });
 export const RefundPointsRequest = z.object({ points: z.number().int().min(1).max(1000), reason: z.string().trim().min(1).max(120), key: z.uuid() });

@@ -1,6 +1,6 @@
 import { completions, households, schedules, services } from '@family-time/db';
 import { postgresLedger } from '@family-time/ledger';
-import { ApprovalItem, LedgerLine, Task, WeekSummary } from '@family-time/schemas';
+import { ApprovalItem, ChainLedger, LedgerLine, Task, WeekSummary } from '@family-time/schemas';
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
 import { askRequest, logCompletion } from '../src/economy/commands.js';
@@ -145,6 +145,15 @@ describe('the ledger cannot be used to take points away', () => {
     const s = await setup();
     expect((await s.app.inject({ url: `/api/children/${s.child}/ledger`, headers: s.headers.gran })).statusCode).toBe(403);
     expect((await s.app.inject({ url: `/api/children/${s.child}/week`, headers: s.headers.gran })).statusCode).toBe(200);
+  });
+
+  it("shows the whole household's ledger on the owner's Ledger screen, to the owner only", async () => {
+    const s = await setup();
+    await s.app.inject({ method: 'POST', url: `/api/children/${s.child}/refund-points`, headers: s.headers.mum, payload: { points: 10, reason: 'The Wi-Fi was down', key: crypto.randomUUID() } });
+    const res = await s.app.inject({ url: '/api/ledger/entries', headers: s.headers.mum });
+    expect(res.statusCode).toBe(200);
+    expect(ChainLedger.parse(res.json())).toMatchObject({ adapter: 'postgres', contract: null, queue: null, entries: [{ childName: 'Ollie', kind: 'refund', reason: 'The Wi-Fi was down', change: '+10 points', status: 'recorded', blockNumber: null }] });
+    expect((await s.app.inject({ url: '/api/ledger/entries', headers: s.headers.dad })).statusCode).toBe(403);
   });
 
   it('a removed job can be put back', async () => {

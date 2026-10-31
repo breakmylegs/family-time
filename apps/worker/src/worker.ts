@@ -1,6 +1,6 @@
 import type { AdGuard } from '@family-time/adguard-client';
 import { recordHeartbeat, type Db } from '@family-time/db';
-import { postgresLedger, type LedgerPort } from '@family-time/ledger';
+import { activeContract, indexPass, postgresLedger, signerPass, type ChainClient, type LedgerPort } from '@family-time/ledger';
 import type { Send, Vapid } from '@family-time/notify';
 import type { PgBoss } from 'pg-boss';
 import { sendDeviceAlerts, sendFamilyAlert, type AlertJob, type DeviceAlertKind } from './alerts.js';
@@ -18,6 +18,9 @@ export const ALERT_QUEUE = 'alerts';
 /** The week close, session refunds, counted Allows and the nightly chain check. */
 export const ECONOMY_QUEUE = 'economy';
 export const CONTROL_INTERVAL_MS = 60_000;
+/** The Besu signer and indexer (ADR 0014): one queue, one at a time, every few seconds. */
+export const LEDGER_QUEUE = 'ledger-chain';
+export const LEDGER_INTERVAL_MS = 5_000;
 
 export type Log = (level: 'debug' | 'info' | 'warn' | 'error', event: string, fields?: Record<string, unknown>) => void;
 
@@ -36,8 +39,11 @@ export interface WorkerDeps {
   notifyChange?: () => Promise<void>;
   /** Web Push to parents. Absent until init.sh has made the VAPID key. */
   push?: { vapid: Vapid; send?: Send };
-  /** The ledger. The Postgres one unless a test or Phase 5 says otherwise. */
+  /** The ledger. The Postgres one unless a test or the Besu adapter says otherwise. */
   ledger?: LedgerPort;
+  /** With the Besu adapter: the chain, for whichever contract is active. */
+  chain?: (contract: `0x${string}`) => ChainClient;
+  ledgerIntervalMs?: number;
 }
 
 export interface RunningWorker {
@@ -101,6 +107,29 @@ export async function startWorker(deps: WorkerDeps): Promise<RunningWorker> {
     const result = await economyTick({ db, ledger, now, log, onChainBroken: (householdId, problem) => queueAlert({ kind: 'ledger', householdId, problem }) });
     log(result.closed || result.allocated || result.refunds || result.charges ? 'info' : 'debug', 'economy', { ...result });
   });
+  // The signer, then the indexer. Singleton, so there is only ever one signer and nonces never clash.
+  const chainFor = deps.chain;
+  if (chainFor) {
+    if (!(await boss.getQueue(LEDGER_QUEUE))) await boss.createQueue(LEDGER_QUEUE, { policy: 'singleton' });
+    await boss.work(LEDGER_QUEUE, { pollingIntervalSeconds: 1 }, async () => {
+      const c = await activeContract(db);
+      if (!c) return log('debug', 'ledger_chain_skipped', { reason: 'No contract yet. Run ./scripts/ft.sh ledger-deploy' });
+      const chain = chainFor(c.address as `0x${string}`);
+      try {
+        const signed = await signerPass(db, chain, {
+          onFailed: async (f) => {
+            log('error', 'ledger_tx_failed', { ref: f.entryRef, reason: f.reason });
+            if (f.householdId) await queueAlert({ kind: 'ledger', householdId: f.householdId, problem: `The chain refused entry "${f.entryRef}" (${f.reason}), so nothing more is being written to it.` });
+          },
+        });
+        const indexed = await indexPass(db, chain);
+        log(signed.sent || indexed.confirmed ? 'info' : 'debug', 'ledger_chain', { ...signed, confirmed: indexed.confirmed, block: indexed.to });
+      } catch (err) {
+        // The node is down or restarting: the queue keeps everything, and the next pass carries on.
+        log('warn', 'ledger_chain_unreachable', { error: (err as Error).message });
+      }
+    });
+  }
   await boss.work(RECONCILE_QUEUE, { pollingIntervalSeconds: deps.pollingIntervalSeconds ?? 2 }, async () => {
     if (!adguard) return log('debug', 'reconcile_skipped', { reason: 'AdGuard is not set up. Run ./scripts/ft.sh adguard-setup' });
     const result = await reconcile({ db, adguard, now, log });
@@ -133,12 +162,14 @@ export async function startWorker(deps: WorkerDeps): Promise<RunningWorker> {
   await control();
   const timer = setInterval(() => void beat(), deps.intervalMs ?? HEARTBEAT_INTERVAL_MS);
   const controlTimer = setInterval(() => void control(), deps.controlIntervalMs ?? CONTROL_INTERVAL_MS);
-  log('info', 'started', { commit, adguard: Boolean(adguard) });
+  const ledgerTimer = chainFor ? setInterval(() => void send(LEDGER_QUEUE, 'tick'), deps.ledgerIntervalMs ?? LEDGER_INTERVAL_MS) : undefined;
+  log('info', 'started', { commit, adguard: Boolean(adguard), ledger: chainFor ? 'besu' : 'postgres' });
 
   return {
     stop: async () => {
       clearInterval(timer);
       clearInterval(controlTimer);
+      clearInterval(ledgerTimer);
       await boss.stop({ graceful: true, timeout: 10_000 });
       log('info', 'stopped');
     },

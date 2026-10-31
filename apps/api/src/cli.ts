@@ -6,6 +6,7 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import { CliError, ownerInvite, recoveryLink } from './cli/commands.js';
 import { addChild, addDevice, adguardSetup, allowanceFor, control, ledgerVerify, pilotPhase, resolveTarget, setChildPronouns, setupDefaults, status, syncServices } from './cli/control.js';
+import { ledgerCheck, ledgerDeploy, ledgerStatus } from './cli/ledger.js';
 
 const USAGE = `Usage: ./scripts/ft.sh <command> [options]
 
@@ -41,7 +42,16 @@ The weekly allowance and jobs (the app does the rest)
   allowance --child "Ollie" --minutes 420
       Sets the weekly allowance, in 30-minute blocks. It applies from the next week.
   ledger-verify
-      Walks the ledger's hash chain and says whether every entry checks out.`;
+      Walks the ledger's hash chain and says whether every entry checks out.
+
+The Besu ledger (only with LEDGER_ADAPTER=besu and the ledger-besu profile; docs/setup/besu.md)
+  ledger-deploy [--admin 0xADDRESS] < secrets/ledger_admin_key
+      Deploys a new ledger contract and replays the whole history onto it. The admin role goes to
+      the cold key, which is read from standard input once and never kept; or give its address.
+  ledger-check
+      Rebuilds every balance from the chain's events and compares it with Postgres.
+  ledger-status
+      Shows the contract and how the signer's queue stands.`;
 
 const SWITCHES = new Set(['everything', 'yes']);
 const REPEATABLE = new Set(['id']);
@@ -190,9 +200,45 @@ async function run(db: Db, command: string, args: ReturnType<typeof flags>): Pro
       console.log(`The ledger does not check out at entry ${v.brokenAt}: ${v.problem}`);
       return 1;
     }
+    case 'ledger-deploy': {
+      const adminKey = values.admin || process.stdin.isTTY ? undefined : await stdinText();
+      const r = await ledgerDeploy(db, { ...(values.admin ? { admin: values.admin } : {}), ...(adminKey ? { adminKey } : {}) });
+      console.log(`Deployed the ledger contract at ${r.address} (block ${r.block}). Admin: ${r.admin}.`);
+      console.log(`${r.queued} entries are queued to replay onto it; the worker sends them over the next minutes.`);
+      console.log('Now move secrets/ledger_admin_key somewhere offline (docs/setup/besu.md). Nothing here needs it again.');
+      return 0;
+    }
+    case 'ledger-check': {
+      const c = await ledgerCheck(db);
+      if (c.ok) {
+        console.log(`The chain matches Postgres: ${c.entries} entries, ${c.events} on chain${c.waiting ? `, ${c.waiting} still on their way` : ''}, and every balance adds up.`);
+        return 0;
+      }
+      console.log(`The chain does not match Postgres (${c.problems.length} problems):`);
+      for (const p of c.problems.slice(0, 20)) console.log(`  ${p}`);
+      return 1;
+    }
+    case 'ledger-status': {
+      const s = await ledgerStatus(db);
+      if (!s.contract) {
+        console.log('No ledger contract is deployed. Run ./scripts/ft.sh ledger-deploy.');
+        return 0;
+      }
+      console.log(`Contract ${s.contract.address}, version ${s.contract.version}, deployed at block ${s.contract.deployedBlock}, read up to block ${s.contract.indexedBlock ?? 'none'}.`);
+      const q = s.queue!;
+      console.log(`Queue: ${q.mined} confirmed, ${q.sent} sent, ${q.pending} waiting${q.failed ? `, ${q.failed} refused by the chain` : ''}.`);
+      return q.failed ? 1 : 0;
+    }
     default:
       throw new CliError(`Unknown command "${command}".\n\n${USAGE}`);
   }
+}
+
+/** Everything piped in on standard input, for a key that should never be a command argument. */
+async function stdinText(): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
+  return Buffer.concat(chunks).toString('utf8');
 }
 
 async function main(): Promise<number> {

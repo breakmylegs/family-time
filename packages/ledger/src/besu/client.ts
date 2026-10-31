@@ -29,6 +29,7 @@ export interface ChainClient {
   events(fromBlock: number, toBlock: number): Promise<ChainEvent[]>;
   balanceOf(child: Address, id: bigint): Promise<bigint>;
   rate(household: Hex, id: bigint): Promise<bigint>;
+  bonusRule(household: Hex): Promise<{ pencePerBlock: bigint; weeklyCapPence: bigint }>;
 }
 
 /** A refusal from the contract, with its error name ("RefUsed", "ERC1155InsufficientBalance"). */

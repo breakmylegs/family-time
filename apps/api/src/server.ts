@@ -36,8 +36,9 @@ export interface ServerDeps {
   changes?: Changes;
   /** The VAPID public key, when init.sh has made one. */
   vapidPublicKey?: string;
-  /** The ledger. The Postgres one unless a test or Phase 5 says otherwise. */
+  /** The ledger. The Postgres one unless a test or the Besu adapter says otherwise. */
   ledger?: LedgerPort;
+  ledgerAdapter?: 'postgres' | 'besu';
 }
 
 export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
@@ -109,7 +110,14 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     ...(deps.readQuerylog ? { readQuerylog: deps.readQuerylog } : {}),
   });
   await eventRoutes(app, { db: deps.db, now, changes });
-  await economyRoutes(app, { db: deps.db, ledger: deps.ledger ?? postgresLedger(deps.db), now, changes, notifyChange: deps.notifyChange ?? (async () => undefined) });
+  await economyRoutes(app, {
+    db: deps.db,
+    ledger: deps.ledger ?? postgresLedger(deps.db),
+    now,
+    changes,
+    notifyChange: deps.notifyChange ?? (async () => undefined),
+    ...(deps.ledgerAdapter ? { ledgerAdapter: deps.ledgerAdapter } : {}),
+  });
   await pushRoutes(app, { db: deps.db, now, ...(deps.vapidPublicKey ? { vapidPublicKey: deps.vapidPublicKey } : {}) });
   if (deps.staticDir) registerStatic(app, deps.staticDir);
 

@@ -118,6 +118,21 @@ export function ledgerSuite(name: string, make: () => Promise<LedgerFixture>) {
     );
 
     it(
+      'never takes back screen time once its week has closed, and the rules give back only minutes',
+      withLedger(async (f) => {
+        const job = await f.ledger.award({ ...base(f, 'job in time'), currency: 'TIME', amount: 30 });
+        const pay = await f.ledger.award({ ...base(f, 'job in money'), currency: 'MONEY', amount: 50 });
+        await f.ledger.closeWeek({ ...base(f, 'close'), bonus: null });
+        await f.ledger.allocateAllowance({ ...base(f, 'next week'), minutes: 420 });
+        // Taking the 30 minutes now would cut the new week's agreed allowance.
+        await expect(f.ledger.reverse({ ...base(f, 'fix time'), entryRef: job.ref })).rejects.toMatchObject({ code: 'not_reversible' });
+        await f.ledger.reverse({ ...base(f, 'fix money'), entryRef: pay.ref });
+        expect(await f.ledger.balances(f.householdId, f.childId)).toEqual({ time: 420, money: 0, flex: 0 });
+        await expect(f.ledger.refund({ ...base(f, 'money back'), currency: 'MONEY', amount: 50 })).rejects.toMatchObject({ code: 'invalid' });
+      }),
+    );
+
+    it(
       'keeps earned screen time under the cap, even when approvals race, and frees what is reversed',
       withLedger(async (f) => {
         const cap = { capMinutes: 63, since: new Date(AT.getTime() - 3_600_000) };

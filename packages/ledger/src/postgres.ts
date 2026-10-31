@@ -4,7 +4,7 @@
 // already reversed) sees the latest state.
 import { unusedBonus } from '@family-time/domain';
 import { ledgerEntries, type Db } from '@family-time/db';
-import { and, asc, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, inArray, lt, sql } from 'drizzle-orm';
 import { entryHash, GENESIS } from './chain.js';
 import { LedgerError, type Balances, type Currency, type EarnedCap, type EntryInput, type EntryKind, type LedgerEntry, type LedgerPort, type Verification } from './port.js';
 
@@ -78,6 +78,16 @@ async function earnedIn(q: Db | Tx, householdId: string, childId: string, since:
   let total = [...earning.values()].reduce((n, t) => n + t, 0);
   for (const r of rows) if (r.kind === 'reversal' && earning.has(String((r.data as Record<string, unknown>).reverses))) total += r.time;
   return Math.max(0, total);
+}
+
+/** Whether the child's week has closed since entry `seq`. */
+async function weekClosedSince(q: Db | Tx, householdId: string, childId: string, seq: number): Promise<boolean> {
+  const rows = await q
+    .select({ seq: ledgerEntries.seq })
+    .from(ledgerEntries)
+    .where(and(eq(ledgerEntries.householdId, householdId), eq(ledgerEntries.childId, childId), eq(ledgerEntries.kind, 'close'), gt(ledgerEntries.seq, seq)))
+    .limit(1);
+  return rows.length > 0;
 }
 
 /** Cuts TIME to what is left of the cap, or refuses when nothing is. */
@@ -162,6 +172,8 @@ export function postgresLedger(db: Db, options: PostgresLedgerOptions = {}): Led
     },
     refund: async (input) => {
       positive(input.amount, 'A refund');
+      // The rules only ever give minutes back (a Block during a session); points and money are a choice.
+      if (!input.chosen && input.currency !== 'TIME') throw new LedgerError('invalid', 'Only minutes are given back by the rules. Points or money given back are a choice.');
       return append(input, 'refund', () => ({ [field[input.currency]]: input.amount, data: { currency: input.currency, source: input.chosen ? 'chosen' : 'rule' } }));
     },
     convert: async (input) => {
@@ -199,6 +211,10 @@ export function postgresLedger(db: Db, options: PostgresLedgerOptions = {}): Led
           .from(ledgerEntries)
           .where(and(eq(ledgerEntries.householdId, hh), eq(ledgerEntries.kind, 'reversal'), sql`${ledgerEntries.data}->>'reverses' = ${input.entryRef}`));
         if (done.length) throw new LedgerError('not_reversible', 'That has already been put right.');
+        // Screen time it added went with its week: what is left now is a later week's allowance.
+        if (original.time > 0 && (await weekClosedSince(tx, hh, original.childId, original.seq))) {
+          throw new LedgerError('not_reversible', "That screen time belonged to a week that has ended, so it can't be taken back now.");
+        }
         return { time: -original.time, money: -original.money, flex: -original.flex, data: { reverses: original.ref } };
       }),
     balances: (householdId, childId) => balancesIn(db, id(householdId), id(childId)),

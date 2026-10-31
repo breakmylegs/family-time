@@ -12,6 +12,7 @@ interface Effect {
   time: bigint;
   money: bigint;
   flex: bigint;
+  week: number;
   reversible: boolean;
   reversed: boolean;
 }
@@ -38,6 +39,9 @@ export function fakeChain(options: { manual?: boolean } = {}): FakeChain {
   const used = new Set<Hex>();
   const effects = new Map<Hex, Effect>();
   const rates = new Map<string, bigint>();
+  const bonusRules = new Map<Hex, { pencePerBlock: bigint; weeklyCapPence: bigint }>();
+  const weeks = new Map<string, number>();
+  const weekOf = (child: Address) => weeks.get(child.toLowerCase()) ?? 0;
   const receipts = new Map<Hex, Receipt>();
   const events: ChainEvent[] = [];
   const sent: ChainCall[] = [];
@@ -70,9 +74,10 @@ export function fakeChain(options: { manual?: boolean } = {}): FakeChain {
     };
     let effect: (Effect & { ref: Hex }) | null = null;
     let reversedRef: Hex | null = null;
+    let closedFor: Address | null = null;
     let event: { name: string; args: Record<string, unknown> };
     const record = (ref: Hex, child: Address, time: bigint, money: bigint, flex: bigint, reversible: boolean) => {
-      effect = { ref, child, time, money, flex, reversible, reversed: false };
+      effect = { ref, child, time, money, flex, week: weekOf(child), reversible, reversed: false };
     };
     const split = (id: bigint, n: bigint): [bigint, bigint, bigint] => [id === TOKEN.TIME ? n : 0n, id === TOKEN.MONEY ? n : 0n, id === TOKEN.FLEX ? n : 0n];
 
@@ -108,6 +113,7 @@ export function fakeChain(options: { manual?: boolean } = {}): FakeChain {
         const [ref, child, id, amount, chosen, at] = call.args;
         fresh(ref);
         tokenOk(id);
+        if (!chosen && id !== TOKEN.TIME) refuse('WrongToken');
         positive(amount);
         add(child, id, amount);
         record(ref, child, ...split(id, amount), chosen);
@@ -126,16 +132,21 @@ export function fakeChain(options: { manual?: boolean } = {}): FakeChain {
         add(child, toId, amount);
         const [t, m] = split(toId, amount);
         record(ref, child, t, m, -points, true);
-        event = { name: 'Converted', args: { ref, child, points, toId, amount, at } };
+        event = { name: 'Converted', args: { ref, child, household, points, toId, amount, at } };
         break;
       }
       case 'closeWeek': {
-        const [ref, child, expiredMinutes, bonusPence, at] = call.args;
+        const [ref, household, child, expiredMinutes, bonusPence, at] = call.args;
         fresh(ref);
+        const rule = bonusRules.get(household) ?? { pencePerBlock: 0n, weeklyCapPence: 0n };
+        let allowed = (expiredMinutes / 30n) * rule.pencePerBlock;
+        if (allowed > rule.weeklyCapPence) allowed = rule.weeklyCapPence;
+        if (bonusPence > allowed) refuse('BonusTooHigh');
+        closedFor = child;
         add(child, TOKEN.TIME, -expiredMinutes);
         add(child, TOKEN.MONEY, bonusPence);
         record(ref, child, -expiredMinutes, bonusPence, 0n, false);
-        event = { name: 'WeekClosed', args: { ref, child, expiredMinutes, bonusPence, at } };
+        event = { name: 'WeekClosed', args: { ref, child, household, expiredMinutes, bonusPence, at } };
         break;
       }
       case 'recordPayout': {
@@ -153,6 +164,7 @@ export function fakeChain(options: { manual?: boolean } = {}): FakeChain {
         const e = effects.get(original);
         if (!e?.reversible) refuse('NotReversible');
         if (e!.reversed) refuse('AlreadyReversed');
+        if (e!.time > 0n && weekOf(e!.child) !== e!.week) refuse('WeekAlreadyClosed');
         add(e!.child, TOKEN.TIME, -e!.time);
         add(e!.child, TOKEN.MONEY, -e!.money);
         add(e!.child, TOKEN.FLEX, -e!.flex);
@@ -166,16 +178,22 @@ export function fakeChain(options: { manual?: boolean } = {}): FakeChain {
         if (id !== TOKEN.MONEY && id !== TOKEN.TIME) refuse('WrongToken');
         return { next, commit: () => rates.set(`${household}:${id}`, amount), event: { name: 'RateSet', args: { household, id, amount } } };
       }
+      case 'setBonusRule': {
+        const [household, pencePerBlock, weeklyCapPence] = call.args;
+        return { next, commit: () => bonusRules.set(household, { pencePerBlock, weeklyCapPence }), event: { name: 'BonusRuleSet', args: { household, pencePerBlock, weeklyCapPence } } };
+      }
     }
     const e = effect as (Effect & { ref: Hex }) | null;
     const r = reversedRef as Hex | null;
+    const closed = closedFor as Address | null;
     return {
       next,
       commit: () => {
         if (!e) return;
         used.add(e.ref);
-        effects.set(e.ref, { child: e.child, time: e.time, money: e.money, flex: e.flex, reversible: e.reversible, reversed: false });
+        effects.set(e.ref, { child: e.child, time: e.time, money: e.money, flex: e.flex, week: e.week, reversible: e.reversible, reversed: false });
         if (r) effects.get(r)!.reversed = true;
+        if (closed) weeks.set(closed.toLowerCase(), weekOf(closed) + 1);
       },
       event: event!,
     };
@@ -229,6 +247,9 @@ export function fakeChain(options: { manual?: boolean } = {}): FakeChain {
     },
     async rate(household, id) {
       return rates.get(`${household}:${id}`) ?? 0n;
+    },
+    async bonusRule(household) {
+      return bonusRules.get(household) ?? { pencePerBlock: 0n, weeklyCapPence: 0n };
     },
   };
   return chain;

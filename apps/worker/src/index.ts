@@ -1,5 +1,6 @@
 import { AdGuard } from '@family-time/adguard-client';
 import { connectionConfig, readSecret, schema, type Db } from '@family-time/db';
+import { besuLedger, DEFAULT_CHAIN_ID, viemChain } from '@family-time/ledger';
 import { CHANGE_CHANNEL, vapidFromFile } from '@family-time/notify';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
@@ -25,6 +26,18 @@ const notifyChange = async () => {
 };
 const vapid = vapidFromFile(process.env.VAPID_PRIVATE_KEY_FILE);
 
+// The Besu ledger (ADR 0014), when the owner has switched it on: LEDGER_ADAPTER=besu, the
+// ledger-besu Compose profile, and the signer key init.sh made.
+const signerKey = process.env.LEDGER_ADAPTER === 'besu' ? readSecret('LEDGER_SIGNER_KEY') : undefined;
+if (process.env.LEDGER_ADAPTER === 'besu' && !signerKey) log('error', 'ledger_no_signer_key', { reason: 'Run ./scripts/init.sh again' });
+const chainOptions = signerKey
+  ? { rpcUrl: process.env.BESU_RPC_URL ?? 'http://besu:8545', chainId: Number(process.env.BESU_CHAIN_ID ?? DEFAULT_CHAIN_ID), privateKey: (signerKey.startsWith('0x') ? signerKey : `0x${signerKey}`) as `0x${string}` }
+  : undefined;
+const chains = new Map<string, ReturnType<typeof viemChain>>();
+const chain = chainOptions
+  ? (contract: `0x${string}`) => chains.get(contract) ?? chains.set(contract, viemChain({ ...chainOptions, contract })).get(contract)!
+  : undefined;
+
 const worker = await startWorker({
   boss,
   db,
@@ -34,6 +47,7 @@ const worker = await startWorker({
   notifyChange,
   ...(adguard ? { adguard } : {}),
   ...(vapid ? { push: { vapid } } : {}),
+  ...(chain ? { chain, ledger: besuLedger(db) } : {}),
 });
 
 const shutdown = async (signal: string) => {

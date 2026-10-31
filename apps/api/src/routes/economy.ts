@@ -25,6 +25,7 @@ import {
   approveCompletion,
   approveRequest,
   archiveTask,
+  chainLedger,
   convertFlex,
   createTask,
   EconomyError,
@@ -56,6 +57,8 @@ export interface EconomyRouteDeps {
   changes: Changes;
   /** Wakes the reconciler: an approved request is a grant AdGuard must honour. */
   notifyChange: () => Promise<void>;
+  /** Which ledger is running, for the owner's Ledger screen. */
+  ledgerAdapter?: 'postgres' | 'besu';
 }
 
 type Id = { Params: { id: string } };
@@ -95,6 +98,8 @@ export async function economyRoutes(app: FastifyInstance, deps: EconomyRouteDeps
   });
 
   // ---- Approvals
+  // The owner's Ledger screen: every entry, with its block and transaction on the Besu ledger.
+  app.get('/api/ledger/entries', { config: { access: 'system.manage' } }, async (request) => chainLedger(db, request.auth!.person.householdId, now(), deps.ledgerAdapter ?? 'postgres'));
   app.get('/api/approvals', { config: { access: 'approvals.decide' } }, async (request) => approvalsFor(db, ledger, request.auth!.person.householdId, now()));
   app.get('/api/approvals/count', { config: { access: 'status.view' } }, async (request) => ({ waiting: await waitingCount(db, request.auth!.person.householdId) }));
 

@@ -33,10 +33,11 @@ export type ChainCall =
   | { fn: 'spendTime'; args: [Hex, Address, bigint, bigint] }
   | { fn: 'refund'; args: [Hex, Address, bigint, bigint, boolean, bigint] }
   | { fn: 'convert'; args: [Hex, Hex, Address, bigint, bigint, bigint, bigint] }
-  | { fn: 'closeWeek'; args: [Hex, Address, bigint, bigint, bigint] }
+  | { fn: 'closeWeek'; args: [Hex, Hex, Address, bigint, bigint, bigint] }
   | { fn: 'recordPayout'; args: [Hex, Address, bigint, bigint] }
   | { fn: 'reverse'; args: [Hex, Hex, bigint] }
-  | { fn: 'setRate'; args: [Hex, bigint, bigint] };
+  | { fn: 'setRate'; args: [Hex, bigint, bigint] }
+  | { fn: 'setBonusRule'; args: [Hex, bigint, bigint] };
 
 const big = (n: number) => BigInt(n);
 
@@ -63,7 +64,7 @@ export function callFor(e: Pick<LedgerEntry, 'householdId' | 'childId' | 'kind' 
       return { fn: 'convert', args: [ref, householdKey(e.householdId), child, big(-e.flex), toId, big(toId === TOKEN.TIME ? e.time : e.money), at] };
     }
     case 'close':
-      return { fn: 'closeWeek', args: [ref, child, big(-e.time), big(e.money), at] };
+      return { fn: 'closeWeek', args: [ref, householdKey(e.householdId), child, big(-e.time), big(e.money), at] };
     case 'payout':
       return { fn: 'recordPayout', args: [ref, child, big(-e.money), at] };
     case 'reversal':

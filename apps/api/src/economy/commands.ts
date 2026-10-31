@@ -12,6 +12,9 @@ import {
   goals,
   grants,
   households,
+  ledgerConfirmations,
+  ledgerEntries,
+  ledgerTx,
   loadEconomy,
   loadRules,
   people,
@@ -26,9 +29,9 @@ import {
   type Economy,
 } from '@family-time/db';
 import { addIsoDays, blocksOn, checkPlan, civilDate, clockLabel, earnedTimeCap, weekStarting, zonedTime, type Features, type PlanRefusal } from '@family-time/domain';
-import { LedgerError, reversible, type EarnedCap, type LedgerEntry, type LedgerPort } from '@family-time/ledger';
-import type { ApprovalItem, LedgerLine, Recurrence, Task, TaskInput, WeekSummary } from '@family-time/schemas';
-import { and, asc, eq, gt, gte, inArray, isNotNull, or, sql } from 'drizzle-orm';
+import { activeContract, LedgerError, refHash, reversible, signerStatus, type EarnedCap, type LedgerEntry, type LedgerPort } from '@family-time/ledger';
+import type { ApprovalItem, ChainLedger, LedgerLine, Recurrence, Task, TaskInput, WeekSummary } from '@family-time/schemas';
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, or, sql } from 'drizzle-orm';
 import { audit } from '../audit.js';
 import { minutes, pence, points, pronounsOf, rewardLabel, suggestions, when } from './words.js';
 
@@ -146,6 +149,50 @@ function change(x: LedgerEntry): string {
   return parts.join(', ') || 'No change';
 }
 
+/**
+ * The owner's Ledger screen (brief Part 7): the household's entries, newest first, and with the
+ * Besu ledger, each one's place on the chain: block, transaction, and whether it is confirmed.
+ */
+export async function chainLedger(db: Db, householdId: string, now: Date, adapter: 'postgres' | 'besu', limit = 100): Promise<ChainLedger> {
+  const [hh] = await db.select({ timeZone: households.timezone }).from(households).where(eq(households.id, householdId));
+  const rows = await db
+    .select({ entry: ledgerEntries, childName: people.displayName })
+    .from(ledgerEntries)
+    .innerJoin(people, eq(people.id, ledgerEntries.childId))
+    .where(eq(ledgerEntries.householdId, householdId))
+    .orderBy(desc(ledgerEntries.seq))
+    .limit(limit);
+  const c = adapter === 'besu' ? await activeContract(db) : null;
+  const ids = rows.map((r) => r.entry.id);
+  const txs = c && ids.length ? await db.select().from(ledgerTx).where(and(eq(ledgerTx.contractId, c.id), inArray(ledgerTx.entryId, ids))) : [];
+  const hashes = rows.map((r) => refHash(householdId, r.entry.ref));
+  const confirmed = c && ids.length ? await db.select().from(ledgerConfirmations).where(and(eq(ledgerConfirmations.contractId, c.id), inArray(ledgerConfirmations.refHash, hashes))) : [];
+  const txBy = new Map(txs.map((t) => [t.entryId, t]));
+  const confirmedBy = new Map(confirmed.map((x) => [x.refHash, x]));
+  const timeZone = hh?.timeZone ?? 'Europe/London';
+  return {
+    adapter,
+    contract: c ? { address: c.address, version: c.version, deployedBlock: c.deployedBlock, indexedBlock: c.indexedBlock } : null,
+    queue: adapter === 'besu' ? await signerStatus(db) : null,
+    entries: rows.map(({ entry: x, childName }, i) => {
+      const onChain = confirmedBy.get(hashes[i]!);
+      const t = txBy.get(x.id);
+      const status = adapter === 'postgres' ? 'recorded' : onChain ? 'confirmed' : t?.status === 'failed' ? 'refused' : t?.status === 'sent' ? 'sent' : 'waiting';
+      return {
+        seq: x.seq,
+        when: when(x.at, now, timeZone),
+        childName,
+        kind: x.kind,
+        reason: x.reason,
+        change: change({ ...x, data: x.data as Record<string, unknown> } as LedgerEntry),
+        status,
+        blockNumber: onChain?.blockNumber ?? t?.blockNumber ?? null,
+        txHash: onChain?.txHash ?? t?.txHash ?? null,
+      };
+    }),
+  };
+}
+
 /** The child's ledger for the Family screen, newest first. */
 export async function ledgerLines(db: Db, ledger: LedgerPort, childId: string, now: Date, limit = 40): Promise<LedgerLine[]> {
   const e = await loadEconomy(db, childId);
@@ -158,7 +205,8 @@ export async function ledgerLines(db: Db, ledger: LedgerPort, childId: string, n
     when: when(x.at, now, e.timeZone),
     reason: x.reason,
     change: change(x),
-    reversible: reversible(x) && !reversed.has(x.ref),
+    // Screen time from a week that has closed cannot be taken back (ADR 0014), so it is not offered.
+    reversible: reversible(x) && !reversed.has(x.ref) && !(x.time > 0 && entries.some((k) => k.kind === 'close' && k.seq > x.seq)),
   }));
 }
 
