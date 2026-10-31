@@ -763,3 +763,22 @@ textarea {
     transition: none;
   }
 }
+
+/* The week card's three buttons on one line, and the ideas row inside 1280 by 800. */
+.week .actions .btn {
+  padding: 0 16px;
+  font-size: 18px;
+  gap: 8px;
+}
+.week .actions {
+  gap: 10px;
+  flex-wrap: nowrap;
+}
+.idea {
+  padding: 0 16px;
+  font-size: 17px;
+  gap: 8px;
+}
+.ideas {
+  gap: 10px;
+}
