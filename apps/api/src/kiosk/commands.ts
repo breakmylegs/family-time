@@ -19,7 +19,7 @@ import {
   services,
   type Db,
 } from '@family-time/db';
-import { addDays, blocksOn, civilDate, clockLabel, features, weekStarting, type BlockInterval } from '@family-time/domain';
+import { addDays, blocksOn, civilDate, features, weekStarting, type BlockInterval } from '@family-time/domain';
 import type { LedgerPort } from '@family-time/ledger';
 import type { KioskDevice, KioskHome, KioskMe, KioskSlots, KioskTargets, Recurrence } from '@family-time/schemas';
 import { and, asc, desc, eq, gte, gt, inArray, isNull, lte } from 'drizzle-orm';
