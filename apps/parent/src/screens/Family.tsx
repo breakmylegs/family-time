@@ -1,144 +1,143 @@
-// Family: each child's week in money and time, the savings goal, the allowance and the reduction
-// plan with its "agreed at the family review" tick, the review's agenda, and the ledger, where a
-// mistake can be put right by reversing one entry exactly.
+// Family: one child's week in money and time, the savings goal, the family review's agenda, the
+// allowance and the reduction plan with its "agreed at the family review" switch, and the history,
+// where a mistake can be put right by undoing one entry exactly.
 import type { ChildSummary, LedgerLine, WeekSummary } from '@family-time/schemas';
+import type { TopicId } from '@family-time/help-content/content';
 import { useState, type ReactNode } from 'react';
 import { api } from '../api';
 import { Sheet } from '../components/Sheet';
+import { useSheetAction } from '../components/useSheetAction';
 import { minutes, pence, useLedger, useWeek } from '../economy/data';
 import { HelpButton } from '../help/HelpButton';
+import { Icon } from '../icons';
 import { useToast } from '../toast';
 
-export function Family({ kids, canEdit }: { kids: ChildSummary[]; canEdit: boolean }) {
+interface Props {
+  kids: ChildSummary[];
+  /** The child Control is showing; the same switcher changes it here. */
+  childId: string | undefined;
+  canEdit: boolean;
+  onSwitchChild: (from: HTMLElement) => void;
+}
+
+export function Family({ kids, childId, canEdit, onSwitchChild }: Props) {
+  const kid = kids.find((k) => k.id === childId) ?? kids[0];
   return (
     <main className="screen" aria-label="Family">
       <div className="large">
-        <h1>Family</h1>
-        <p>Money, time and the weekly review.</p>
+        {kid && kids.length > 1 ? (
+          <h1>
+            <button type="button" className="child-switch large-switch" aria-label={`Family: showing ${kid.name}. Switch child`} onClick={(e) => onSwitchChild(e.currentTarget)}>
+              {kid.name}
+              <Icon name="down" />
+            </button>
+          </h1>
+        ) : (
+          <h1>{kid?.name ?? 'Family'}</h1>
+        )}
+        <p>Money, time and the family review.</p>
       </div>
-      {ordered(kids).map((k) => (
-        <Child key={k.id} kid={k} canEdit={canEdit} />
-      ))}
-      {!kids.length ? <p className="empty-large">No children yet.</p> : null}
+      {kid ? <Child key={kid.id} kid={kid} canEdit={canEdit} /> : <p className="empty-large">No children yet.</p>}
     </main>
   );
 }
 
-/** The child Control is showing comes first. */
-function ordered(kids: ChildSummary[]): ChildSummary[] {
-  const shown = new URLSearchParams(location.search).get('child');
-  return [...kids].sort((a, b) => Number(b.id === shown) - Number(a.id === shown));
-}
+type SheetKind = 'pay' | 'convert' | 'makeUp' | 'goal' | 'allowance' | 'plan' | { fix: LedgerLine };
 
-type SheetKind = 'pay' | 'convert' | 'refund' | 'goal' | 'allowance' | 'plan' | { fix: LedgerLine };
+const points = (n: number) => `${n} ${n === 1 ? 'point' : 'points'}`;
+const weeks = (n: number) => `${n} ${n === 1 ? 'week' : 'weeks'}`;
+const every = (n: number) => (n === 1 ? 'every week' : `every ${n} weeks`);
+/** The history shows this many lines at first, then this many more on each tap. */
+const PAGE = 12;
 
 function Child({ kid, canEdit }: { kid: ChildSummary; canEdit: boolean }) {
   const toast = useToast();
-  const { data: week, reload } = useWeek(kid.id);
-  const { data: lines, reload: reloadLedger } = useLedger(kid.id);
+  const { data: week, error, reload } = useWeek(kid.id);
+  const { data: lines, error: ledgerError, reload: reloadLedger } = useLedger(canEdit ? kid.id : undefined);
   const [sheet, setSheet] = useState<{ kind: SheetKind; from: HTMLElement | null }>();
+  const [agreeing, setAgreeing] = useState(false);
+  const [shown, setShown] = useState(PAGE);
   const base = `/api/children/${kid.id}`;
 
-  const send = async (method: 'POST' | 'PUT', path: string, body: unknown, done: string) => {
-    try {
-      await api(method, `${base}${path}`, body);
-      setSheet(undefined);
-      toast(done);
-    } catch (err) {
-      toast((err as Error).message);
-    }
+  const reloadAll = () => {
     void reload();
     void reloadLedger();
   };
   const open = (kind: SheetKind) => (e: { currentTarget: HTMLElement }) => setSheet({ kind, from: e.currentTarget });
-  if (!week) return null;
 
-  const agreed = week.nextStep?.agreed ?? false;
+  if (!week) {
+    return error ? (
+      <div className="sec">
+        <p className="empty-large" role="alert">
+          {error}
+        </p>
+        <button type="button" className="btn btn-quiet" style={{ width: '100%', marginTop: 12 }} onClick={() => void reload()}>
+          Try again
+        </button>
+      </div>
+    ) : (
+      <p className="empty-large">Loading.</p>
+    );
+  }
+
+  const step = week.nextStep;
+  const agree = async () => {
+    if (!step || agreeing) return;
+    setAgreeing(true);
+    try {
+      await api('POST', `${base}/plan/${step.agreed ? 'unagree' : 'agree'}`, {});
+      toast(step.agreed ? `Not agreed yet. The allowance stays at ${minutes(week.allowanceMinutes)} a week until you agree the step together.` : `Agreed. ${minutes(step.minutes)} a week from ${step.onLabel}.`);
+    } catch (err) {
+      toast((err as Error).message);
+    } finally {
+      setAgreeing(false);
+      reloadAll();
+    }
+  };
+  const stepNote = !step?.active
+    ? 'Steps are off for now. The owner switches them on when the family is ready.'
+    : `${step.agreed ? `It starts on ${step.onLabel}.` : "The step waits until it's agreed together."}${canEdit ? '' : ' Only a parent can change this.'}`;
+
   return (
     <>
-      <section className="sec" aria-labelledby={`kid-${kid.id}`}>
+      <section className="sec" aria-labelledby={`money-${kid.id}`}>
         <div className="sec-head">
-          <h2 id={`kid-${kid.id}`}>{kid.name}</h2>
-        </div>
-        <div className="group kid">
-          <div className="balances">
-            <div className="balance">
-              <b className="tnum">{minutes(week.leftMinutes)}</b>
-              <span>Time left this week</span>
-            </div>
-            <div className="balance">
-              <b className="tnum">{pence(week.moneyPence)}</b>
-              <span>Pocket money owed</span>
-            </div>
-            <div className="balance">
-              <b className="tnum">{week.flexPoints}</b>
-              <span>Flex points</span>
-            </div>
-          </div>
-          {canEdit ? (
-            <div className="actions">
-              {week.moneyPence > 0 ? (
-                <button type="button" className="btn btn-quiet" onClick={open('pay')}>
-                  Mark as paid
-                </button>
-              ) : null}
-              {week.flexPoints > 0 ? (
-                <button type="button" className="btn btn-quiet" onClick={open('convert')}>
-                  Convert points
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-          {week.features.goal ? (
-            <div style={{ marginTop: 16 }}>
-              <div className="wrow" style={{ minHeight: 0, padding: 0 }}>
-                <span className="wrow-label">{week.goal ? `Saving for ${week.goal.title}` : 'No savings goal yet'}</span>
-                <span className="wrow-value tnum">{week.goal ? `${pence(week.goal.savedPence)} of ${pence(week.goal.targetPence)}` : ''}</span>
-              </div>
-              {week.goal ? (
-                <div className="progress" role="img" aria-label={`${pence(week.goal.savedPence)} saved of ${pence(week.goal.targetPence)}`}>
-                  <i style={{ transform: `scaleX(${Math.min(1, week.goal.savedPence / week.goal.targetPence)})` }} />
-                </div>
-              ) : null}
-              {canEdit ? (
-                <button type="button" className="btn btn-quiet" style={{ marginTop: 12 }} onClick={open('goal')}>
-                  {week.goal ? 'Change the goal' : 'Set a goal'}
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-      </section>
-
-      <section className="sec" aria-labelledby={`allow-${kid.id}`}>
-        <div className="sec-head">
-          <h2 id={`allow-${kid.id}`}>Allowance and plan</h2>
-          <HelpButton topic="gradual-reduction" label="Gradual reduction plan" />
+          <h2 id={`money-${kid.id}`}>This week</h2>
         </div>
         <div className="group">
-          <Row label="Weekly allowance" value={minutes(week.allowanceMinutes)} action={canEdit ? { text: 'Change', onClick: open('allowance') } : undefined} />
+          <Row label="Left to plan this week" value={`${minutes(week.leftMinutes)} of ${minutes(week.allowanceMinutes)}`} help={{ topic: 'weekly-allowance', label: 'Weekly allowance' }} />
           <Row
-            label="Next step"
-            value={week.nextStep ? `${minutes(week.nextStep.minutes)} from ${week.nextStep.onLabel}` : 'No plan yet'}
-            action={canEdit ? { text: week.nextStep ? 'Change' : 'Set up', onClick: open('plan') } : undefined}
+            label="Pocket money owed"
+            value={pence(week.moneyPence)}
+            help={{ topic: 'pocket-money', label: 'Pocket money' }}
+            action={canEdit && week.moneyPence > 0 ? { text: 'Mark as paid', onClick: open('pay') } : undefined}
           />
-          {week.nextStep ? (
-            <div className="row">
+          <Row label="Flex points" value={String(week.flexPoints)} help={{ topic: 'flex-points', label: 'Flex points' }} action={canEdit && week.flexPoints > 0 ? { text: 'Convert', onClick: open('convert') } : undefined} />
+          {week.features.goal ? (
+            <div className="row goal">
               <span className="row-text">
-                Agreed at the family review
-                <small>{agreed ? 'The step happens when it is due.' : "The step waits until it's agreed together."}</small>
+                <span className="label-row">
+                  {week.goal ? `Saving for ${week.goal.title}` : 'No savings goal yet'}
+                  <HelpButton topic="savings-goal" label="Savings goal" />
+                </span>
+                {week.goal ? (
+                  <>
+                    <small className="tnum">
+                      {pence(week.goal.savedPence)} of {pence(week.goal.targetPence)}
+                    </small>
+                    <span className="progress" role="img" aria-label={`${pence(week.goal.savedPence)} of ${pence(week.goal.targetPence)} towards ${week.goal.title}`}>
+                      <i style={{ transform: `translateX(${(Math.min(1, week.goal.savedPence / week.goal.targetPence) - 1) * 100}%)` }} />
+                    </span>
+                  </>
+                ) : null}
               </span>
-              <span className="row-end">
-                <button
-                  type="button"
-                  className="switch"
-                  role="switch"
-                  aria-checked={agreed}
-                  aria-label="Agreed at the family review"
-                  disabled={!canEdit}
-                  onClick={() => void send('POST', agreed ? '/plan/unagree' : '/plan/agree', {}, agreed ? 'Not agreed yet. The step waits.' : `Agreed. ${minutes(week.nextStep!.minutes)} from ${week.nextStep!.onLabel}.`)}
-                />
-              </span>
+              {canEdit ? (
+                <span className="row-end">
+                  <button type="button" className="btn btn-quiet row-btn" onClick={open('goal')} aria-label={week.goal ? 'Change the savings goal' : 'Set a savings goal'}>
+                    {week.goal ? 'Change' : 'Set a goal'}
+                  </button>
+                </span>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -152,51 +151,120 @@ function Child({ kid, canEdit }: { kid: ChildSummary; canEdit: boolean }) {
         <ol className="group agenda">{agenda(kid.name, week)}</ol>
       </section>
 
-      <section className="sec" aria-labelledby={`ledger-${kid.id}`}>
+      <section className="sec" aria-labelledby={`allow-${kid.id}`}>
         <div className="sec-head">
-          <h2 id={`ledger-${kid.id}`}>History</h2>
+          <h2 id={`allow-${kid.id}`}>Allowance and plan</h2>
+          <HelpButton topic="gradual-reduction" label="Gradual reduction plan" />
         </div>
-        <ol className="group ledger">
-          {(lines ?? []).slice(0, 12).map((l) => (
-            <li key={l.ref}>
-              <span>
-                {l.reason}
-                <span className="when" style={{ display: 'block' }}>
-                  {l.when}
-                </span>
+        <div className="group">
+          <Row label="Weekly allowance" value={minutes(week.allowanceMinutes)} action={canEdit ? { text: 'Change', onClick: open('allowance') } : undefined} />
+          <Row
+            label="Next step"
+            value={step ? `${minutes(step.minutes)} a week from ${step.onLabel}${step.active ? '' : ', steps off for now'}` : 'No plan yet'}
+            action={canEdit ? { text: step ? 'Change' : 'Set up', onClick: open('plan') } : undefined}
+          />
+          {step ? (
+            <div className="row">
+              <span className="row-text">
+                Agreed at the family review
+                <small>{stepNote}</small>
               </span>
-              <span className="chg tnum">{l.change}</span>
-              {canEdit && l.reversible ? (
-                <button type="button" className="fix" onClick={open({ fix: l })}>
-                  Fix a mistake
-                </button>
-              ) : null}
-            </li>
-          ))}
-          {lines && !lines.length ? <li className="empty">Nothing yet.</li> : null}
-        </ol>
-        {canEdit ? (
-          <button type="button" className="btn btn-quiet" style={{ width: '100%', marginTop: 12 }} onClick={open('refund')}>
-            Give flex points back
-          </button>
-        ) : null}
+              <span className="row-end">
+                <button type="button" className="switch" role="switch" aria-checked={step.agreed} aria-label="Agreed at the family review" disabled={!canEdit || agreeing} onClick={() => void agree()} />
+              </span>
+            </div>
+          ) : null}
+        </div>
       </section>
 
-      {sheet ? <Sheets kid={kid} week={week} kind={sheet.kind} from={sheet.from} onClose={() => setSheet(undefined)} send={send} /> : null}
+      {canEdit ? (
+        <section className="sec" aria-labelledby={`ledger-${kid.id}`}>
+          <div className="sec-head">
+            <h2 id={`ledger-${kid.id}`}>History</h2>
+          </div>
+          {ledgerError && !lines ? (
+            <>
+              <p className="empty" role="alert">
+                {ledgerError}
+              </p>
+              <button type="button" className="btn btn-quiet" style={{ width: '100%' }} onClick={() => void reloadLedger()}>
+                Try again
+              </button>
+            </>
+          ) : (
+            <ol className="group ledger">
+              {(lines ?? []).slice(0, shown).map((l) => (
+                <li key={l.ref}>
+                  <span>
+                    {l.reason}
+                    <span className="when">{l.when}</span>
+                  </span>
+                  <span className="chg tnum">{l.change}</span>
+                  {l.reversible ? (
+                    <button type="button" className="fix" aria-label={`Fix a mistake: ${l.reason}, ${l.change}`} onClick={open({ fix: l })}>
+                      Fix a mistake
+                    </button>
+                  ) : null}
+                </li>
+              ))}
+              {lines && !lines.length ? <li className="empty">Nothing yet.</li> : null}
+              {!lines ? <li className="empty">Loading.</li> : null}
+            </ol>
+          )}
+          {lines && lines.length > shown ? (
+            <button type="button" className="btn btn-quiet" style={{ width: '100%', marginTop: 12 }} onClick={() => setShown((n) => n + PAGE)}>
+              Show older lines
+            </button>
+          ) : null}
+          <button type="button" className="btn btn-quiet" style={{ width: '100%', marginTop: 12 }} onClick={open('makeUp')}>
+            Make up for a problem
+          </button>
+        </section>
+      ) : null}
+
+      {sheet ? (
+        <Sheets
+          key={typeof sheet.kind === 'string' ? sheet.kind : sheet.kind.fix.ref}
+          kid={kid}
+          week={week}
+          kind={sheet.kind}
+          from={sheet.from}
+          base={base}
+          onClosed={() => setSheet(undefined)}
+          onDone={(done) => {
+            toast(done);
+            reloadAll();
+          }}
+        />
+      ) : null}
     </>
   );
 }
 
-function Row({ label, value, action }: { label: string; value: string; action?: { text: string; onClick: (e: { currentTarget: HTMLElement }) => void } | undefined }) {
+interface RowProps {
+  label: string;
+  value: string;
+  help?: { topic: TopicId; label: string };
+  action?: { text: string; onClick: (e: { currentTarget: HTMLElement }) => void } | undefined;
+}
+
+function Row({ label, value, help, action }: RowProps) {
   return (
     <div className="row">
       <span className="row-text">
-        {label}
+        {help ? (
+          <span className="label-row">
+            {label}
+            <HelpButton topic={help.topic} label={help.label} />
+          </span>
+        ) : (
+          label
+        )}
         <small className="tnum">{value}</small>
       </span>
       {action ? (
         <span className="row-end">
-          <button type="button" className="btn btn-quiet" style={{ height: 40 }} onClick={action.onClick} aria-label={`${action.text}: ${label}`}>
+          <button type="button" className="btn btn-quiet row-btn" onClick={action.onClick} aria-label={`${action.text}: ${label}`}>
             {action.text}
           </button>
         </span>
@@ -210,8 +278,9 @@ function agenda(name: string, w: WeekSummary): ReactNode[] {
   items.push(
     <li key="week">
       <span>
-        How the week went: {minutes(w.usedMinutes)} used{w.lastWeek ? `, and last week ended with ${minutes(w.lastWeek.minutesLeft)} left` : ''}
-        {w.lastWeek && w.features.bonus ? `, ${pence(w.lastWeek.bonusPence)} bonus` : ''}. Ask {name} what helped.
+        {w.lastWeek
+          ? `Last week: ${minutes(w.lastWeek.minutesLeft)} left over${w.features.bonus ? `, ${pence(w.lastWeek.bonusPence)} bonus` : ''}. Ask ${name} what helped.`
+          : 'First week, so nothing to look back on yet.'}
       </span>
     </li>,
   );
@@ -224,21 +293,35 @@ function agenda(name: string, w: WeekSummary): ReactNode[] {
       </li>,
     );
   }
-  if (w.nextStep) {
+  if (w.nextStep?.active) {
     items.push(
       <li key="step">
         <span>
-          The next step: {minutes(w.nextStep.minutes)} from {w.nextStep.onLabel}. {w.nextStep.agreed ? 'Agreed.' : 'Talk it through together, then tick agreed.'}
+          The next step: {minutes(w.nextStep.minutes)} a week from {w.nextStep.onLabel}. {w.nextStep.agreed ? 'Agreed.' : 'Talk it through together, then turn on Agreed at the family review.'}
         </span>
       </li>,
     );
   }
   items.push(
     <li key="rules">
-      <span>The family rules: are three to five still the right ones? Say the reason for each.</span>
+      <span>Your family&apos;s rules: do they still fit? Say the reason for each one.</span>
     </li>,
   );
   return items;
+}
+
+/** One step down or up, landing on a whole step: 37 goes to 30 or 40, not 27 or 47. */
+const down = (x: number, step: number, min: number) => Math.max(min, x % step ? x - (x % step) : x - step);
+const up = (x: number, step: number, max: number) => Math.min(max, x - (x % step) + step);
+
+/** What Fix a mistake does to this line, on its button: the opposite of what the line did. */
+function undoLabel(line: LedgerLine): string {
+  const parts = line.change.split(', ');
+  const gained = parts.find((p) => p.startsWith('+'))?.slice(1);
+  const spent = parts.find((p) => p.startsWith('-'))?.slice(1);
+  if (line.kind === 'payout' && spent) return `Mark ${spent} as not paid`;
+  if (line.kind === 'convert' && gained && spent) return `Turn ${gained} back into ${spent}`;
+  return `Take back ${gained ?? line.change}`;
 }
 
 interface SheetsProps {
@@ -246,50 +329,62 @@ interface SheetsProps {
   week: WeekSummary;
   kind: SheetKind;
   from: HTMLElement | null;
-  onClose: () => void;
-  send: (method: 'POST' | 'PUT', path: string, body: unknown, done: string) => Promise<void>;
+  base: string;
+  onClosed: () => void;
+  onDone: (toast: string) => void;
 }
 
-function Sheets({ kid, week, kind, from, onClose, send }: SheetsProps) {
-  const [open, setOpen] = useState(true);
-  const close = () => {
-    setOpen(false);
-    setTimeout(onClose, 240);
-  };
-  const [n, setN] = useState(() => (kind === 'pay' ? week.moneyPence : kind === 'convert' ? week.flexPoints : kind === 'refund' ? 10 : kind === 'allowance' ? week.allowanceMinutes : kind === 'goal' ? (week.goal?.targetPence ?? 500) : 0));
+function Sheets({ kid, week, kind, from, base, onClosed, onDone }: SheetsProps) {
+  const sheet = useSheetAction(onClosed);
+  // Made once per sheet: a second tap after a lost answer is recorded once.
+  const [key] = useState(() => crypto.randomUUID());
+  const [n, setN] = useState(() => (kind === 'pay' ? week.moneyPence : kind === 'convert' ? week.flexPoints : kind === 'makeUp' ? 10 : kind === 'allowance' ? week.allowanceMinutes : kind === 'goal' ? (week.goal?.targetPence ?? 500) : 0));
   const [to, setTo] = useState<'MONEY' | 'TIME'>('MONEY');
   const [text, setText] = useState(kind === 'goal' ? (week.goal?.title ?? '') : '');
+  const days = week.nextStep?.resetDays ?? week.resetDays;
   const [plan, setPlan] = useState({
     stepMinutes: week.nextStep?.stepMinutes ?? 30,
     everyWeeks: week.nextStep?.everyWeeks ?? 4,
     floorMinutes: week.nextStep?.floorMinutes ?? Math.max(0, week.allowanceMinutes - 120),
-    nextStepOn: week.nextStep?.on ?? '',
+    nextStepOn: week.nextStep?.on ?? days[0]?.on ?? '',
   });
 
-  const stepper = (label: string, value: string, minus: () => void, plus: () => void) => (
+  const send = (method: 'POST' | 'PUT', path: string, body: unknown, done: string) => void sheet.run(() => api(method, `${base}${path}`, body), () => onDone(done));
+  const common = { open: sheet.open, onClose: sheet.close, returnFocus: from, error: sheet.error };
+  const busy = sheet.busy;
+
+  /** A stepper whose buttons say what they do: "10p less", "Fewer weeks between steps". */
+  const stepper = (label: string, value: string, less: [string, (() => void) | null], more: [string, (() => void) | null]) => (
     <div>
       <span className="label">{label}</span>
       <div className="stepper" role="group" aria-label={label}>
-        <button type="button" aria-label={`Less: ${label}`} onClick={minus}>
-          -
+        <button type="button" aria-label={less[0]} disabled={!less[1]} onClick={less[1] ?? undefined}>
+          <Icon name="minus" />
         </button>
         <output className="tnum" aria-live="polite">
           {value}
         </output>
-        <button type="button" aria-label={`More: ${label}`} onClick={plus}>
-          +
+        <button type="button" aria-label={more[0]} disabled={!more[1]} onClick={more[1] ?? undefined}>
+          <Icon name="plus" />
         </button>
       </div>
     </div>
   );
+  /** A stepper for `n`, moving by `step` between `min` and `max`. */
+  const nStepper = (label: string, show: (x: number) => string, step: number, min: number, max: number) =>
+    stepper(label, show(n), [`${show(step)} less`, n > min ? () => setN((x) => down(x, step, min)) : null], [`${show(step)} more`, n < max ? () => setN((x) => up(x, step, max)) : null]);
 
   if (kind === 'pay') {
     return (
-      <Sheet open={open} onClose={close} title={`Pay ${kid.name}`} sub={`${pence(week.moneyPence)} is owed. Mark what you handed over.`} returnFocus={from}>
+      <Sheet
+        {...common}
+        title={`Pay ${kid.name}`}
+        sub={`${pence(week.moneyPence)} is owed. Mark what you handed over.${week.goal ? ' The savings bar counts money still owed, so it goes down by the same amount.' : ''}`}
+      >
         <div className="form">
-          {stepper('Paid', pence(n), () => setN((x) => Math.max(1, x - 10)), () => setN((x) => Math.min(week.moneyPence, x + 10)))}
-          <button type="button" className="btn btn-primary" onClick={() => void send('POST', '/payouts', { pence: n }, `${pence(n)} marked as paid.`)}>
-            Mark {pence(n)} as paid
+          {nStepper('Paid', pence, 10, 1, week.moneyPence)}
+          <button type="button" className="btn btn-primary" disabled={busy} onClick={() => send('POST', '/payouts', { pence: n, key }, `${pence(n)} marked as paid.`)}>
+            {busy ? 'Saving' : `Mark ${pence(n)} as paid`}
           </button>
         </div>
       </Sheet>
@@ -297,13 +392,16 @@ function Sheets({ kid, week, kind, from, onClose, send }: SheetsProps) {
   }
   if (kind === 'convert') {
     const result = to === 'MONEY' ? pence(n * week.rates.flexPence) : minutes(n * week.rates.flexMinutes);
+    const capLeft = Math.max(0, week.earnedCapMinutes - week.earnedMinutes);
     return (
-      <Sheet open={open} onClose={close} title="Convert flex points" sub={`${kid.name} has ${week.flexPoints} points.`} returnFocus={from}>
+      <Sheet {...common} title="Convert flex points" sub={`${kid.name} has ${points(week.flexPoints)}.`}>
         <div className="form">
-          {stepper('Points', String(n), () => setN((x) => Math.max(1, x - 5)), () => setN((x) => Math.min(week.flexPoints, x + 5)))}
+          {nStepper('Points', points, 5, 1, week.flexPoints)}
           <div>
-            <span className="label">Into</span>
-            <div className="choice" role="group" aria-label="Into">
+            <span className="label" id="convert-into">
+              Into
+            </span>
+            <div className="choice" role="group" aria-labelledby="convert-into">
               <button type="button" aria-pressed={to === 'MONEY'} onClick={() => setTo('MONEY')}>
                 Pocket money
               </button>
@@ -311,26 +409,36 @@ function Sheets({ kid, week, kind, from, onClose, send }: SheetsProps) {
                 Screen time
               </button>
             </div>
-            {to === 'TIME' ? <p className="hint">Screen time from points counts towards the 15% cap on earned time.</p> : null}
+            {to === 'TIME' ? (
+              <p className="hint">
+                Screen time from points counts towards the weekly cap on earned screen time.{' '}
+                {capLeft ? `${kid.name} can have ${minutes(capLeft)} more this week.` : `${kid.name} has had all of it this week, so choose pocket money.`}
+              </p>
+            ) : null}
           </div>
-          <button type="button" className="btn btn-primary" onClick={() => void send('POST', '/convert', { points: n, to }, `${n} points became ${result}.`)}>
-            Convert {n} points into {result}
+          <button type="button" className="btn btn-primary" disabled={busy} onClick={() => send('POST', '/convert', { points: n, to, key }, `${points(n)} became ${result}.`)}>
+            {busy ? 'Saving' : `Convert ${points(n)} into ${result}`}
           </button>
         </div>
       </Sheet>
     );
   }
-  if (kind === 'refund') {
+  if (kind === 'makeUp') {
+    const why = text.trim();
     return (
-      <Sheet open={open} onClose={close} title="Give flex points back" sub={`For when ${kid.name} lost out, for example a session you had to stop. Points, not screen time.`} returnFocus={from}>
+      <Sheet
+        {...common}
+        title="Make up for a problem"
+        sub={`For when something went wrong that wasn't ${kid.name}'s fault, like the Wi-Fi going down. If you stop a planned session, its time goes back to ${kid.name}'s week on its own.`}
+      >
         <div className="form">
-          {stepper('Points', String(n), () => setN((x) => Math.max(1, x - 5)), () => setN((x) => Math.min(1000, x + 5)))}
+          {nStepper('Flex points', points, 5, 1, 1000)}
           <div>
-            <label htmlFor="refund-why">Why</label>
-            <input id="refund-why" className="field" value={text} maxLength={120} placeholder="For example: Roblox stopped for tea" onChange={(e) => setText(e.target.value)} />
+            <label htmlFor="make-up-why">What went wrong?</label>
+            <input id="make-up-why" className="field" value={text} maxLength={120} placeholder="For example: The Wi-Fi was down" onChange={(e) => setText(e.target.value)} />
           </div>
-          <button type="button" className="btn btn-primary" disabled={!text.trim()} onClick={() => void send('POST', '/refund-points', { points: n, reason: text.trim() }, `${n} flex points given back.`)}>
-            Give {n} points back
+          <button type="button" className="btn btn-primary" disabled={!why || busy} onClick={() => send('POST', '/refund-points', { points: n, reason: why, key }, `${points(n)} added to ${kid.name}'s flex points.`)}>
+            {busy ? 'Saving' : why ? `Add ${points(n)}` : 'Say what went wrong first'}
           </button>
         </div>
       </Sheet>
@@ -338,15 +446,15 @@ function Sheets({ kid, week, kind, from, onClose, send }: SheetsProps) {
   }
   if (kind === 'goal') {
     return (
-      <Sheet open={open} onClose={close} title={`${kid.name}'s savings goal`} sub="Progress comes from the pocket money owed." returnFocus={from}>
+      <Sheet {...common} title={`${kid.name}'s savings goal`} sub={`The bar fills with the pocket money you owe ${kid.name}. Marking money as paid moves it back.`}>
         <div className="form">
           <div>
             <label htmlFor="goal-title">Saving for</label>
-            <input id="goal-title" className="field" value={text} maxLength={80} placeholder="For example: Bike lights" onChange={(e) => setText(e.target.value)} />
+            <input id="goal-title" className="field" value={text} maxLength={80} placeholder="For example: bike lights" onChange={(e) => setText(e.target.value)} />
           </div>
-          {stepper('Costs', pence(n), () => setN((x) => Math.max(50, x - 50)), () => setN((x) => x + 50))}
-          <button type="button" className="btn btn-primary" disabled={!text.trim()} onClick={() => void send('PUT', '/goal', { title: text.trim(), targetPence: n }, 'Goal saved.')}>
-            Save the goal
+          {nStepper('Costs', pence, 50, 50, 1_000_000)}
+          <button type="button" className="btn btn-primary" disabled={!text.trim() || busy} onClick={() => send('PUT', '/goal', { title: text.trim(), targetPence: n }, `Goal saved: ${text.trim()}.`)}>
+            {busy ? 'Saving' : 'Save the goal'}
           </button>
         </div>
       </Sheet>
@@ -354,30 +462,58 @@ function Sheets({ kid, week, kind, from, onClose, send }: SheetsProps) {
   }
   if (kind === 'allowance') {
     return (
-      <Sheet open={open} onClose={close} title="Weekly allowance" sub={`Agreed with ${kid.name}. A change starts with the next week.`} returnFocus={from}>
+      <Sheet {...common} title="Weekly allowance" sub={`Agree it with ${kid.name} first. A change starts from ${week.resets}.`}>
         <div className="form">
-          {stepper('A week', minutes(n), () => setN((x) => Math.max(0, x - 30)), () => setN((x) => x + 30))}
-          <button type="button" className="btn btn-primary" onClick={() => void send('PUT', '/allowance', { minutes: n }, `${minutes(n)} a week, from the next week.`)}>
-            Save {minutes(n)} a week
+          {nStepper('A week', minutes, 30, 0, 7 * 24 * 60)}
+          <button type="button" className="btn btn-primary" disabled={busy} onClick={() => send('PUT', '/allowance', { minutes: n }, `Allowance saved: ${minutes(n)} a week from ${week.resets}.`)}>
+            {busy ? 'Saving' : `Save ${minutes(n)} a week`}
           </button>
         </div>
       </Sheet>
     );
   }
   if (kind === 'plan') {
+    const first = Math.max(plan.floorMinutes, week.allowanceMinutes - plan.stepMinutes);
+    const firstLabel = days.find((d) => d.on === plan.nextStepOn)?.label ?? plan.nextStepOn;
+    const set = (patch: Partial<typeof plan>) => () => setPlan((p) => ({ ...p, ...patch }));
     return (
-      <Sheet open={open} onClose={close} title="Reduction plan" sub="Small steps, each agreed at the family review before it happens." returnFocus={from}>
+      <Sheet {...common} title="Reduction plan" sub="Small steps, each agreed at the family review before it happens.">
         <div className="form">
-          {stepper('Each step', minutes(plan.stepMinutes), () => setPlan((p) => ({ ...p, stepMinutes: Math.max(30, p.stepMinutes - 30) })), () => setPlan((p) => ({ ...p, stepMinutes: p.stepMinutes + 30 })))}
-          {stepper('Every', `${plan.everyWeeks} weeks`, () => setPlan((p) => ({ ...p, everyWeeks: Math.max(1, p.everyWeeks - 1) })), () => setPlan((p) => ({ ...p, everyWeeks: p.everyWeeks + 1 })))}
-          {stepper('Never below', minutes(plan.floorMinutes), () => setPlan((p) => ({ ...p, floorMinutes: Math.max(0, p.floorMinutes - 30) })), () => setPlan((p) => ({ ...p, floorMinutes: p.floorMinutes + 30 })))}
+          {stepper(
+            'Each step',
+            minutes(plan.stepMinutes),
+            ['Each step: 30 min less', plan.stepMinutes > 30 ? set({ stepMinutes: plan.stepMinutes - 30 }) : null],
+            ['Each step: 30 min more', plan.stepMinutes < 600 ? set({ stepMinutes: plan.stepMinutes + 30 }) : null],
+          )}
+          {stepper(
+            'Weeks between steps',
+            weeks(plan.everyWeeks),
+            ['Fewer weeks between steps', plan.everyWeeks > 1 ? set({ everyWeeks: plan.everyWeeks - 1 }) : null],
+            ['More weeks between steps', plan.everyWeeks < 52 ? set({ everyWeeks: plan.everyWeeks + 1 }) : null],
+          )}
+          {stepper(
+            'Never below',
+            minutes(plan.floorMinutes),
+            ['Never below: 30 min less', plan.floorMinutes > 0 ? set({ floorMinutes: plan.floorMinutes - 30 }) : null],
+            ['Never below: 30 min more', plan.floorMinutes < week.allowanceMinutes ? set({ floorMinutes: plan.floorMinutes + 30 }) : null],
+          )}
           <div>
-            <label htmlFor="plan-next">First step on</label>
-            <input id="plan-next" className="field" type="date" value={plan.nextStepOn} onChange={(e) => setPlan((p) => ({ ...p, nextStepOn: e.target.value }))} />
-            <p className="hint">The day the week resets, {week.resets.replace(/ at .*/, '')}s. Changing the plan clears an earlier agreement.</p>
+            <span className="label" id="plan-next">
+              Next step on
+            </span>
+            <div className="choice" role="group" aria-labelledby="plan-next">
+              {days.map((d) => (
+                <button key={d.on} type="button" aria-pressed={plan.nextStepOn === d.on} onClick={set({ nextStepOn: d.on })}>
+                  {d.label}
+                </button>
+              ))}
+            </div>
+            <p className="hint">
+              From {firstLabel}: {minutes(first)} a week, then {minutes(plan.stepMinutes)} less {every(plan.everyWeeks)}, never below {minutes(plan.floorMinutes)}. If you change the plan, agree the next step again at the family review.
+            </p>
           </div>
-          <button type="button" className="btn btn-primary" disabled={!plan.nextStepOn} onClick={() => void send('PUT', '/plan', plan, 'Plan saved. Agree the first step at the review.')}>
-            Save the plan
+          <button type="button" className="btn btn-primary" disabled={!plan.nextStepOn || busy} onClick={() => send('PUT', '/plan', plan, 'Plan saved. Agree the first step at the family review.')}>
+            {busy ? 'Saving' : 'Save the plan'}
           </button>
         </div>
       </Sheet>
@@ -385,10 +521,10 @@ function Sheets({ kid, week, kind, from, onClose, send }: SheetsProps) {
   }
   const line = kind.fix;
   return (
-    <Sheet open={open} onClose={close} title="Fix a mistake" sub={`This reverses "${line.reason}" (${line.change}) exactly. It stays in the history, with the fix beside it.`} returnFocus={from}>
+    <Sheet {...common} title="Fix a mistake" sub={`This undoes "${line.reason}" (${line.change}) exactly. The original line and this correction both stay in the history.`}>
       <div className="form">
-        <button type="button" className="btn btn-primary" onClick={() => void send('POST', '/reverse', { entryRef: line.ref }, 'Put right.')}>
-          Reverse it
+        <button type="button" className="btn btn-primary" disabled={busy} onClick={() => send('POST', '/reverse', { entryRef: line.ref }, `Fixed. "${line.reason}" is undone.`)}>
+          {busy ? 'Saving' : undoLabel(line)}
         </button>
       </div>
     </Sheet>

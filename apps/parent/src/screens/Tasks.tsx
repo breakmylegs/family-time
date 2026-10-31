@@ -4,14 +4,29 @@ import type { ChildSummary, Recurrence, Task, TaskInput } from '@family-time/sch
 import { useState } from 'react';
 import { api } from '../api';
 import { Sheet } from '../components/Sheet';
-import { minutes, useTasks, useWeek } from '../economy/data';
+import { useSheetAction } from '../components/useSheetAction';
+import { minutes, pence, useTasks, useWeek } from '../economy/data';
 import { HelpButton } from '../help/HelpButton';
 import { Icon, type IconName } from '../icons';
 import { useToast } from '../toast';
 
-const PICTURES: IconName[] = ['star', 'dishes', 'bed', 'bin', 'plant', 'book', 'bike', 'lego', 'pencil', 'ball', 'heart', 'tent'];
+/** The pictures, with the names VoiceOver reads for them. */
+const PICTURES: Record<TaskInput['picture'], string> = {
+  star: 'Star',
+  dishes: 'Plates',
+  bed: 'Bed',
+  bin: 'Bin',
+  plant: 'Plant',
+  book: 'Book',
+  bike: 'Bike',
+  lego: 'Building bricks',
+  pencil: 'Pencil',
+  ball: 'Ball',
+  heart: 'Heart',
+  tent: 'Tent',
+};
 const REWARDS: { type: Task['rewardType']; label: string; step: number; start: number; unit: (n: number) => string }[] = [
-  { type: 'money', label: 'Pocket money', step: 10, start: 50, unit: (n) => (n < 100 ? `${n}p` : `£${(n / 100).toFixed(n % 100 ? 2 : 0)}`) },
+  { type: 'money', label: 'Pocket money', step: 10, start: 50, unit: pence },
   { type: 'flex', label: 'Flex points', step: 5, start: 20, unit: (n) => `${n} points` },
   { type: 'time', label: 'Screen time', step: 5, start: 15, unit: (n) => minutes(n) },
   { type: 'praise', label: 'Praise only', step: 0, start: 0, unit: () => '' },
@@ -25,11 +40,12 @@ function recurrenceLabel(r: Recurrence): string {
   return [...r.weekdays].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map((d) => DAYS[d]).join(', ');
 }
 
+const picture = (p: string): IconName => (p in PICTURES ? (p as IconName) : 'star');
 const blank = (): TaskInput => ({ title: '', picture: 'star', rewardType: 'money', amount: 50, recurrence: { kind: 'daily' }, ageBand: null, needsPhoto: false, childId: null });
 
 export function Tasks({ kids, canEdit }: { kids: ChildSummary[]; canEdit: boolean }) {
   const toast = useToast();
-  const { data: tasks, reload } = useTasks();
+  const { data: tasks, error, reload } = useTasks();
   const [editing, setEditing] = useState<{ id?: string; task: TaskInput; from: HTMLElement | null }>();
 
   const open = (from: HTMLElement, t?: Task) =>
@@ -41,25 +57,17 @@ export function Tasks({ kids, canEdit }: { kids: ChildSummary[]; canEdit: boolea
         : blank(),
     });
 
-  const save = async (id: string | undefined, task: TaskInput) => {
-    try {
-      await api(id ? 'PUT' : 'POST', id ? `/api/tasks/${id}` : '/api/tasks', task);
-      setEditing(undefined);
-      toast(id ? 'Saved.' : `Added "${task.title}".`);
+  const removed = (id: string, title: string) => {
+    void reload();
+    toast(`Removed "${title}".`, async () => {
+      try {
+        await api('POST', `/api/tasks/${id}/restore`);
+        toast(`"${title}" is back on the list.`);
+      } catch (err) {
+        toast((err as Error).message);
+      }
       void reload();
-    } catch (err) {
-      toast((err as Error).message);
-    }
-  };
-  const remove = async (id: string, title: string) => {
-    try {
-      await api('DELETE', `/api/tasks/${id}`);
-      setEditing(undefined);
-      toast(`Removed "${title}".`);
-      void reload();
-    } catch (err) {
-      toast((err as Error).message);
-    }
+    });
   };
 
   const kidName = (id: string | null) => (id ? kids.find((k) => k.id === id)?.name : undefined);
@@ -68,46 +76,54 @@ export function Tasks({ kids, canEdit }: { kids: ChildSummary[]; canEdit: boolea
     <main className="screen" aria-label="Jobs">
       <div className="large">
         <h1>Jobs</h1>
-        <p>Things to do, and what each one earns.</p>
+        <p>Jobs to help at home, and things to praise.{canEdit ? '' : ' Only a parent can change them.'}</p>
       </div>
-      <section className="sec" aria-labelledby="jobs-head">
-        <div className="sec-head">
-          <h2 id="jobs-head">The list</h2>
-          <HelpButton topic="earning-screen-time" label="Earning screen time from chores" />
-        </div>
-        <div className="group">
-          {(tasks ?? []).map((t) => {
-            const inner = (
-              <>
-                <span className="job-pic">
-                  <Icon name={(PICTURES as string[]).includes(t.picture) ? (t.picture as IconName) : 'star'} />
-                </span>
-                <span className="job-text">
-                  <span className="job-title">{t.title}</span>
-                  <span className="job-meta">
-                    {recurrenceLabel(t.recurrence)}
-                    {kidName(t.childId) ? `, ${kidName(t.childId)} only` : ''}
-                    {t.needsPhoto ? ', with a photo' : ''}
+      <section className="sec" aria-label="The jobs">
+        {error && !tasks ? (
+          <>
+            <p className="empty" role="alert">
+              {error}
+            </p>
+            <button type="button" className="btn btn-quiet" onClick={() => void reload()}>
+              Try again
+            </button>
+          </>
+        ) : (
+          <div className="group">
+            {(tasks ?? []).map((t) => {
+              const meta = `${recurrenceLabel(t.recurrence)}${kidName(t.childId) ? `, ${kidName(t.childId)} only` : ''}`;
+              const inner = (
+                <>
+                  <span className="job-pic">
+                    <Icon name={picture(t.picture)} />
                   </span>
-                </span>
-                <span className={`chip ${t.rewardType}`}>
-                  <Icon name={CHIP_ICON[t.rewardType]} />
-                  {t.rewardLabel}
-                </span>
-              </>
-            );
-            return canEdit ? (
-              <button key={t.id} type="button" className="job-row" aria-label={`Change ${t.title}`} onClick={(e) => open(e.currentTarget, t)}>
-                {inner}
-              </button>
-            ) : (
-              <div key={t.id} className="job-row">
-                {inner}
-              </div>
-            );
-          })}
-          {tasks && !tasks.length ? <p className="empty">No jobs yet.{canEdit ? ' Add the first one below.' : ''}</p> : null}
-        </div>
+                  <span className="job-text">
+                    <span className="job-title">{t.title}</span>
+                    <span className="job-meta" id={`meta-${t.id}`}>
+                      {meta}
+                    </span>
+                  </span>
+                  <span className={`chip ${t.rewardType}`}>
+                    <Icon name={CHIP_ICON[t.rewardType]} />
+                    {t.rewardLabel}
+                  </span>
+                </>
+              );
+              return canEdit ? (
+                <button key={t.id} type="button" className="job-row" aria-label={`Change ${t.title}, ${t.rewardLabel}`} aria-describedby={`meta-${t.id}`} onClick={(e) => open(e.currentTarget, t)}>
+                  {inner}
+                  <Icon name="right" className="ic chev" />
+                </button>
+              ) : (
+                <div key={t.id} className="job-row">
+                  {inner}
+                </div>
+              );
+            })}
+            {tasks && !tasks.length ? <p className="empty">No jobs yet.{canEdit ? ' Add the first one below.' : ''}</p> : null}
+            {!tasks ? <p className="empty">Loading.</p> : null}
+          </div>
+        )}
         {canEdit ? (
           <button type="button" className="btn btn-primary" style={{ width: '100%', marginTop: 14 }} onClick={(e) => open(e.currentTarget)}>
             <Icon name="plus" />
@@ -122,9 +138,12 @@ export function Tasks({ kids, canEdit }: { kids: ChildSummary[]; canEdit: boolea
           initial={editing.task}
           from={editing.from}
           kids={kids}
-          onClose={() => setEditing(undefined)}
-          onSave={(t) => void save(editing.id, t)}
-          onRemove={editing.id ? () => void remove(editing.id!, editing.task.title) : undefined}
+          onClosed={() => setEditing(undefined)}
+          onSaved={(t) => {
+            toast(editing.id ? `Saved "${t.title}".` : `Added "${t.title}".`);
+            void reload();
+          }}
+          onRemoved={() => removed(editing.id!, editing.task.title)}
         />
       ) : null}
     </main>
@@ -136,36 +155,53 @@ interface SheetProps {
   initial: TaskInput;
   from: HTMLElement | null;
   kids: ChildSummary[];
-  onClose: () => void;
-  onSave: (t: TaskInput) => void;
-  onRemove: (() => void) | undefined;
+  onClosed: () => void;
+  onSaved: (t: TaskInput) => void;
+  onRemoved: () => void;
 }
 
-function TaskSheet({ id, initial, from, kids, onClose, onSave, onRemove }: SheetProps) {
+function TaskSheet({ id, initial, from, kids, onClosed, onSaved, onRemoved }: SheetProps) {
   const [t, setT] = useState<TaskInput>(initial);
-  const [open, setOpen] = useState(true);
+  const sheet = useSheetAction(onClosed);
   const reward = REWARDS.find((r) => r.type === t.rewardType)!;
-  const week = useWeek(t.rewardType === 'time' ? (t.childId ?? kids[0]?.id) : undefined).data;
   const capChild = kids.find((k) => k.id === (t.childId ?? kids[0]?.id));
+  const week = useWeek(t.rewardType === 'time' ? capChild?.id : undefined).data;
   const set = (patch: Partial<TaskInput>) => setT((x) => ({ ...x, ...patch }));
-  const close = () => {
-    setOpen(false);
-    setTimeout(onClose, 240);
-  };
   const days = t.recurrence.kind === 'weekly' ? t.recurrence.weekdays : [];
+  const title = t.title.trim();
+
+  const save = () =>
+    void sheet.run(
+      () => api(id ? 'PUT' : 'POST', id ? `/api/tasks/${id}` : '/api/tasks', { ...t, title }),
+      () => onSaved({ ...t, title }),
+    );
+  const remove = () => void sheet.run(() => api('DELETE', `/api/tasks/${id}`), onRemoved);
 
   return (
-    <Sheet open={open} onClose={close} title={id ? 'Change the job' : 'Add a job'} returnFocus={from}>
+    <Sheet
+      open={sheet.open}
+      onClose={sheet.close}
+      title={id ? 'Change the job' : 'Add a job'}
+      returnFocus={from}
+      error={sheet.error}
+      footer={
+        id ? (
+          <button type="button" className="text-button" disabled={sheet.busy} onClick={remove}>
+            Remove this job
+          </button>
+        ) : null
+      }
+    >
       <form
         className="form"
         onSubmit={(e) => {
           e.preventDefault();
-          onSave(t);
+          save();
         }}
       >
         <div>
           <label htmlFor="job-title">What is it?</label>
-          <input id="job-title" className="field" value={t.title} maxLength={80} placeholder="For example: Emptied the dishwasher" onChange={(e) => set({ title: e.target.value })} />
+          <input id="job-title" className="field" value={t.title} maxLength={80} placeholder="For example: Empty the dishwasher" onChange={(e) => set({ title: e.target.value })} />
         </div>
 
         <div>
@@ -173,8 +209,8 @@ function TaskSheet({ id, initial, from, kids, onClose, onSave, onRemove }: Sheet
             Picture
           </span>
           <div className="choice" role="group" aria-labelledby="pic-label">
-            {PICTURES.map((p) => (
-              <button key={p} type="button" aria-pressed={t.picture === p} aria-label={p} onClick={() => set({ picture: p as TaskInput['picture'] })}>
+            {(Object.keys(PICTURES) as TaskInput['picture'][]).map((p) => (
+              <button key={p} type="button" aria-pressed={t.picture === p} aria-label={PICTURES[p]} onClick={() => set({ picture: p })}>
                 <Icon name={p} />
               </button>
             ))}
@@ -182,12 +218,16 @@ function TaskSheet({ id, initial, from, kids, onClose, onSave, onRemove }: Sheet
         </div>
 
         <div>
-          <span className="label" id="reward-label">
-            What it earns
-          </span>
+          <div className="label-row">
+            <span className="label" id="reward-label">
+              What it earns
+            </span>
+            <HelpButton topic="earning-screen-time" label="Earning screen time from chores" />
+          </div>
           <div className="choice" role="group" aria-labelledby="reward-label">
             {REWARDS.map((r) => (
-              <button key={r.type} type="button" aria-pressed={t.rewardType === r.type} onClick={() => set({ rewardType: r.type, amount: r.start })}>
+              // Tapping the reward already chosen keeps the amount.
+              <button key={r.type} type="button" aria-pressed={t.rewardType === r.type} onClick={() => (t.rewardType === r.type ? undefined : set({ rewardType: r.type, amount: r.start }))}>
                 {r.label}
               </button>
             ))}
@@ -195,17 +235,17 @@ function TaskSheet({ id, initial, from, kids, onClose, onSave, onRemove }: Sheet
           {t.rewardType === 'time' ? (
             <p className="hint">
               Screen time from jobs is capped at 15% of the weekly allowance
-              {week
-                ? t.childId && capChild
-                  ? `: ${minutes(week.earnedCapMinutes)} a week for ${capChild.name}, ${minutes(Math.max(0, week.earnedCapMinutes - week.earnedMinutes))} left this week`
+              {week && capChild
+                ? t.childId
+                  ? `: ${minutes(week.earnedCapMinutes)} a week for ${capChild.name}. Jobs can add ${minutes(Math.max(0, week.earnedCapMinutes - week.earnedMinutes))} more this week`
                   : `: ${minutes(week.earnedCapMinutes)} a week for a ${minutes(week.allowanceMinutes)} allowance`
                 : ''}
               . Pocket money or flex points work better for most jobs.
             </p>
           ) : t.rewardType === 'praise' ? (
-            <p className="hint">For things they already love doing. Approving sends your note, with no points.</p>
+            <p className="hint">For things they already love doing. When it&apos;s done, you send a few words of praise instead of money, points or time.</p>
           ) : (
-            <p className="hint">Pocket money and flex points keep screen time a plan, not a prize.</p>
+            <p className="hint">Paying in pocket money or flex points keeps screen time the agreed plan, not a prize.</p>
           )}
         </div>
 
@@ -215,14 +255,14 @@ function TaskSheet({ id, initial, from, kids, onClose, onSave, onRemove }: Sheet
               How much
             </span>
             <div className="stepper" role="group" aria-labelledby="amount-label">
-              <button type="button" aria-label="Less" onClick={() => set({ amount: Math.max(reward.step, t.amount - reward.step) })}>
-                -
+              <button type="button" aria-label={`${reward.unit(reward.step)} less`} disabled={t.amount <= reward.step} onClick={() => set({ amount: Math.max(reward.step, t.amount - reward.step) })}>
+                <Icon name="minus" />
               </button>
               <output aria-live="polite" className="tnum">
                 {reward.unit(t.amount)}
               </output>
-              <button type="button" aria-label="More" onClick={() => set({ amount: t.amount + reward.step })}>
-                +
+              <button type="button" aria-label={`${reward.unit(reward.step)} more`} disabled={t.amount + reward.step > 10_000} onClick={() => set({ amount: Math.min(10_000, t.amount + reward.step) })}>
+                <Icon name="plus" />
               </button>
             </div>
           </div>
@@ -280,22 +320,11 @@ function TaskSheet({ id, initial, from, kids, onClose, onSave, onRemove }: Sheet
           </div>
         ) : null}
 
-        <div className="toggle-row" style={{ marginTop: 0 }}>
-          <span>
-            Ask for a photo
-            <small>Taken on the kiosk when it is done. Deleted 30 days after you approve it.</small>
-          </span>
-          <button type="button" className="switch" role="switch" aria-checked={t.needsPhoto} aria-label="Ask for a photo" onClick={() => set({ needsPhoto: !t.needsPhoto })} />
-        </div>
+        {/* "Ask for a photo" arrives with the kiosk camera in Phase 6. */}
 
-        <button type="submit" className="btn btn-primary" disabled={!t.title.trim()}>
-          {id ? 'Save' : 'Add the job'}
+        <button type="submit" className="btn btn-primary" disabled={!title || sheet.busy}>
+          {sheet.busy ? 'Saving' : id ? 'Save' : 'Add the job'}
         </button>
-        {onRemove ? (
-          <button type="button" className="btn btn-quiet" onClick={onRemove}>
-            Remove this job
-          </button>
-        ) : null}
       </form>
     </Sheet>
   );

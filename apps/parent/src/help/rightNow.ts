@@ -9,7 +9,7 @@ type Rows = [string, string][];
 const block = (s: ChildStatus, type: string) => s.day.find((b) => b.type === type);
 
 export const RIGHT_NOW: Partial<Record<TopicId, (s: ChildStatus, w?: WeekSummary) => Rows>> = {
-  'weekly-allowance': (_s, w) => (w ? [['This week', minutes(w.allowanceMinutes)], ['Left to plan', minutes(w.leftMinutes)], ['Resets', w.resets]] : []),
+  'weekly-allowance': (_s, w) => (w ? [['Weekly allowance', minutes(w.allowanceMinutes)], ['Left to plan', minutes(w.leftMinutes)], ['Resets', w.resets]] : []),
   'unused-time-bonus': (_s, w) =>
     w
       ? [
@@ -22,11 +22,14 @@ export const RIGHT_NOW: Partial<Record<TopicId, (s: ChildStatus, w?: WeekSummary
     w?.nextStep
       ? [
           ['Next step', `${minutes(w.nextStep.minutes)} from ${w.nextStep.onLabel}`],
-          ['Step size', `${minutes(w.nextStep.stepMinutes)} every ${w.nextStep.everyWeeks} weeks`],
+          ['Step size', `${minutes(w.nextStep.stepMinutes)} ${w.nextStep.everyWeeks === 1 ? 'every week' : `every ${w.nextStep.everyWeeks} weeks`}`],
           ['Never below', minutes(w.nextStep.floorMinutes)],
           ['Agreed at the review', w.nextStep.agreed ? 'Yes' : 'Not yet'],
         ]
       : [],
+  'pocket-money': (_s, w) => (w ? [['Owed now', pence(w.moneyPence)]] : []),
+  'flex-points': (_s, w) => (w ? [['Points now', String(w.flexPoints)], ['Each point', `${pence(w.rates.flexPence)} or ${minutes(w.rates.flexMinutes)}`]] : []),
+  'savings-goal': (_s, w) => (w?.goal ? [['Saving for', w.goal.title], ['So far', `${pence(w.goal.savedPence)} of ${pence(w.goal.targetPence)}`]] : []),
   'earning-screen-time': (_s, w) => (w ? [['Cap this week', minutes(w.earnedCapMinutes)], ['Earned so far', minutes(w.earnedMinutes)]] : []),
   'pause-everything': (s) => {
     const rows: Rows = [['Pause everything', s.pause ? (s.pause.untilLabel ? `Paused until ${s.pause.untilLabel}` : 'Paused until you resume') : 'Not paused']];

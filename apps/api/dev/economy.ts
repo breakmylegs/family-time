@@ -25,7 +25,7 @@ export async function seedEconomy(db: Db, family: Family, ids: { roblox: string;
     { childId: jamie.id, weeklyMinutes: 420 },
   ]);
   await db.insert(reductionPlans).values({ childId: ollie.id, stepMinutes: 30, everyWeeks: 4, floorMinutes: 300, nextStepOn: '2026-11-08' });
-  await db.insert(goals).values({ childId: ollie.id, title: 'Bike lights', targetPence: 300 });
+  await db.insert(goals).values({ childId: ollie.id, title: 'bike lights', targetPence: 300 });
 
   const job = (title: string, picture: string, rewardType: 'money' | 'flex' | 'time' | 'praise', amount: number, extra: Partial<typeof tasks.$inferInsert> = {}) =>
     db

@@ -85,7 +85,8 @@ function Screens({ me, path, onSignedOut, onLive }: { me: Me; path: string; onSi
   const [picking, setPicking] = useState<HTMLElement | null>(null);
   const pilot = usePilot().data;
   const economy = Boolean(pilot?.features.economy);
-  const waiting = useWaiting(economy).data?.waiting ?? 0;
+  // Undefined until the first answer, so the badge never flashes a zero.
+  const waiting = useWaiting(economy).data?.waiting;
   const week = useWeek(economy ? childId : undefined).data;
   const child = cs.status ? { name: cs.status.child.name, pronouns: cs.status.child.pronouns } : { name: 'your child', pronouns: 'they' as const };
   const can = (c: string) => me.capabilities.includes(c);
@@ -95,7 +96,7 @@ function Screens({ me, path, onSignedOut, onLive }: { me: Me; path: string; onSi
   else if (path === '/settings') screen = <Settings me={me} kids={kids ?? []} onSignedOut={onSignedOut} />;
   else if (economy && path === '/approvals' && can('approvals.decide')) screen = <Approvals me={me} />;
   else if (economy && path === '/tasks') screen = <Tasks kids={kids ?? []} canEdit={can('rules.edit')} />;
-  else if (economy && path === '/family') screen = <Family kids={kids ?? []} canEdit={can('rules.edit')} />;
+  else if (economy && path === '/family') screen = <Family kids={kids ?? []} childId={childId} canEdit={can('rules.edit')} onSwitchChild={setPicking} />;
   else if (kidsError || (cs.error && !cs.status)) screen = <Waiting error={kidsError ?? cs.error} onRetry={() => void cs.refresh()} />;
   else if (kids && !kids.length) screen = <Home me={me} onSignedOut={onSignedOut} />;
   else if (kids && cs.status)

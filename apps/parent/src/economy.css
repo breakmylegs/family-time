@@ -17,6 +17,10 @@
   color: var(--ink-2);
   margin-top: 4px;
 }
+.large .large-switch {
+  font-size: inherit;
+  letter-spacing: inherit;
+}
 
 /* Tab bar badge */
 .tab {
@@ -55,28 +59,34 @@
 .badge[data-zero='true'] {
   opacity: 0;
   transform: scale(0.7);
+  transition-duration: 150ms;
 }
 
-/* Approvals */
+/* Approvals. A decided card folds away: the row closes as the card fades, then it is gone. */
 .appr {
-  display: grid;
-  gap: 14px;
   padding: 18px 16px 0;
 }
 .item-wrap {
   display: grid;
   grid-template-rows: 1fr;
   transition:
-    grid-template-rows 280ms var(--ease-out),
+    grid-template-rows 260ms var(--ease-out),
     opacity 200ms var(--ease-out);
 }
 .item-wrap[data-gone='true'] {
   grid-template-rows: 0fr;
   opacity: 0;
+  transition:
+    grid-template-rows 220ms var(--ease-in-out),
+    opacity 150ms ease;
 }
-.item-wrap > .item {
+/* The clip holds the card and the space under it, so both fold away together. */
+.item-clip {
   overflow: hidden;
   min-height: 0;
+}
+.item-clip > .item {
+  margin-bottom: 14px;
 }
 .item {
   background: var(--surface);
@@ -93,6 +103,12 @@
   font-weight: 650;
   letter-spacing: -0.01em;
   line-height: 1.3;
+}
+.item-title:focus {
+  outline: none;
+}
+.item-title:focus-visible {
+  outline-offset: 3px;
 }
 .item-meta {
   font-size: 14px;
@@ -143,8 +159,7 @@
   font-size: 15px;
   font-weight: 600;
 }
-.say textarea,
-.field-area {
+.say textarea {
   display: block;
   width: 100%;
   margin-top: 6px;
@@ -212,12 +227,19 @@
 }
 .actions {
   display: flex;
+  align-items: center;
   gap: 10px;
   margin-top: 16px;
   flex-wrap: wrap;
 }
-.actions .btn-primary {
-  flex: 1;
+/* Equal shares, but never narrower than the words: "Not this time" stays on one line. */
+.actions .btn-primary,
+.actions .btn-quiet {
+  flex: 1 1 0;
+  white-space: nowrap;
+}
+.actions .btn:disabled {
+  opacity: 0.5;
 }
 .nowrap {
   white-space: nowrap;
@@ -226,6 +248,12 @@
   margin: 26px 20px 0;
   font-size: 16px;
   color: var(--ink-2);
+}
+.empty-large.done {
+  animation: fade-in 240ms var(--ease-out) 120ms both;
+}
+.empty-large.done:focus {
+  outline: none;
 }
 
 /* This week, on Control */
@@ -253,7 +281,9 @@
   height: 22px;
   border-radius: 5px;
   background: var(--primary);
-  transition: background-color 300ms ease;
+  transition:
+    background-color 200ms ease,
+    box-shadow 200ms ease;
 }
 .blk.used {
   background: var(--surface-3);
@@ -266,6 +296,7 @@
   font-size: 14px;
   color: var(--ink-3);
   margin-top: 10px;
+  line-height: 1.4;
 }
 .wrows {
   border-top: 1px solid var(--line);
@@ -321,8 +352,14 @@
 .job-row + .job-row {
   border-top: 1px solid var(--line);
 }
-.job-row:active {
+button.job-row {
+  padding-right: 10px;
+}
+button.job-row:active {
   background: var(--surface-2);
+}
+button.job-row:focus-visible {
+  outline-offset: -3px;
 }
 .job-text {
   display: flex;
@@ -339,6 +376,13 @@
 }
 .job-row .chip {
   margin-left: auto;
+}
+.job-row .chev {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  margin-left: -6px;
+  color: var(--ink-3);
 }
 
 /* Forms in sheets */
@@ -359,6 +403,25 @@
   color: var(--ink-3);
   margin-top: 6px;
   line-height: 1.4;
+}
+/* A label with its (?) beside it. */
+.label-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.form .label-row {
+  justify-content: space-between;
+  margin: -10px 0 -4px;
+}
+.form .label-row .label {
+  margin-bottom: 0;
+}
+.form .label-row .help-btn {
+  margin-right: -10px;
+}
+.row-text .label-row .help-btn {
+  margin: -10px 0;
 }
 .choice {
   display: flex;
@@ -384,7 +447,6 @@
 .choice button[aria-pressed='true'] {
   background: var(--primary);
   color: var(--primary-ink);
-  font-weight: 650;
 }
 .stepper {
   display: flex;
@@ -402,44 +464,72 @@
   height: 48px;
   border-radius: 14px;
   background: var(--surface-2);
-  font-size: 22px;
+  color: var(--ink);
+  display: grid;
+  place-items: center;
+  transition:
+    transform 140ms var(--ease-out),
+    background-color 160ms ease,
+    opacity 160ms ease;
+}
+.stepper button:active:not(:disabled) {
+  transform: scale(0.95);
+  background: var(--surface-3);
+}
+.stepper button:disabled {
+  opacity: 0.4;
+}
+.stepper svg {
+  width: 22px;
+  height: 22px;
+  stroke-width: 2.2;
+}
+.sh-error {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--paused-soft);
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.4;
+}
+/* A quiet way to remove, set apart under Cancel so it is hard to hit by mistake. */
+.text-button {
+  display: block;
+  width: 100%;
+  height: 44px;
+  margin-top: 12px;
+  font-size: 15px;
   font-weight: 600;
+  color: var(--blocked);
+  border-radius: 12px;
+  transition: opacity 140ms ease;
+}
+.text-button:active:not(:disabled) {
+  opacity: 0.6;
+}
+.text-button:disabled {
+  opacity: 0.4;
 }
 
 /* Family */
-.kid {
-  padding: 16px;
+.row-btn {
+  height: 40px;
+  padding: 0 14px;
+  white-space: nowrap;
+  flex: none;
 }
-.kid h2 {
-  font-size: 21px;
-  font-weight: 700;
-  letter-spacing: -0.015em;
+.row.goal {
+  align-items: flex-start;
+  padding-top: 12px;
+  padding-bottom: 12px;
 }
-.balances {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  margin-top: 12px;
-}
-.balance {
-  background: var(--ground);
-  border-radius: 14px;
-  padding: 12px;
-}
-.balance b {
-  display: block;
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-.balance span {
-  display: block;
-  margin-top: 2px;
-  font-size: 13px;
-  line-height: 1.3;
-  color: var(--ink-3);
+.row.goal .row-text {
+  flex: 1;
+  min-width: 0;
 }
 .progress {
+  display: block;
   height: 10px;
   border-radius: 5px;
   background: var(--surface-3);
@@ -451,8 +541,7 @@
   height: 100%;
   border-radius: 5px;
   background: var(--k-sun);
-  transform-origin: left center;
-  transition: transform 300ms var(--ease-out);
+  transition: transform 240ms var(--ease-in-out);
 }
 .agenda {
   counter-reset: a;
@@ -494,6 +583,7 @@
   border-top: 1px solid var(--line);
 }
 .ledger .when {
+  display: block;
   font-size: 13px;
   color: var(--ink-3);
 }
@@ -509,10 +599,34 @@
   font-size: 14px;
   font-weight: 600;
   color: var(--primary);
+  border-radius: 8px;
+  transition: opacity 140ms ease;
+}
+.ledger .fix:active {
+  opacity: 0.6;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .item-wrap {
+  .item-wrap,
+  .item-wrap[data-gone='true'] {
     transition: opacity 120ms ease;
+  }
+  .badge,
+  .badge[data-zero='true'] {
+    transform: none;
+    transition: opacity 120ms ease;
+  }
+  .progress i,
+  .blk {
+    transition: none;
+  }
+  .empty-large.done {
+    animation-duration: 120ms;
+    animation-delay: 0ms;
+  }
+  .stepper button:active:not(:disabled),
+  .choice button:active,
+  .suggest button:active {
+    transform: none;
   }
 }
