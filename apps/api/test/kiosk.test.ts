@@ -6,6 +6,7 @@ import { KioskHome, KioskMe, KioskPairing, KioskSlots } from '@family-time/schem
 import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
+import { resetBadCodes } from '../src/kiosk/commands.js';
 import { buildKioskServer } from '../src/kiosk/server.js';
 import { seedHousehold, seedPerson, signedIn } from './accounts.js';
 import { harness, LogSink, type Harness } from './helpers.js';
@@ -13,6 +14,7 @@ import { harness, LogSink, type Harness } from './helpers.js';
 let h: Harness | undefined;
 let kiosk: FastifyInstance | undefined;
 afterEach(async () => {
+  resetBadCodes();
   await kiosk?.close();
   await h?.close();
   h = undefined;
@@ -148,5 +150,49 @@ describe("the child's day", () => {
     const ask = await s.kiosk.inject({ method: 'POST', url: `/api/children/${s.child}/ask`, headers: { authorization }, payload: { target: { kind: 'service', id: s.roblox.id }, start: '2026-10-26T18:00:00.000Z', minutes: 30 } });
     expect(ask.statusCode).toBe(201);
     expect(s.alerts.map((a) => a.kind)).toEqual(['request']);
+  });
+});
+
+describe('the kiosk port, hardened', () => {
+  it('refuses a large body before reading it, unless it is a photo', async () => {
+    const s = await setup();
+    const big = JSON.stringify({ x: 'a'.repeat(20_000) });
+    expect((await s.kiosk.inject({ method: 'POST', url: '/anything', headers: { 'content-type': 'application/json' }, payload: big })).statusCode).toBe(404);
+    expect((await s.kiosk.inject({ method: 'POST', url: '/api/pair', headers: { 'content-type': 'application/json' }, payload: big })).statusCode).toBe(413);
+    const { authorization } = await paired(s);
+    const photo = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(300_000)]).toString('base64');
+    expect((await s.kiosk.inject({ method: 'POST', url: `/api/children/${s.child}/jobs/${s.dishes.id}/done`, headers: { authorization }, payload: { photo } })).statusCode).toBe(201);
+  });
+
+  it('voids every code when wrong guesses pile up, and a new code voids the old one', async () => {
+    const s = await setup();
+    const first = KioskPairing.parse((await s.app.inject({ method: 'POST', url: '/api/kiosks/pairing', headers: s.headers.mum, payload: {} })).json());
+    const second = KioskPairing.parse((await s.app.inject({ method: 'POST', url: '/api/kiosks/pairing', headers: s.headers.mum, payload: {} })).json());
+    // The older code no longer works.
+    if (first.code !== second.code) expect((await s.kiosk.inject({ method: 'POST', url: '/api/pair', payload: { code: first.code } })).statusCode).toBe(400);
+    for (let i = 0; i < 21; i++) {
+      const wrong = String((Number(second.code) + 1 + i) % 1_000_000).padStart(6, '0');
+      await s.kiosk.inject({ method: 'POST', url: '/api/pair', payload: { code: wrong }, remoteAddress: `10.0.0.${i + 1}` });
+    }
+    expect((await s.kiosk.inject({ method: 'POST', url: '/api/pair', payload: { code: second.code }, remoteAddress: '10.0.1.1' })).statusCode).toBe(400);
+  });
+
+  it('caps the requests waiting for a grown-up', async () => {
+    const s = await setup();
+    const { authorization } = await paired(s);
+    const ask = (start: string) => s.kiosk.inject({ method: 'POST', url: `/api/children/${s.child}/ask`, headers: { authorization }, payload: { target: { kind: 'service', id: s.roblox.id }, start, minutes: 30 } });
+    for (const t of ['17:00', '17:30', '18:00']) expect((await ask(`2026-10-26T${t}:00.000Z`)).statusCode).toBe(201);
+    expect((await ask('2026-10-26T18:30:00.000Z')).statusCode).toBe(409);
+  });
+
+  it("shows only its own family's photos, and keeps the Sunday answers from carers", async () => {
+    const s = await setup();
+    const other = await seedHousehold(s.db);
+    const stranger = await seedPerson(s.db, other, 'owner', 'Stranger');
+    const { authorization } = await paired(s);
+    const photo = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2]).toString('base64');
+    const { id } = (await s.kiosk.inject({ method: 'POST', url: `/api/children/${s.child}/jobs/${s.dishes.id}/done`, headers: { authorization }, payload: { photo } })).json() as { id: string };
+    expect((await s.app.inject({ url: `/api/completions/${id}/photo`, headers: await signedIn(s.db, stranger) })).statusCode).toBe(404);
+    expect((await s.app.inject({ url: '/api/completions/not-an-id/photo', headers: s.headers.mum })).statusCode).toBe(400);
   });
 });

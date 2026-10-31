@@ -15,7 +15,7 @@ import { EconomyError, askRequest, planSession } from '../economy/commands.js';
 import type { Changes } from '../events.js';
 import { loggerOptions, logPath } from '../logging.js';
 import { registerStatic } from '../static.js';
-import { addIdea, kioskChild, kioskDone, kioskFromToken, kioskHome, kioskMe, KioskError, kioskSlots, kioskTargets, pairKiosk, saveReflection } from './commands.js';
+import { addIdea, kioskChild, kioskDone, kioskFromToken, kioskHome, kioskMe, KioskError, kioskSlots, kioskTargets, MAX_OPEN_REQUESTS, openRequests, pairKiosk, saveReflection } from './commands.js';
 
 declare module 'fastify' {
   interface FastifyContextConfig {
@@ -43,6 +43,8 @@ export interface KioskServerDeps {
   /** Tells the parents' open screens (Approvals) that something changed. */
   changes?: Changes;
   limiter?: RateLimiter;
+  /** Host headers this listener answers to (`192.168.1.10:8180`), against DNS rebinding. Unset: any. */
+  allowedHosts?: string[];
 }
 
 const Child = z.object({ child: z.uuid() });
@@ -59,15 +61,24 @@ export async function buildKioskServer(deps: KioskServerDeps): Promise<FastifyIn
     requestIdHeader: false,
     // The tablet talks to this port directly on the LAN: no proxy in front, so no forwarded headers.
     trustProxy: false,
-    // A photo from "I did it", already shrunk on the tablet, as base64.
-    bodyLimit: 3 * 1024 * 1024,
+    // Small by default: only the photo route takes more (below), so a large body sent to any other
+    // path, with no token, is refused before it is read.
+    bodyLimit: 8 * 1024,
   });
   app.removeContentTypeParser('text/plain');
+
+  // Every kiosk route says who may call it, or the server will not start (as the main one does).
+  app.addHook('onRoute', (route) => {
+    if (!route.config?.kiosk && !route.config?.access) throw new Error(`Kiosk route ${String(route.method)} ${route.url} has no access rule.`);
+  });
 
   app.addHook('onSend', async (_request, reply) => {
     reply.header('x-content-type-options', 'nosniff');
     reply.header('referrer-policy', 'no-referrer');
     reply.header('x-frame-options', 'DENY');
+    // Only its own scripts and styles, and talking only to itself: an injected script, or a page
+    // rewritten on the Wi-Fi, cannot load more or reach Fully Kiosk's interface from elsewhere.
+    reply.header('content-security-policy', "default-src 'self'; img-src 'self' blob: data:; connect-src 'self'; style-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
   });
   app.addHook('onResponse', async (request, reply) => {
     const fields = { event: 'request', method: request.method, path: logPath(request.url), status: reply.statusCode, ms: Math.round(reply.elapsedTime) };
@@ -77,12 +88,18 @@ export async function buildKioskServer(deps: KioskServerDeps): Promise<FastifyIn
 
   // Default deny for the API: a route under /api without `kiosk: 'public'` needs a paired kiosk.
   app.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
-    const url = request.routeOptions.url ?? '';
-    if (!url.startsWith('/api')) return;
+    if (deps.allowedHosts && !deps.allowedHosts.includes(String(request.headers.host ?? ''))) return reply.code(421).send({ error: 'wrong_host' });
+    const url = request.routeOptions.url;
+    // Nothing to write to at an unknown path: refused before any body is read.
+    if (!url && request.method !== 'GET' && request.method !== 'HEAD') return reply.code(404).send({ error: 'not_found' });
+    if (!url?.startsWith('/api')) return;
     const rule = request.routeOptions.config?.kiosk;
     if (rule === 'public') {
       const d = limiter.hit(`${url}|${request.ip}`, { max: 10, windowMs: 10 * 60_000 });
-      if (!d.allowed) return reply.code(429).header('retry-after', String(d.retryAfterSeconds)).send({ error: 'rate_limited', message: 'Too many tries. Wait 10 minutes, then try again.' });
+      if (!d.allowed) {
+        if (d.firstRefusal) request.log.warn({ event: 'rate_limited', path: url });
+        return reply.code(429).header('retry-after', String(d.retryAfterSeconds)).send({ error: 'rate_limited', message: 'Too many tries. Wait 10 minutes, then try again.' });
+      }
       return;
     }
     const header = request.headers.authorization ?? '';
@@ -112,7 +129,12 @@ export async function buildKioskServer(deps: KioskServerDeps): Promise<FastifyIn
 
   app.post('/api/pair', { config: { kiosk: 'public' } }, async (request) => {
     const { code } = KioskPairRequest.parse(request.body);
-    return pairKiosk(db, code, now());
+    try {
+      return await pairKiosk(db, code, now(), request.ip);
+    } catch (err) {
+      if (err instanceof KioskError && err.code === 'bad_code') request.log.info({ event: 'bad_code' });
+      throw err;
+    }
   });
 
   app.get('/api/me', device, async (request) => kioskMe(db, hh(request)));
@@ -146,14 +168,17 @@ export async function buildKioskServer(deps: KioskServerDeps): Promise<FastifyIn
   app.post<{ Params: { child: string } }>('/api/children/:child/ask', device, async (request, reply) => {
     const { child } = Child.parse(request.params);
     const body = KioskAskRequest.parse(request.body);
-    await kioskChild(db, hh(request), child);
+    if ((await openRequests(db, hh(request), child)) >= MAX_OPEN_REQUESTS) {
+      throw new KioskError('too_many', "You've asked for three things already. Wait for a grown-up to answer those first.", 409);
+    }
     const id = await askRequest(db, { childId: child, target: body.target, start: new Date(body.start), minutes: body.minutes }, now());
     await deps.queueAlert?.({ kind: 'request', id });
     await changed(hh(request));
     return reply.code(201).send({ id });
   });
 
-  app.post<{ Params: { child: string; task: string } }>('/api/children/:child/jobs/:task/done', device, async (request, reply) => {
+  // The one route that takes a photo: a JPEG already shrunk on the tablet, as base64.
+  app.post<{ Params: { child: string; task: string } }>('/api/children/:child/jobs/:task/done', { ...device, bodyLimit: 2_200_000 }, async (request, reply) => {
     const { child, task } = Job.parse(request.params);
     const body = KioskDoneRequest.parse(request.body ?? {});
     const id = await kioskDone(db, { householdId: hh(request), childId: child, taskId: task, photo: body.photo }, now());

@@ -89,9 +89,12 @@ const app = await buildServer({
 // The kiosk's own server, on its own port, which Compose publishes on the LAN address only (ADR
 // 0015). Its jobs and requests become phone alerts for parents through the worker's alert queue.
 const kioskDir = process.env.KIOSK_DIST ?? join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'kiosk', 'dist');
+const kioskHost = process.env.KIOSK_LAN_URL ? new URL(process.env.KIOSK_LAN_URL).host : undefined;
 const kiosk = await buildKioskServer({
   db,
   ledger,
+  // The tablet uses the LAN address; the container's own health check uses localhost.
+  ...(kioskHost ? { allowedHosts: [kioskHost, 'localhost:3001', '127.0.0.1:3001'] } : {}),
   logLevel: process.env.LOG_LEVEL ?? 'info',
   notifyChange,
   changes,

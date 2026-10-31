@@ -23,6 +23,7 @@ import { addDays, blocksOn, civilDate, features, weekStarting, type BlockInterva
 import type { LedgerPort } from '@family-time/ledger';
 import type { KioskDevice, KioskHome, KioskMe, KioskSlots, KioskTargets, Recurrence } from '@family-time/schemas';
 import { and, asc, desc, eq, gte, gt, inArray, isNull, lte } from 'drizzle-orm';
+import { audit } from '../audit.js';
 import { randomToken, sha256 } from '../auth/tokens.js';
 import { listTasks, logCompletion, planChecks, targetName, weekSummary } from '../economy/commands.js';
 import { minutes, pence } from '../economy/words.js';
@@ -31,6 +32,16 @@ import { minutes, pence } from '../economy/words.js';
 const PAIRING_MS = 10 * 60_000;
 /** How far back parents' notes stay on the kiosk. */
 const NOTES_DAYS = 3;
+/**
+ * Wrong codes from every address together, per 10 minutes. Past it, every live code is voided:
+ * someone is guessing, and a parent can make a new code in a moment.
+ */
+const MAX_BAD_CODES = 20;
+let badCodes: { start: number; count: number } = { start: 0, count: 0 };
+/** For tests: forget the wrong guesses so far. */
+export function resetBadCodes() {
+  badCodes = { start: 0, count: 0 };
+}
 
 export class KioskError extends Error {
   constructor(
@@ -49,19 +60,28 @@ export class KioskError extends Error {
 export async function createPairing(db: Db, input: { householdId: string; by: string; label: string }, now: Date) {
   const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
   const expiresAt = new Date(now.getTime() + PAIRING_MS);
+  // Only the newest code works: an older one left unused is voided.
+  await db.update(kioskPairings).set({ usedAt: now }).where(and(eq(kioskPairings.householdId, input.householdId), isNull(kioskPairings.usedAt)));
   await db.insert(kioskPairings).values({ householdId: input.householdId, codeHash: sha256(code), label: input.label, createdBy: input.by, expiresAt, createdAt: now });
   return { code, expiresAt };
 }
 
 /** Swaps a code for the kiosk's long-lived token, once. */
-export async function pairKiosk(db: Db, code: string, now: Date): Promise<{ token: string; householdName: string }> {
+export async function pairKiosk(db: Db, code: string, now: Date, ip?: string): Promise<{ token: string; householdName: string }> {
   const pairing = (
     await db
       .select()
       .from(kioskPairings)
       .where(and(eq(kioskPairings.codeHash, sha256(code)), isNull(kioskPairings.usedAt), gt(kioskPairings.expiresAt, now)))
   )[0];
-  if (!pairing) throw new KioskError('bad_code', "That code didn't work. Check the six numbers, or make a new code on your phone in Settings, then Kiosk.", 400);
+  if (!pairing) {
+    if (now.getTime() - badCodes.start > PAIRING_MS) badCodes = { start: now.getTime(), count: 0 };
+    if (++badCodes.count > MAX_BAD_CODES) {
+      await db.update(kioskPairings).set({ usedAt: now }).where(and(isNull(kioskPairings.usedAt), gt(kioskPairings.expiresAt, now)));
+      await audit(db, { actor: { label: 'kiosk pairing' }, action: 'kiosk.codes_voided', ...(ip ? { ip } : {}) });
+    }
+    throw new KioskError('bad_code', "That code didn't work. Check the six numbers, or make a new code on your phone in Settings, then Kiosk.", 400);
+  }
   const token = randomToken();
   const used = await db
     .update(kioskPairings)
@@ -69,7 +89,11 @@ export async function pairKiosk(db: Db, code: string, now: Date): Promise<{ toke
     .where(and(eq(kioskPairings.id, pairing.id), isNull(kioskPairings.usedAt)))
     .returning({ id: kioskPairings.id });
   if (!used.length) throw new KioskError('bad_code', "That code didn't work. Check the six numbers, or make a new code on your phone in Settings, then Kiosk.", 400);
-  await db.insert(kioskDevices).values({ householdId: pairing.householdId, label: pairing.label, tokenHash: sha256(token), createdBy: pairing.createdBy, createdAt: now, lastSeenAt: now });
+  const [device] = await db
+    .insert(kioskDevices)
+    .values({ householdId: pairing.householdId, label: pairing.label, tokenHash: sha256(token), createdBy: pairing.createdBy, createdAt: now, lastSeenAt: now })
+    .returning({ id: kioskDevices.id });
+  await audit(db, { householdId: pairing.householdId, actor: { label: 'kiosk' }, action: 'kiosk.paired', targetType: 'kiosk', targetId: device!.id, after: { pairing: pairing.id, label: pairing.label }, ...(ip ? { ip } : {}) });
   const [hh] = await db.select({ name: households.name }).from(households).where(eq(households.id, pairing.householdId));
   return { token, householdName: hh?.name ?? '' };
 }
@@ -348,6 +372,17 @@ export async function kioskSlots(db: Db, ledger: LedgerPort, input: { householdI
 // ---------------------------------------------------------------------------------------------
 // Writes
 
+/** The pictures an idea can have, as on the kiosk. */
+export const IDEA_PICTURES = ['star', 'tent', 'pencil', 'ball', 'bike', 'book', 'lego', 'plant', 'heart'];
+
+/** Requests still waiting for a grown-up, per child: more than this and the kiosk asks them to wait. */
+export const MAX_OPEN_REQUESTS = 3;
+
+export async function openRequests(db: Db, householdId: string, childId: string): Promise<number> {
+  await kioskChild(db, householdId, childId);
+  return (await db.select({ id: requests.id }).from(requests).where(and(eq(requests.childId, childId), eq(requests.status, 'waiting')))).length;
+}
+
 /** I did it: the completion, with its photo if there is one. Returns the completion's id. */
 export async function kioskDone(db: Db, input: { householdId: string; childId: string; taskId: string; photo: string | null }, now: Date): Promise<string> {
   await kioskChild(db, input.householdId, input.childId);
@@ -365,6 +400,7 @@ export async function kioskDone(db: Db, input: { householdId: string; childId: s
 export async function addIdea(db: Db, input: { householdId: string; childId: string; text: string; picture: string }, now: Date) {
   await kioskChild(db, input.householdId, input.childId);
   const count = await db.select({ id: ideas.id }).from(ideas).where(and(eq(ideas.childId, input.childId), isNull(ideas.removedAt)));
+  if (!IDEA_PICTURES.includes(input.picture)) throw new KioskError('invalid', 'Pick one of the pictures.', 400);
   if (count.length >= 12) throw new KioskError('too_many', "That's 12 ideas, the most there's room for. Why not try one of them?", 409);
   const [row] = await db.insert(ideas).values({ childId: input.childId, text: input.text, picture: input.picture, createdAt: now }).returning({ id: ideas.id });
   return row!.id;

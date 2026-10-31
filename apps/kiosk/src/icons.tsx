@@ -130,7 +130,7 @@ export const IDEA_PICTURES = ['star', 'tent', 'pencil', 'ball', 'bike', 'book', 
 export function Icon({ name, class: className = 'ic' }: { name: string; class?: string }) {
   return (
     <svg class={className} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      {PATHS[name] ?? PATHS.apps}
+      {Object.prototype.hasOwnProperty.call(PATHS, name) ? PATHS[name] : PATHS.apps}
     </svg>
   );
 }

@@ -33,7 +33,7 @@ export function ParentsSee({ home, onDone }: { home: KioskHome; onDone: () => vo
             <li>Your screen.</li>
           </ul>
         </section>
-        <p class="caption">If something here doesn't seem right, talk to Mum or Dad about it.</p>
+        <p class="caption">Other grown-ups who look after you, like a grandparent, can see your jobs and any photos too. If something here doesn't seem right, talk to Mum or Dad about it.</p>
       </div>
     </main>
   );

@@ -19,6 +19,8 @@ Fire tablets don't have Google Play.
 3. Under Motion Detection, turn on Enable Visual Motion Detection and Turn Screen On on Motion.
 4. Under Device Management, turn on Keep Screen On. At bedtime the kiosk turns the screen off itself, through the JavaScript Interface from step 2.
 5. Allow the camera when the kiosk first asks, so "I did it" can take a photo.
+6. Under Web Content Settings, turn on URL Whitelist and allow only your kiosk address (`http://LAN_IP:8180/*`), so the tablet can't be pointed anywhere else.
+7. Leave Remote Administration off (or give it a strong password), and leave camera streaming and Camshot off: the kiosk only uses the camera when your child taps Take a photo.
 
 ## 3. Pair it
 
@@ -44,10 +46,9 @@ If the tablet is lost or handed on, tap Remove this tablet next to it in Setting
 This is a change on your router, so make it yourself when you are ready; nothing in Family time changes the router.
 
 1. Give the tablet a fixed address on your router (a DHCP reservation for its MAC address).
-2. Allow the tablet to reach only the server's LAN address on port 8180 (and DNS on port 53 to the server, if AdGuard is your home DNS). Block everything else from the tablet, including the internet.
-3. Optionally, allow only the tablet's address to reach the server on port 8180.
+2. If your router can, block the tablet from the internet; it only needs your server. Many home routers can't filter between two devices on the same Wi-Fi, so this keeps the tablet off the internet rather than fencing the server.
 
-The kiosk works without the firewall; the rule just makes sure the tablet can't be used for anything else.
+The kiosk works without any of this. Limiting which devices can reach the server's port 8180 needs a rule on the server itself, so ask before changing it.
 
 ## If something is wrong
 

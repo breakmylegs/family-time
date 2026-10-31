@@ -38,7 +38,9 @@ export async function kioskRoutes(app: FastifyInstance, deps: KioskRouteDeps): P
   });
 
   app.delete<{ Params: { id: string } }>('/api/kiosks/:id', { config: { access: 'system.manage' } }, async (request, reply) => {
-    const { id } = Id.parse(request.params);
+    const parsed = Id.safeParse(request.params);
+    if (!parsed.success) return reply.code(400).send({ error: 'invalid' });
+    const { id } = parsed.data;
     const person = request.auth!.person;
     if (!(await removeKiosk(db, person.householdId, id, now()))) return reply.code(404).send({ error: 'not_found' });
     await audit(db, { householdId: person.householdId, actor: { personId: person.id }, action: 'kiosk.removed', targetType: 'kiosk', targetId: id });
@@ -46,9 +48,15 @@ export async function kioskRoutes(app: FastifyInstance, deps: KioskRouteDeps): P
   });
 
   app.get<{ Params: { id: string } }>('/api/completions/:id/photo', { config: { access: 'approvals.decide' } }, async (request, reply) => {
-    const { id } = Id.parse(request.params);
-    const jpeg = await photoFor(db, request.auth!.person.householdId, id);
+    const parsed = Id.safeParse(request.params);
+    if (!parsed.success) return reply.code(400).send({ error: 'invalid' });
+    const jpeg = await photoFor(db, request.auth!.person.householdId, parsed.data.id);
     if (!jpeg) return reply.code(404).send({ error: 'not_found' });
-    return reply.header('content-type', 'image/jpeg').header('cache-control', 'private, max-age=3600').send(Buffer.from(jpeg));
+    return reply
+      .header('content-type', 'image/jpeg')
+      .header('cache-control', 'private, max-age=3600')
+      // Shown as an image only, whatever else the bytes might hold.
+      .header('content-security-policy', "default-src 'none'; sandbox")
+      .send(Buffer.from(jpeg));
   });
 }

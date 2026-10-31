@@ -93,7 +93,7 @@ export const KioskAskRequest = KioskPlanRequest;
 /** A JPEG already shrunk on the tablet, as base64. About 200 KB at 1024 px; 1.5 MB at most. */
 export const KioskDoneRequest = z.object({ photo: z.string().max(2_000_000).nullable().default(null) });
 
-export const KioskIdeaRequest = z.object({ text: z.string().trim().min(1, 'Write your idea first.').max(40), picture: z.string().max(20).default('star') });
+export const KioskIdeaRequest = z.object({ text: z.string().trim().min(1, 'Write your idea first.').max(40), picture: z.enum(['star', 'tent', 'pencil', 'ball', 'bike', 'book', 'lego', 'plant', 'heart']).default('star') });
 
 export const KioskReflectionRequest = z.object({
   wentWell: z.string().trim().max(200).default(''),

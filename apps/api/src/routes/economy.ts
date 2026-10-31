@@ -87,7 +87,9 @@ export async function economyRoutes(app: FastifyInstance, deps: EconomyRouteDeps
   app.get<Id>('/api/children/:id/week', { config: { access: 'status.view' } }, async (request, reply) => {
     const child = await findChild(db, request.auth!.person.householdId, request.params.id);
     if (!child) return reply.code(404).send(NO_CHILD);
-    return weekSummary(db, ledger, child.id, now());
+    const week = await weekSummary(db, ledger, child.id, now());
+    // The child's Sunday answers are for the parents who run the family review, not every carer.
+    return can(request.auth!.person.role, 'rules.edit') ? week : { ...week, reflection: null };
   });
 
   // The full history is a parent's: carers see the week's balances on Family, not every entry.
