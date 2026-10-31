@@ -24,7 +24,8 @@ export interface Headline {
 
 const NAMES: Record<BlockType, string> = { school: 'School', pause: 'Pause', 'wind-down': 'Wind-down', bed: 'Bed', free: 'Free time' };
 
-function name(b: { type: BlockType; label?: string }): string {
+/** What a block is called: the family's own name for it, or the usual one. */
+export function blockName(b: { type: BlockType; label?: string }): string {
   return b.label ?? NAMES[b.type];
 }
 
@@ -35,7 +36,7 @@ export function dayBlocks(schedules: Schedule[], childId: string, now: Date, tim
     .sort((a, b) => a.start.getTime() - b.start.getTime())
     .map((b) => ({
       type: b.type,
-      label: name(b),
+      label: blockName(b),
       start: b.start.toISOString(),
       end: b.end.toISOString(),
       startLabel: clockLabel(b.start, b.start, timeZone),
@@ -51,18 +52,18 @@ export function headline(schedules: Schedule[], childId: string, now: Date, time
   const next = blocks.find((b) => b.start.getTime() > t && b.type !== 'free');
   const at = (d: Date) => clockLabel(d, now, timeZone);
   if (!current) {
-    return { lead: 'Nothing scheduled now.', rest: next ? `${name(next)} starts at ${at(next.start)}.` : 'No routine set for today, so your usual rules apply.' };
+    return { lead: 'Nothing scheduled now.', rest: next ? `${blockName(next)} starts at ${at(next.start)}.` : 'No routine set for today, so your usual rules apply.' };
   }
   switch (current.type) {
     case 'free':
-      return { lead: 'Free time now.', rest: next ? `${name(next)} starts at ${at(next.start)}.` : '' };
+      return { lead: 'Free time now.', rest: next ? `${blockName(next)} starts at ${at(next.start)}.` : '' };
     case 'pause':
-      return { lead: `${name(current)} now.`, rest: `Everything is paused until ${at(current.end)}.` };
+      return { lead: `${blockName(current)} now.`, rest: `Everything is paused until ${at(current.end)}.` };
     case 'school':
       {
         // Name what comes next, which is not always free time.
         const after = blocks.find((b) => b.start.getTime() === current.end.getTime() && b.type !== 'school');
-        return { lead: `${current.label ?? 'School time'} now.`, rest: after ? `${name(after)} from ${at(current.end)}.` : `Until ${at(current.end)}.` };
+        return { lead: `${current.label ?? 'School time'} now.`, rest: after ? `${blockName(after)} from ${at(current.end)}.` : `Until ${at(current.end)}.` };
       }
     case 'wind-down':
       return { lead: 'Wind-down now.', rest: `Bed at ${at(current.end)}.` };

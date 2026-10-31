@@ -43,6 +43,20 @@
       "when": 1793392340909,
       "tag": "0005_override_undo",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793440967494,
+      "tag": "0006_economy",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793441057601,
+      "tag": "0007_ledger_triggers",
+      "breakpoints": true
     }
   ]
 }

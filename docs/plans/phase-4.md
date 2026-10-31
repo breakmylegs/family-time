@@ -1,6 +1,6 @@
 # Phase 4 plan: the economy on a Postgres ledger
 
-Branch `phase-4`, from `phase-3` once you have approved Phase 3. Waiting for your approval. Nothing here touches your network.
+Branch `phase-4`, from `phase-3`. Approved to start on 31 October 2026, with my recommendations for the open questions; the Phase 3 defaults stay as they are ("Count it in weekly time" on). Nothing here touches your network.
 
 ## Goal
 

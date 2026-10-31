@@ -10,6 +10,7 @@ if (!process.env.DATABASE_URL) {
 
 const suites = [
   ['@family-time/db', 'test:pg'],
+  ['@family-time/ledger', 'test:pg'],
   ['@family-time/api', 'test:pg'],
   ['@family-time/worker', 'test:pg'],
   // The contract tests that run against the fake on the laptop, here against the real AdGuard.

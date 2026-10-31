@@ -3,3 +3,4 @@ export * from './schedule.js';
 export * from './engine.js';
 export * from './durations.js';
 export * from './day.js';
+export * from './economy.js';

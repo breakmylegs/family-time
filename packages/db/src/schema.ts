@@ -5,7 +5,9 @@ import {
   boolean,
   check,
   customType,
+  date,
   index,
+  integer,
   jsonb,
   pgTable,
   primaryKey,
@@ -473,3 +475,179 @@ export const sessionEndings = pgTable(
   },
   (t) => [check('session_endings_mood', sql`${t.mood} in ('calm', 'grumble', 'meltdown')`), uniqueIndex('session_endings_child_ref').on(t.childId, t.ref)],
 );
+
+// ---------------------------------------------------------------------------------------------
+// Phase 4: the economy.
+
+/**
+ * The ledger (ADR 0012). Append-only, refused UPDATE and DELETE by a trigger. Each row carries the
+ * SHA-256 of the previous row's hash and its own canonical JSON, numbered per household, so a
+ * changed or missing row shows up when the chain is checked. One row is one event, with signed
+ * changes to the child's three balances. There is no deduction: see `LEDGER_KINDS`.
+ */
+export const LEDGER_KINDS = ['allowance', 'award', 'spend', 'refund', 'convert', 'close', 'payout', 'reversal'] as const;
+export type LedgerKind = (typeof LEDGER_KINDS)[number];
+
+export const ledgerEntries = pgTable(
+  'ledger_entries',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    householdId: uuid('household_id')
+      .notNull()
+      .references(() => households.id),
+    seq: bigint('seq', { mode: 'number' }).notNull(),
+    childId: uuid('child_id')
+      .notNull()
+      .references(() => people.id),
+    kind: text('kind').$type<LedgerKind>().notNull(),
+    /** Minutes of screen time. */
+    time: integer('time').notNull().default(0),
+    /** Pence. */
+    money: integer('money').notNull().default(0),
+    /** Flex points. */
+    flex: integer('flex').notNull().default(0),
+    /** The idempotency reference: the same action twice is one entry. */
+    ref: text('ref').notNull(),
+    /** For people: "Emptied the dishwasher", "Unused time, week of 25 October". */
+    reason: text('reason').notNull(),
+    data: jsonb('data').notNull().default({}),
+    byPersonId: uuid('by_person_id').references(() => people.id),
+    /** When it happened, from the app's clock (the fake one in tests). */
+    at: timestamp('at', { withTimezone: true }).notNull(),
+    prevHash: text('prev_hash').notNull(),
+    hash: text('hash').notNull(),
+    /** Set by the Besu indexer (Phase 5); null on the Postgres ledger. */
+    blockNumber: bigint('block_number', { mode: 'number' }),
+    txHash: text('tx_hash'),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check('ledger_entries_kind', sql`${t.kind} in ('allowance', 'award', 'spend', 'refund', 'convert', 'close', 'payout', 'reversal')`),
+    uniqueIndex('ledger_entries_household_seq').on(t.householdId, t.seq),
+    uniqueIndex('ledger_entries_household_ref').on(t.householdId, t.ref),
+    uniqueIndex('ledger_entries_hash').on(t.hash),
+    index('ledger_entries_child_at').on(t.childId, t.at),
+  ],
+);
+
+/** A child's weekly screen time allowance, agreed at the family review. */
+export const allowances = pgTable('allowances', {
+  childId: uuid('child_id')
+    .primaryKey()
+    .references(() => people.id),
+  weeklyMinutes: integer('weekly_minutes').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** The allowance coming down a step at a time. A step applies only once ticked agreed at the review. */
+export const reductionPlans = pgTable('reduction_plans', {
+  childId: uuid('child_id')
+    .primaryKey()
+    .references(() => people.id),
+  stepMinutes: integer('step_minutes').notNull(),
+  everyWeeks: smallint('every_weeks').notNull(),
+  floorMinutes: integer('floor_minutes').notNull(),
+  nextStepOn: date('next_step_on', { mode: 'string' }).notNull(),
+  agreedStepOn: date('agreed_step_on', { mode: 'string' }),
+  agreedBy: uuid('agreed_by').references(() => people.id),
+  agreedAt: timestamp('agreed_at', { withTimezone: true }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const REWARD_TYPES = ['money', 'flex', 'time', 'praise'] as const;
+export type RewardType = (typeof REWARD_TYPES)[number];
+
+/** A job or activity. Praise-only ones carry no points (brief Part 6). */
+export const tasks = pgTable(
+  'tasks',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    householdId: uuid('household_id')
+      .notNull()
+      .references(() => households.id),
+    /** Null: any child in the family. */
+    childId: uuid('child_id').references(() => people.id),
+    title: text('title').notNull(),
+    /** An icon name from the app's fixed set. */
+    picture: text('picture').notNull().default('star'),
+    rewardType: text('reward_type').$type<RewardType>().notNull(),
+    /** Pence, points or minutes. Zero for praise only. */
+    amount: integer('amount').notNull().default(0),
+    /** `{ "kind": "once" }`, `{ "kind": "daily" }` or `{ "kind": "weekly", "weekdays": [1, 3] }`. */
+    recurrence: jsonb('recurrence').notNull().default({ kind: 'daily' }),
+    ageBand: text('age_band'),
+    needsPhoto: boolean('needs_photo').notNull().default(false),
+    active: boolean('active').notNull().default(true),
+    createdBy: uuid('created_by')
+      .notNull()
+      .references(() => people.id),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check('tasks_reward', sql`${t.rewardType} in ('money', 'flex', 'time', 'praise')`),
+    check('tasks_amount', sql`(${t.rewardType} = 'praise' and ${t.amount} = 0) or (${t.rewardType} <> 'praise' and ${t.amount} > 0)`),
+    index('tasks_household').on(t.householdId),
+  ],
+);
+
+/** "I did it": the child logs a job; a parent approves it with a note, or says not yet. */
+export const completions = pgTable(
+  'completions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    taskId: uuid('task_id')
+      .notNull()
+      .references(() => tasks.id),
+    childId: uuid('child_id')
+      .notNull()
+      .references(() => people.id),
+    loggedAt: timestamp('logged_at', { withTimezone: true }).notNull(),
+    /** Local file, deleted 30 days after approval (Phase 6 and 8). */
+    photoPath: text('photo_path'),
+    status: text('status').$type<'waiting' | 'approved' | 'not-yet'>().notNull().default('waiting'),
+    /** The parent's note, shown on the kiosk. */
+    note: text('note'),
+    /** What was paid, as decided at approval: the time cap can make it less than the task's amount. */
+    paid: jsonb('paid'),
+    decidedBy: uuid('decided_by').references(() => people.id),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+  },
+  (t) => [check('completions_status', sql`${t.status} in ('waiting', 'approved', 'not-yet')`), index('completions_child_status').on(t.childId, t.status)],
+);
+
+/** "Ask a grown-up": time outside the plan. Approving makes a grant that uses the allowance. */
+export const requests = pgTable(
+  'requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    childId: uuid('child_id')
+      .notNull()
+      .references(() => people.id),
+    targetKind: text('target_kind').$type<'service' | 'group'>().notNull(),
+    targetId: uuid('target_id').notNull(),
+    startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+    minutes: integer('minutes').notNull(),
+    /** What the child wrote, shown as they wrote it. Never sent to AI. */
+    detail: text('detail'),
+    askedAt: timestamp('asked_at', { withTimezone: true }).notNull(),
+    status: text('status').$type<'waiting' | 'approved' | 'not-yet'>().notNull().default('waiting'),
+    /** Approved as extra: not taken from the allowance. */
+    asExtra: boolean('as_extra').notNull().default(false),
+    grantId: uuid('grant_id').references(() => grants.id),
+    decidedBy: uuid('decided_by').references(() => people.id),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+  },
+  (t) => [check('requests_status', sql`${t.status} in ('waiting', 'approved', 'not-yet')`), check('requests_minutes', sql`${t.minutes} > 0`)],
+);
+
+/** The child's savings goal. Progress reads from the MONEY balance. */
+export const goals = pgTable('goals', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  childId: uuid('child_id')
+    .notNull()
+    .references(() => people.id),
+  title: text('title').notNull(),
+  targetPence: integer('target_pence').notNull(),
+  active: boolean('active').notNull().default(true),
+  createdAt: createdAt(),
+});
