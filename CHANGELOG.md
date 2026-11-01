@@ -2,6 +2,33 @@
 
 Release notes the app shows on its System page (from Phase 8). One plain line per change, newest first.
 
+## 0.9.0 (Phase 8, ready for the pilot)
+
+- Nightly backups, encrypted, with the family's data, settings and keys kept apart. Each one can be restored into a scratch copy to prove it works.
+- A System page for the owner: version, health, the last backup, what the pilot phase has switched on, how long data is kept, the audit log and these notes.
+- Export the family's data as one file.
+- Old data is cleared on schedule: sign-ins after 30 days, measures after 13 months, the audit log after two years. The points history is kept.
+- Pilot measures on Family, week by week, with a spreadsheet download.
+- Maintenance mode, so the app can say "back soon" while the server is worked on.
+- An alert to owners when a backup fails or none has run for a day and a half.
+
+## 0.8.0 (Phase 7, AI and connected apps)
+
+- Optional AI, off until the owner switches it on: type what you want on Control, get job ideas, or a short note on the week. Every suggestion is a card a parent approves.
+- An assistant such as Claude can connect with a parent's say-so, see what each child can use now, and suggest changes as cards on Approvals.
+- AI keys are locked away on the server, each feature has a monthly spending limit, and children's names are replaced before anything leaves.
+
+## 0.7.0 (Phase 6, the kiosk)
+
+- Your child's own screen on a tablet at home: what's on now, the week, planning time, jobs with I did it, asking a grown-up, a savings goal and ideas for things to do.
+- A photo can go with a job, and is deleted 30 days after you answer.
+- Sunday questions for the family review, seen only by parents.
+
+## 0.6.0 (Phase 5, the Besu ledger)
+
+- The points history can also be written to a small private blockchain on your server, and checked against it every night.
+- The owner's Ledger screen shows every entry and where it is on the chain.
+
 ## 0.5.0 (Phase 4, the weekly allowance and jobs)
 
 - A weekly screen time allowance, agreed with your child, given at the start of each week.

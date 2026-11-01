@@ -78,6 +78,25 @@ describe('audit events', () => {
     expect(rows[0]?.n).toBe(1);
   });
 
+  it('lets only the retention sweep delete, and only rows over two years old', async () => {
+    handle = await testDb();
+    await handle.client.query(`insert into audit_events (actor_label, action, at) values ('cli', 'old', now() - interval '3 years'), ('cli', 'recent', now() - interval '1 year')`);
+    // Without the setting, even an old row stays.
+    await expect(handle.client.query(`delete from audit_events where action = 'old'`)).rejects.toThrow(/append-only/);
+    await handle.client.query('begin');
+    await handle.client.query(`select set_config('family_time.retention', 'on', true)`);
+    await handle.client.query(`delete from audit_events where action = 'old'`);
+    await expect(handle.client.query(`delete from audit_events where action = 'recent'`)).rejects.toThrow(/append-only/);
+    await handle.client.query('rollback');
+    await handle.client.query('begin');
+    await handle.client.query(`select set_config('family_time.retention', 'on', true)`);
+    await handle.client.query(`delete from audit_events where action = 'old'`);
+    await expect(handle.client.query(`update audit_events set action = 'changed'`)).rejects.toThrow(/append-only/);
+    await handle.client.query('rollback');
+    const { rows } = await handle.client.query<{ action: string }>(`select action from audit_events order by action`);
+    expect(rows.map((r) => r.action)).toEqual(['old', 'recent']);
+  });
+
   it('needs exactly one actor', async () => {
     handle = await testDb();
     await expect(handle.client.query(`insert into audit_events (action) values ('x')`)).rejects.toThrow(/one_actor/);

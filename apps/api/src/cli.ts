@@ -1,9 +1,10 @@
 // The server's command line. Run it through ./scripts/ft.sh, which starts it in the api image.
 import { AdGuard } from '@family-time/adguard-client';
-import { connectionConfig, readSecret, schema, type Db } from '@family-time/db';
+import { connectionConfig, readSecret, recordBackup, schema, setMaintenance, type Db } from '@family-time/db';
 import type { ChildStatus } from '@family-time/schemas';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
+import { audit } from './audit.js';
 import { CliError, ownerInvite, recoveryLink } from './cli/commands.js';
 import { addChild, addDevice, adguardSetup, allowanceFor, control, ledgerVerify, pilotPhase, resolveTarget, setChildPronouns, setupDefaults, status, syncServices } from './cli/control.js';
 import { ledgerCheck, ledgerDeploy, ledgerStatus } from './cli/ledger.js';
@@ -51,7 +52,14 @@ The Besu ledger (only with LEDGER_ADAPTER=besu and the ledger-besu profile; docs
   ledger-check
       Rebuilds every balance from the chain's events and compares it with Postgres.
   ledger-status
-      Shows the contract and how the signer's queue stands.`;
+      Shows the contract and how the signer's queue stands.
+
+Operations
+  maintenance --state on|off [--message "Back by 21:00"]
+      While on, the app shows the message and refuses changes; sign-in still works and AdGuard keeps
+      what it has.
+  backup-recorded --result ok|failed [--bytes 123456] [--snapshot abc123] [--problem "why"]
+      backup.sh runs this after each backup, so the System page shows it and owners hear of a failure.`;
 
 const SWITCHES = new Set(['everything', 'yes']);
 const REPEATABLE = new Set(['id']);
@@ -228,6 +236,24 @@ async function run(db: Db, command: string, args: ReturnType<typeof flags>): Pro
       const q = s.queue!;
       console.log(`Queue: ${q.mined} confirmed, ${q.sent} sent, ${q.pending} waiting${q.failed ? `, ${q.failed} refused by the chain` : ''}.`);
       return q.failed ? 1 : 0;
+    }
+    case 'maintenance': {
+      const state = need('state');
+      if (state !== 'on' && state !== 'off') throw new CliError('maintenance needs --state on or --state off.');
+      const message = values.message?.trim().slice(0, 200) || null;
+      await setMaintenance(db, { on: state === 'on', message }, now);
+      await audit(db, { actor: { label: 'cli' }, action: `maintenance.${state}`, after: { message } });
+      console.log(state === 'on' ? `Maintenance mode is on. The app shows${message ? ` "${message}"` : ' a notice'} and refuses changes until: ./scripts/ft.sh maintenance --state off` : 'Maintenance mode is off. Changes work again.');
+      return 0;
+    }
+    case 'backup-recorded': {
+      const result = need('result');
+      if (result !== 'ok' && result !== 'failed') throw new CliError('backup-recorded needs --result ok or --result failed.');
+      const bytes = values.bytes ? Number(values.bytes) : null;
+      await recordBackup(db, { ok: result === 'ok', bytes: Number.isFinite(bytes) ? bytes : null, snapshot: values.snapshot ?? null, problem: values.problem?.slice(0, 300) ?? null }, now);
+      await audit(db, { actor: { label: 'backup' }, action: result === 'ok' ? 'backup.done' : 'backup.failed', after: { bytes, snapshot: values.snapshot ?? null, problem: values.problem ?? null } });
+      console.log(`Recorded the backup as ${result === 'ok' ? 'done' : 'failed'}.`);
+      return 0;
     }
     default:
       throw new CliError(`Unknown command "${command}".\n\n${USAGE}`);

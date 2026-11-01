@@ -91,6 +91,8 @@ COPY --from=build /app/apps/api/dist apps/api/dist
 COPY --from=build /app/apps/worker/dist apps/worker/dist
 COPY --from=build /app/apps/parent/dist apps/parent/dist
 COPY --from=build /app/apps/kiosk/dist apps/kiosk/dist
+# Release notes for the System page.
+COPY --from=build /app/CHANGELOG.md CHANGELOG.md
 COPY --chmod=0755 deploy/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 EXPOSE 3000
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

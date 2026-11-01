@@ -66,3 +66,5 @@ export { migrationsFolder, latestMigrationTag, shippedMigrationCount, appliedMig
 export { recordHeartbeat, readHeartbeat, heartbeatFresh, HEARTBEAT_STALE_AFTER_MS } from './heartbeat.js';
 export { loadRules } from './control.js';
 export { loadEconomy, loadRates, DEFAULT_RATES, DEFAULT_ALLOWANCE_MINUTES, SETTING_ECONOMY, type Economy, type Rates } from './economy.js';
+export { lastBackup, maintenance, recordBackup, setMaintenance, SETTING_LAST_BACKUP, SETTING_MAINTENANCE, type LastBackup, type Maintenance } from './ops.js';
+export { AUDIT_DAYS, RETENTION, sweep, type RetentionRule } from './retention.js';

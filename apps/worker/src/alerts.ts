@@ -41,7 +41,8 @@ export function deviceAlert(kind: DeviceAlertKind, device: { label: string; chil
 export type AlertJob =
   | { kind: DeviceAlertKind; deviceIds: string[] }
   | { kind: 'completion' | 'request'; id: string }
-  | { kind: 'ledger'; householdId: string; problem: string };
+  | { kind: 'ledger'; householdId: string; problem: string }
+  | { kind: 'backup'; householdId: string; problem: string };
 
 async function originOf(db: Db, householdId: string): Promise<string | undefined> {
   const v = (await db.select({ value: settings.value }).from(settings).where(and(eq(settings.householdId, householdId), eq(settings.key, SETTING_PUBLIC_ORIGIN))))[0]?.value;
@@ -50,6 +51,13 @@ async function originOf(db: Db, householdId: string): Promise<string | undefined
 
 /** The words of an economy alert, from the rows it is about. Undefined when the row has gone. */
 export async function familyAlert(db: Db, job: Exclude<AlertJob, { deviceIds: string[] }>): Promise<{ householdId: string; to: 'parents' | 'owners'; alert: Alert } | undefined> {
+  if (job.kind === 'backup') {
+    return {
+      householdId: job.householdId,
+      to: 'owners',
+      alert: { title: 'The backup needs a look', body: `${job.problem} Run ./scripts/backup.sh on the server to see why. The family's data is fine; it just isn't copied anywhere safe right now.`, path: '/system' },
+    };
+  }
   if (job.kind === 'ledger') {
     return {
       householdId: job.householdId,

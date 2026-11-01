@@ -1,4 +1,4 @@
-import type { Db } from '@family-time/db';
+import { maintenance, type Db } from '@family-time/db';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { audit } from '../audit.js';
 import { HEALTH_PATHS } from '../logging.js';
@@ -29,6 +29,9 @@ declare module 'fastify' {
 }
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+/** Still work in maintenance mode: signing in and out. */
+const MAINTENANCE_EXEMPT = new Set(['/api/auth/login/options', '/api/auth/login/verify', '/api/auth/logout']);
+export const MAINTENANCE_DETAIL = 'Family time is being worked on, so changes are paused. Try again in a little while.';
 
 export interface AccessDeps {
   db: Db;
@@ -91,6 +94,13 @@ export function registerAccess(app: FastifyInstance, deps: AccessDeps): void {
           return reply.code(403).send({ error: 'forbidden', detail: 'Missing or wrong CSRF token. Reload the page and try again.' });
         }
       }
+    }
+
+    // Maintenance mode (ADR 0017): reading works, changing waits.
+    if (!SAFE_METHODS.has(request.method) && !MAINTENANCE_EXEMPT.has(request.routeOptions.url ?? '')) {
+      const householdId = request.auth?.person.householdId ?? (await theHousehold(deps.db))?.id;
+      const m = householdId ? await maintenance(deps.db, householdId) : null;
+      if (m?.on) return reply.code(503).send({ error: 'maintenance', detail: m.message ? `${m.message} Changes are paused until then.` : MAINTENANCE_DETAIL });
     }
 
     if (access === 'public') return;

@@ -1,10 +1,11 @@
 import type { AdGuard } from '@family-time/adguard-client';
-import { households, recordHeartbeat, type Db } from '@family-time/db';
+import { households, recordHeartbeat, sweep, type Db } from '@family-time/db';
 import { activeContract, checkAgainstChain, indexPass, postgresLedger, signerPass, type ChainClient, type LedgerPort } from '@family-time/ledger';
 import type { Send, Vapid } from '@family-time/notify';
 import type { PgBoss } from 'pg-boss';
 import { sendDeviceAlerts, sendFamilyAlert, type AlertJob, type DeviceAlertKind } from './alerts.js';
 import { economyTick } from './economy.js';
+import { backupProblem } from './backups.js';
 import { prunePhotos } from './photos.js';
 import { reconcile } from './reconcile.js';
 import { readUsage } from './usage.js';
@@ -24,6 +25,11 @@ export const LEDGER_QUEUE = 'ledger-chain';
 export const LEDGER_INTERVAL_MS = 5_000;
 /** How often the chain is compared with Postgres, entry by entry and balance by balance. */
 export const CHAIN_CHECK_MS = 24 * 3_600_000;
+/** Retention runs once a day, and once after each start. */
+export const RETENTION_MS = 24 * 3_600_000;
+/** The backup check runs every few hours; an owner hears about a problem at most once a day. */
+export const BACKUP_CHECK_MS = 6 * 3_600_000;
+export const BACKUP_ALERT_MS = 24 * 3_600_000;
 
 export type Log = (level: 'debug' | 'info' | 'warn' | 'error', event: string, fields?: Record<string, unknown>) => void;
 
@@ -106,10 +112,34 @@ export async function startWorker(deps: WorkerDeps): Promise<RunningWorker> {
     }
   });
   const ledger = deps.ledger ?? postgresLedger(db);
+  // Zero, so both run on the first tick after a start.
+  let sweptAt = 0;
+  let backupCheckedAt = 0;
+  const backupAlertedAt = new Map<string, number>();
   await boss.work(ECONOMY_QUEUE, { pollingIntervalSeconds: deps.pollingIntervalSeconds ?? 2 }, async () => {
     const result = await economyTick({ db, ledger, now, log, onChainBroken: (householdId, problem) => queueAlert({ kind: 'ledger', householdId, problem }) });
     const photos = await prunePhotos(db, now());
     if (photos) log('info', 'photos_deleted', { count: photos });
+    if (now().getTime() - sweptAt > RETENTION_MS) {
+      sweptAt = now().getTime();
+      try {
+        const counts = await sweep(db, now());
+        log(Object.keys(counts).length ? 'info' : 'debug', 'retention', counts);
+      } catch (err) {
+        log('error', 'retention_failed', { error: (err as Error).message });
+      }
+    }
+    if (now().getTime() - backupCheckedAt > BACKUP_CHECK_MS) {
+      backupCheckedAt = now().getTime();
+      for (const h of await db.select({ id: households.id }).from(households)) {
+        const problem = await backupProblem(db, h.id, now());
+        if (problem && now().getTime() - (backupAlertedAt.get(h.id) ?? 0) > BACKUP_ALERT_MS) {
+          backupAlertedAt.set(h.id, now().getTime());
+          log('warn', 'backup_problem', { householdId: h.id, problem });
+          await queueAlert({ kind: 'backup', householdId: h.id, problem });
+        }
+      }
+    }
     log(result.closed || result.allocated || result.refunds || result.charges ? 'info' : 'debug', 'economy', { ...result });
   });
   // The signer, then the indexer. Singleton, so there is only ever one signer and nonces never clash.

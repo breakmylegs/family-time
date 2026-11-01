@@ -78,6 +78,13 @@
       "when": 1793484076207,
       "tag": "0010_ai_and_mcp",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793522458907,
+      "tag": "0011_audit_retention",
+      "breakpoints": true
     }
   ]
 }

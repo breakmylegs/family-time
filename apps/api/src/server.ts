@@ -19,6 +19,7 @@ import { kioskRoutes } from './routes/kiosk.js';
 import { mcpRoutes } from './routes/mcp.js';
 import { peopleRoutes } from './routes/people.js';
 import { pushRoutes } from './routes/push.js';
+import { systemRoutes } from './routes/system.js';
 import { registerStatic } from './static.js';
 
 export interface ServerDeps {
@@ -141,6 +142,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     ...(deps.readWeather ? { readWeather: deps.readWeather } : {}),
   });
   await mcpRoutes(app, { db: deps.db, ledger, now, changes, version: deps.build.commit, ...(deps.fetchClientMetadata ? { fetchClientMetadata: deps.fetchClientMetadata } : {}) });
+  await systemRoutes(app, { db: deps.db, build: deps.build, now, ledgerAdapter: deps.ledgerAdapter ?? 'postgres', adguardSetUp: Boolean(deps.readQuerylog) });
   await pushRoutes(app, { db: deps.db, now, ...(deps.vapidPublicKey ? { vapidPublicKey: deps.vapidPublicKey } : {}) });
   if (deps.staticDir) registerStatic(app, deps.staticDir);
 

@@ -5,7 +5,7 @@
 // Every /api route needs a kiosk's bearer token, except pairing. Tokens are long-lived and
 // revocable; there are no cookies here, so nothing a web page elsewhere could ride on.
 import { randomUUID } from 'node:crypto';
-import type { Db } from '@family-time/db';
+import { maintenance, type Db } from '@family-time/db';
 import type { LedgerPort } from '@family-time/ledger';
 import { KioskAskRequest, KioskDoneRequest, KioskIdeaRequest, KioskPairRequest, KioskPlanRequest, KioskReflectionRequest } from '@family-time/schemas';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
@@ -107,6 +107,10 @@ export async function buildKioskServer(deps: KioskServerDeps): Promise<FastifyIn
     const kiosk = token ? await kioskFromToken(deps.db, token, now()) : null;
     if (!kiosk) return reply.code(401).send({ error: 'unpaired', message: 'This kiosk needs setting up again. Ask a grown-up.' });
     request.kiosk = kiosk;
+    // Maintenance mode: the kiosk still shows everything, but asks the child to wait to change it.
+    if (request.method !== 'GET' && (await maintenance(deps.db, kiosk.householdId)).on) {
+      return reply.code(503).send({ error: 'maintenance', message: 'Family time is having a quick tidy-up. Try again in a little while.' });
+    }
   });
 
   app.setNotFoundHandler(async (_request, reply) => reply.code(404).send({ error: 'not_found' }));
