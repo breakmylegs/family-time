@@ -21,7 +21,7 @@ const steps = [
   // an hour on the Windows laptop, where every process start costs seconds. So they always run in
   // the image, which means update.sh tests the new version of itself before using it, and on the
   // laptop only with --with-deploy (pnpm gate:full) after a change to the deploy scripts.
-  ...(withDeploy ? [['deploy-scripts', ['run', 'test:deploy']]] : []),
+  ...(withDeploy ? [['deploy-scripts', ['run', 'test:deploy']], ['ops-scripts', ['run', 'test:ops']]] : []),
   ['typecheck', ['exec', 'turbo', 'run', 'typecheck', '--output-logs=errors-only']],
 ];
 

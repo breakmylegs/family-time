@@ -109,7 +109,7 @@ export async function buildKioskServer(deps: KioskServerDeps): Promise<FastifyIn
     request.kiosk = kiosk;
     // Maintenance mode: the kiosk still shows everything, but asks the child to wait to change it.
     if (request.method !== 'GET' && (await maintenance(deps.db, kiosk.householdId)).on) {
-      return reply.code(503).send({ error: 'maintenance', message: 'Family time is having a quick tidy-up. Try again in a little while.' });
+      return reply.code(503).send({ error: 'maintenance', message: 'Family time is having a quick tidy-up. Everything still works. Tap again in a little while.' });
     }
   });
 

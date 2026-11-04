@@ -63,7 +63,7 @@ export function Plan({ home, ask, onDone }: { home: KioskHome; ask: boolean; onD
       </header>
 
       {done ? (
-        <p class="sent big">
+        <p class="sent big" role="status">
           <Icon name="check" />
           {done}
         </p>
@@ -105,6 +105,7 @@ export function Plan({ home, ask, onDone }: { home: KioskHome; ask: boolean; onD
                     type="button"
                     class={`slot${s.ok || ask ? '' : ' grey'}`}
                     aria-pressed={chosen?.start === s.start}
+                    aria-label={s.ok || ask ? s.label : `${s.label}, won't fit`}
                     onClick={() => {
                       setChosen(s);
                       setWhy(s.ok || ask ? null : s.reason);

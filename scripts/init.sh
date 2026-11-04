@@ -3,7 +3,6 @@
 # owned by root. Safe to run again: it never replaces a secret that already exists, because the
 # Postgres password, for one, is fixed into the database the first time Postgres starts.
 #
-# Later phases add more here (ledger keys, the owner invite).
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -55,6 +54,15 @@ else
   mv "$tmp" secrets/vapid_private.pem
   echo "  created  secrets/vapid_private.pem"
 fi
+# Its public half, for the api, which never needs the private key (ADR 0017): the uncompressed
+# point, base64url, the last 65 bytes of the public key's DER.
+if [ -s secrets/vapid_public.txt ]; then
+  echo "  kept     secrets/vapid_public.txt"
+else
+  openssl ec -in secrets/vapid_private.pem -pubout -outform DER 2>/dev/null | tail -c 65 | base64 -w0 | tr '+/' '-_' | tr -d '=' > secrets/vapid_public.txt
+  chmod 600 secrets/vapid_public.txt
+  echo "  created  secrets/vapid_public.txt"
+fi
 
 # The server's LAN address, where AdGuard publishes DNS port 53. Found from the default route, and
 # never 0.0.0.0, which would clash with the server's own resolver. Kept if already set; edit
@@ -72,6 +80,21 @@ else
   printf 'LAN_IP=%s\n' "$lan_ip" > deploy/.state/network.env
   echo "  created  deploy/.state/network.env (LAN_IP=$lan_ip)"
 fi
+
+# Backups (ADR 0017): two restic repositories, each with its own password, so the family's data
+# and the keys that protect it are never opened by one password. The keys repository's password
+# belongs offline too: write it down. Defaults to local folders; any restic URL works.
+echo
+echo "init.sh: backups"
+make_secret restic_password 32
+make_secret restic_keys_password 32
+if [ -s deploy/.state/backup.env ]; then
+  echo "  kept     deploy/.state/backup.env"
+else
+  printf 'BACKUP_REPO=/var/backups/family-time/data\nBACKUP_KEYS_REPO=/var/backups/family-time/keys\n' > deploy/.state/backup.env
+  echo "  created  deploy/.state/backup.env (local folders; see docs/setup/backup.md to use another disk)"
+fi
+command -v restic >/dev/null || echo "  note     restic is not installed yet: sudo apt install restic"
 
 echo
 echo "init.sh: done. Next: ./scripts/update.sh"

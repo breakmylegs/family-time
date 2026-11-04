@@ -257,7 +257,7 @@ function DidIt({ job, path, onClose }: { job: KioskHome['jobs'][number]; path: s
     <div class="overlay" role="dialog" aria-modal="true" aria-label={job.title}>
       <div class="sheet">
         {sent ? (
-          <p class="sent">
+          <p class="sent" role="status">
             <Icon name="check" />
             Sent to Mum or Dad. Nice one!
           </p>

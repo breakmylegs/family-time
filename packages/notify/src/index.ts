@@ -38,6 +38,22 @@ export function vapidFromFile(path: string | undefined): Vapid | undefined {
   return vapidFromPem(pem);
 }
 
+/**
+ * The public half only, for the api (secrets/vapid_public.txt, made by init.sh), so the private key
+ * stays with the worker, which sends the alerts. Undefined when no file is configured.
+ */
+export function vapidPublicFromFile(path: string | undefined): string | undefined {
+  if (!path) return undefined;
+  let key: string;
+  try {
+    key = readFileSync(path, 'utf8').trim();
+  } catch (err) {
+    throw new Error(`Cannot read the VAPID public key at ${path} (${(err as Error).message}). Run ./scripts/init.sh`, { cause: err });
+  }
+  if (!/^[A-Za-z0-9_-]{87}$/.test(key) || Buffer.from(key, 'base64url')[0] !== 4) throw new Error(`${path} is not a VAPID public key. Run ./scripts/init.sh again`);
+  return key;
+}
+
 export interface Alert {
   title: string;
   body: string;

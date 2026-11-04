@@ -29,9 +29,22 @@ declare module 'fastify' {
 }
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
-/** Still work in maintenance mode: signing in and out. */
-const MAINTENANCE_EXEMPT = new Set(['/api/auth/login/options', '/api/auth/login/verify', '/api/auth/logout']);
-export const MAINTENANCE_DETAIL = 'Family time is being worked on, so changes are paused. Try again in a little while.';
+/**
+ * Still work in maintenance mode: signing in and out, and Control. A parent can always Allow, Block,
+ * Pause, Resume or go back to Normal, because that is what keeps a child's evening right.
+ */
+const MAINTENANCE_EXEMPT = new Set([
+  '/api/auth/login/options',
+  '/api/auth/login/verify',
+  '/api/auth/logout',
+  '/api/children/:id/overrides',
+  '/api/children/:id/overrides/:overrideId/end',
+  '/api/children/:id/normal',
+  '/api/children/:id/normal/undo',
+  '/api/children/:id/resume',
+  '/api/children/:id/resume/undo',
+]);
+export const MAINTENANCE_DETAIL = 'Family time is being worked on, so this change waits until it is done. Allow, Block and Pause on Control still work.';
 
 export interface AccessDeps {
   db: Db;
@@ -71,6 +84,13 @@ export function registerAccess(app: FastifyInstance, deps: AccessDeps): void {
       }
     }
 
+    // Maintenance mode (ADR 0017): reading works, changing waits.
+    if (!SAFE_METHODS.has(request.method) && !MAINTENANCE_EXEMPT.has(request.routeOptions.url ?? '')) {
+      const householdId = request.auth?.person.householdId ?? (await theHousehold(deps.db))?.id;
+      const m = householdId ? await maintenance(deps.db, householdId) : null;
+      if (m?.on) return reply.code(503).send({ error: 'maintenance', detail: m.message ? `${m.message.replace(/[.!?]?$/, '.')} This change waits until then. Allow, Block and Pause on Control still work.` : MAINTENANCE_DETAIL });
+    }
+
     // Bearer routes never read cookies, so a session cookie can never ride along on them, and they
     // are called by apps, not pages, so there is no Origin to check.
     if (access === 'token') return;
@@ -94,13 +114,6 @@ export function registerAccess(app: FastifyInstance, deps: AccessDeps): void {
           return reply.code(403).send({ error: 'forbidden', detail: 'Missing or wrong CSRF token. Reload the page and try again.' });
         }
       }
-    }
-
-    // Maintenance mode (ADR 0017): reading works, changing waits.
-    if (!SAFE_METHODS.has(request.method) && !MAINTENANCE_EXEMPT.has(request.routeOptions.url ?? '')) {
-      const householdId = request.auth?.person.householdId ?? (await theHousehold(deps.db))?.id;
-      const m = householdId ? await maintenance(deps.db, householdId) : null;
-      if (m?.on) return reply.code(503).send({ error: 'maintenance', detail: m.message ? `${m.message} Changes are paused until then.` : MAINTENANCE_DETAIL });
     }
 
     if (access === 'public') return;

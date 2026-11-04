@@ -124,8 +124,10 @@ deploy() {
   [ -z "$(git status --porcelain --untracked-files=no)" ] || fail "$EXIT_PREFLIGHT" "the checkout has local changes. Deploy only what is on origin: git status"
   [ -s secrets/postgres_password ] || fail "$EXIT_PREFLIGHT" "secrets are missing. Run ./scripts/init.sh first"
   # Added in later versions; init.sh is safe to run again and only adds what is missing.
-  [ -s secrets/adguard_password ] && [ -s deploy/.state/network.env ] && [ -s secrets/vapid_private.pem ] && [ -s secrets/ledger_signer_key ] && [ -s secrets/besu_node_key ] && [ -s secrets/master_key ] \
-    || fail "$EXIT_PREFLIGHT" "this version needs new setup (the AdGuard password, the LAN address, the alerts key, the ledger keys and the master key). Run ./scripts/init.sh again"
+  [ -s secrets/adguard_password ] && [ -s deploy/.state/network.env ] && [ -s secrets/vapid_private.pem ] && [ -s secrets/vapid_public.txt ] && [ -s secrets/ledger_signer_key ] && [ -s secrets/besu_node_key ] && [ -s secrets/master_key ] \
+    || fail "$EXIT_PREFLIGHT" "this version needs new setup (the AdGuard password, the LAN address, the alerts keys, the ledger keys and the master key). Run ./scripts/init.sh again"
+  # Never while a backup has Besu stopped or a restore is replacing the database.
+  [ ! -e .deploy/backup.lock ] || fail "$EXIT_LOCKED" "a backup or restore is running (.deploy/backup.lock). Try again when it has finished"
   local proxy_net=${PROXY_NETWORK:-proxy_net}
   docker network inspect "$proxy_net" >/dev/null 2>&1 \
     || fail "$EXIT_PREFLIGHT" "Docker network $proxy_net does not exist. It is the network your Caddy uses: docker network create $proxy_net"

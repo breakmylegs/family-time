@@ -10,7 +10,7 @@ export const BACKUP_STALE_MS = 36 * 3_600_000;
 export async function backupProblem(db: Db, householdId: string, now: Date): Promise<string | null> {
   const b = await lastBackup(db, householdId);
   if (!b) return null;
-  if (!b.ok) return `Last night's backup didn't finish: ${b.problem ?? 'no reason given'}.`;
+  if (!b.ok) return `The last backup didn't finish: ${b.problem ?? 'no reason given'}.`;
   const good = b.lastOkAt ?? b.at;
   if (now.getTime() - new Date(good).getTime() > BACKUP_STALE_MS) return 'There has been no backup for more than a day and a half.';
   return null;

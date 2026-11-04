@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Fake curl for scripts/test/verify-ops.sh. Answers $SHIM_HTTP (200 by default) to everything, and
+# 401 for a signed-out /api/children and /mcp, with the app's security headers.
+set -u
+echo "curl $*" >> "$SHIM_LOG"
+[[ ",${SHIM_FAIL:-}," == *",kiosk,"* && " $* " == *":8180/"* ]] && { printf '000'; exit 7; }
+code=${SHIM_HTTP:-200}
+case " $* " in
+  *"/api/children "* | *"/mcp "*) code=401 ;;
+esac
+if [[ " $* " == *" -D - "* ]]; then
+  printf 'HTTP/2 %s\r\nx-content-type-options: nosniff\r\nreferrer-policy: no-referrer\r\nx-frame-options: DENY\r\n\r\n' "$code"
+fi
+[[ " $* " == *"%{http_code}"* ]] && printf '%s' "$code"
+exit 0

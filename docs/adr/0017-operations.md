@@ -1,0 +1,32 @@
+# ADR 0017: Backups, retention and the owner's view of the server
+
+Status: accepted, 4 November 2026 (Phase 8)
+
+## Decision
+
+- **Backups with restic, on the host**, nightly at 02:30 by `family-time-backup.timer` (`Persistent=true`, so a missed night runs at boot). `scripts/backup.sh` dumps Postgres (`pg_dump -Fc`), and the dump only counts once `pg_restore --list` shows data for the core tables and it is over a size floor. It copies AdGuard's settings volume, and the Besu volume with Besu stopped for the copy (only with the `ledger-besu` profile), using the app image's own `tar` with no network. Two repositories, each with its own password from `init.sh`: data (the dump and volumes) and keys (`secrets/` and `deploy/.state`, without the keys repository's own password, which the owner keeps offline). Both are checked with `restic check` before old snapshots are forgotten (7 daily, 4 weekly, 6 monthly). Repository paths live in `deploy/.state/backup.env`, local folders by default, any restic URL allowed.
+- **Restore is a drill by default.** `scripts/restore.sh` restores a snapshot into its own Compose project (`deploy/compose.restore.yml`: Postgres in memory, an internal network, nothing else), runs `pg_restore --exit-on-error`, checks the core tables, a household, and that the applied migrations are between one and what this version ships, reads the AdGuard and Besu archives, confirms the keys repository has a snapshot, and removes the project. `--keys` puts `secrets/` and the state files back on a new server without replacing anything already there. `--live` restores into the real stack after the owner types "restore live", keeping a dump of the live database first.
+- **Hardened after the security review.** `backup.env` is read line by line, never sourced: two keys, values of safe characters only. A keys restore brings back only state files of a known shape. Every drill call names its own Compose project (`-p family-time-restore`), so `COMPOSE_PROJECT_NAME` can never point it at the live stack. `--live` runs the drill on the same files first, takes the deploy and backup locks, restores in one transaction, and starts the stack again if it stops part way. Both scripts run with `umask 077`, and failure messages never carry a repository URL. `update.sh` refuses while a backup or restore holds `.deploy/backup.lock`.
+- **Backup results reach the app.** `backup.sh` records each run with `ft.sh backup-recorded`, stored as the household setting `last_backup`. The System page shows it, and the worker alerts the owners, at most once a day, when the last run failed or no run has succeeded for 36 hours. Until the first run, nothing is said.
+- **`scripts/verify.sh`** checks the stack from the host: `/healthz`, every `/readyz` check, `/version` against the deployed commit, the kiosk on the LAN address, home DNS on port 53, and that AdGuard's admin (3000), Besu's RPC (8545), Postgres (5432) and the container's kiosk port (3001) do not answer outside Docker. With `--url` it also checks the app through Caddy: HTTPS, security headers, signed-out refusals and `/mcp`. Exit 0 all green, 1 a finding, 2 unreachable, which is never a pass.
+- **Retention** runs once a day in the worker, with every period fixed in code (`packages/db/src/retention.ts`) and listed on the System page. A sweep that deletes anything audits its counts. Never deleted: ledger entries and the chain's records, people, and rules.
+- **Audit events stay append-only**, with one exception made in the database (migration `0011`, replacing the trigger function in place): a delete inside a transaction that sets `family_time.retention = 'on'`, of a row over two years old. Updates and truncation are always refused.
+- **Export** is a JSON file of everything the household has (`docs/export.md`), with the list of what it leaves out and why inside the file. Owner only, rate-limited, audited.
+- **Maintenance mode** is switched on the server (`ft.sh maintenance --state on --message "..."`). While on, the main api and the kiosk refuse changes with 503 and the message, except signing in and out and Control (Allow, Block, Pause, Resume, Normal and their Undo), so a parent can always pause; reading still works; the parent app shows a banner. The reconciler keeps running, so bedtime still applies.
+- **Secrets per service.** Each Compose service lists only the secrets it reads: the migrate service the database password; the api the AdGuard password, the master key and the alerts key's public half (`secrets/vapid_public.txt`); the worker the alerts private key and the ledger signer key.
+- **Release notes** come from `CHANGELOG.md`, which the image carries, read once at boot.
+- **Pilot measures** (brief Part 14) are computed from data Family time already keeps, per child and per week of the household's own week: minutes per app, unused minutes converted, how many different jobs and ideas were done, session-end taps, minutes used in wind-down and bedtime, and jobs approved. Parents see them on Family and can download them as CSV. Cells that start like a formula are prefixed so a spreadsheet shows them as text.
+
+## Why
+
+Brief Part 15 (backups proven by restore, verify, retention, export, maintenance, release notes) and Part 14 (measures). Reuse report 5, 9 and 11.
+
+## Consequences
+
+- restic is a host tool the owner installs (`sudo apt install restic`). The backup's safety depends on the keys repository's password being kept somewhere other than the server.
+- Local repositories on the same disk protect against mistakes, not against losing the disk. `docs/setup/backup.md` explains pointing `BACKUP_REPO` at another disk or a remote.
+- Besu is stopped for a few seconds each night with the `ledger-besu` profile. The signer queues entries meanwhile.
+- Wind-down and bedtime minutes use the timetable as it is now for every week, so a timetable changed mid-pilot shifts the older weeks' figures. The help topic says so.
+- Measures computed on read cost a few queries per week shown. Fine for one family and 18 weeks; V2 may want them stored.
+- The monthly wellbeing check (brief Part 14) waits for the owner to confirm the child scale's licence. The kiosk's optional sibling PIN is left for V2: the pilot has one child on the tablet.
+- Besu still runs as root with every capability dropped (ADR 0014). Dropping to its own user needs the official image's entrypoint changed, which is left until Besu is switched on for real.

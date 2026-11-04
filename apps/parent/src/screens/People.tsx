@@ -126,7 +126,7 @@ export function People({ me }: { me: Me }) {
                       key={r}
                       type="button"
                       aria-pressed={role === r}
-                      className={`h-9 rounded-lg text-[15px] transition-colors ${role === r ? 'bg-surface font-semibold text-ink shadow-sm' : 'text-ink-2'}`}
+                      className={`h-11 rounded-lg text-[15px] transition-colors ${role === r ? 'bg-surface font-semibold text-ink shadow-sm' : 'text-ink-2'}`}
                       onClick={() => setRole(r)}
                     >
                       {roleName[r]}

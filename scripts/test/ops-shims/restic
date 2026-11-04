@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Fake restic for scripts/test/verify-ops.sh. A repository is a folder with a `config` file.
+# $SHIM_FAIL steps: snapshot check restore. `restore` writes the files a real snapshot holds.
+set -u
+echo "restic $*" >> "$SHIM_LOG"
+fails() { [[ ",${SHIM_FAIL:-}," == *",$1,"* ]]; }
+repo=""
+args=("$@")
+for i in "${!args[@]}"; do [ "${args[$i]}" = -r ] && repo=${args[$((i + 1))]}; done
+target=""
+for i in "${!args[@]}"; do [ "${args[$i]}" = --target ] && target=${args[$((i + 1))]}; done
+has() { [[ " $* " == *" $1 "* ]]; }
+
+case " $* " in
+  *" cat config "*) [ -f "$repo/config" ]; exit $? ;;
+  *" init "*) mkdir -p "$repo" && touch "$repo/config"; exit 0 ;;
+  *" backup --json "*) fails snapshot && exit 1; echo '{"message_type":"status"}'; echo '{"message_type":"summary","snapshot_id":"abcdef1234567890abcdef"}'; exit 0 ;;
+  *" backup "*) exit 0 ;;
+  *" check "*) fails check && exit 1; exit 0 ;;
+  *" forget "*) exit 0 ;;
+  *" snapshots "*) exit 0 ;;
+  *" restore "*)
+    fails restore && exit 1
+    if [[ " $* " == *" --tag keys "* ]]; then
+      mkdir -p "$target/opt/ft/secrets" "$target/opt/ft/deploy/.state"
+      echo restored-pg > "$target/opt/ft/secrets/postgres_password"
+      echo restored-restic > "$target/opt/ft/secrets/restic_password"
+      printf 'BACKUP_REPO=/srv/data\nBACKUP_KEYS_REPO=/srv/keys\n' > "$target/opt/ft/deploy/.state/backup.env"
+    else
+      d="$target/opt/ft/backups/staging"
+      mkdir -p "$d/conf"
+      head -c "${SHIM_DUMP_BYTES:-20000}" /dev/zero | tr '\0' 'x' > "$d/family_time.dump"
+      echo "dns: {}" > "$d/conf/AdGuardHome.yaml"
+      tar -czf "$d/adguard-conf.tgz" -C "$d/conf" .
+    fi
+    exit 0 ;;
+esac
+echo "fake restic: no rule for: $*" >&2
+exit 99

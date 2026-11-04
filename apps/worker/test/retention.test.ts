@@ -62,7 +62,7 @@ describe('backup health', () => {
     await record(s.hh.id, { at: daysAgo(0.5).toISOString(), ok: true, lastOkAt: daysAgo(0.5).toISOString(), bytes: 900_000, snapshot: 'abc', problem: null });
     expect(await backupProblem(handle.db, s.hh.id, NOW)).toBeNull();
     await record(s.hh.id, { at: daysAgo(0.1).toISOString(), ok: false, lastOkAt: daysAgo(0.5).toISOString(), bytes: null, snapshot: null, problem: 'the dump was smaller than 64 KB' });
-    expect(await backupProblem(handle.db, s.hh.id, NOW)).toBe("Last night's backup didn't finish: the dump was smaller than 64 KB.");
+    expect(await backupProblem(handle.db, s.hh.id, NOW)).toBe("The last backup didn't finish: the dump was smaller than 64 KB.");
     await record(s.hh.id, { at: daysAgo(2).toISOString(), ok: true, lastOkAt: daysAgo(2).toISOString(), bytes: 900_000, snapshot: 'abc', problem: null });
     expect(await backupProblem(handle.db, s.hh.id, NOW)).toBe('There has been no backup for more than a day and a half.');
     expect(await familyAlert(handle.db, { kind: 'backup', householdId: s.hh.id, problem: 'x.' })).toMatchObject({ to: 'owners', alert: { title: 'The backup needs a look', path: '/system' } });

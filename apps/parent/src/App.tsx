@@ -8,6 +8,7 @@ import { LiveVersion, usePilot, useWaiting, useWeek } from './economy/data';
 import { HelpProvider } from './help/HelpContext';
 import { useLive } from './live';
 import { navigate, usePath } from './router';
+import { MaintenanceBanner } from './components/MaintenanceBanner';
 import { Approvals } from './screens/Approvals';
 import { Consent } from './screens/Consent';
 import { Control } from './screens/Control';
@@ -17,6 +18,7 @@ import { Ledger } from './screens/Ledger';
 import { Join } from './screens/Join';
 import { People } from './screens/People';
 import { Settings } from './screens/Settings';
+import { System } from './screens/System';
 import { SignIn } from './screens/SignIn';
 import { Tasks } from './screens/Tasks';
 import { ToastProvider } from './toast';
@@ -99,6 +101,7 @@ function Screens({ me, path, onSignedOut, onLive }: { me: Me; path: string; onSi
   else if (path === '/people' && can('people.view')) screen = <People me={me} />;
   else if (path === '/settings') screen = <Settings me={me} kids={kids ?? []} onSignedOut={onSignedOut} />;
   else if (path === '/ledger' && can('system.manage')) screen = <Ledger />;
+  else if (path === '/system' && can('system.manage')) screen = <System />;
   // Suggestions from AI and connected apps arrive here even before the economy is switched on.
   else if ((economy || waiting) && path === '/approvals' && can('approvals.decide')) screen = <Approvals me={me} />;
   else if (economy && path === '/tasks') screen = <Tasks kids={kids ?? []} canEdit={can('rules.edit')} />;
@@ -127,9 +130,10 @@ function Screens({ me, path, onSignedOut, onLive }: { me: Me; path: string; onSi
   return (
     <ToastProvider>
       <HelpProvider child={child} status={cs.status} week={week}>
+        <MaintenanceBanner />
         {screen}
         {path === '/people' || path === '/oauth/authorize' ? null : (
-          <TabBar path={path === '/ledger' ? '/settings' : ['/settings', '/approvals', '/tasks', '/family'].includes(path) && (economy || path === '/settings' || (path === '/approvals' && waiting)) ? path : '/'} economy={economy} waiting={waiting} />
+          <TabBar path={path === '/ledger' || path === '/system' ? '/settings' : ['/settings', '/approvals', '/tasks', '/family'].includes(path) && (economy || path === '/settings' || (path === '/approvals' && waiting)) ? path : '/'} economy={economy} waiting={waiting} />
         )}
         <Sheet open={Boolean(picking)} onClose={() => setPicking(null)} title="Choose a child" returnFocus={picking}>
           <div className="opts" role="radiogroup" aria-label="Choose a child">

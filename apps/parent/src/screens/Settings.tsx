@@ -97,6 +97,20 @@ export function Settings({ me, kids, onSignedOut }: { me: Me; kids: ChildSummary
             </button>
           ) : null}
           {me.capabilities.includes('system.manage') ? (
+            <button type="button" className="row" onClick={() => navigate('/system')}>
+              <span className="row-icon">
+                <Icon name="sliders" />
+              </span>
+              <span className="row-text">
+                System
+                <small>Health, backups, the audit log and export</small>
+              </span>
+              <span className="row-end">
+                <Icon name="right" />
+              </span>
+            </button>
+          ) : null}
+          {me.capabilities.includes('system.manage') ? (
             <button type="button" className="row" onClick={() => navigate('/ledger')}>
               <span className="row-icon">
                 <Icon name="list" />

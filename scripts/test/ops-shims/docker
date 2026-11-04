@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# Fake docker for scripts/test/verify-ops.sh (backup.sh, restore.sh, verify.sh). Records every call
+# in $SHIM_LOG and fails the steps named in $SHIM_FAIL (comma-separated):
+#   pgdown dump list copy scratch pgrestore ready api
+# $SHIM_DUMP_BYTES is the dump's size. $SHIM_VOLUMES lists the volumes that exist. $SHIM_MISSING
+# lists tables the restored database lacks. $SHIM_MIGRATIONS is how many migrations it has applied.
+# $SHIM_COMMIT is what /version says.
+set -u
+echo "docker $*" >> "$SHIM_LOG"
+fails() { [[ ",${SHIM_FAIL:-}," == *",$1,"* ]]; }
+args=" $* "
+
+case "$args" in
+  *" ps --status running -q postgres "*) fails pgdown || echo 3f2a1b; exit 0 ;;
+  *" exec -T postgres pg_dump "*) fails dump && exit 1; head -c "${SHIM_DUMP_BYTES:-20000}" /dev/zero | tr '\0' 'x'; exit 0 ;;
+  *" exec -T postgres pg_restore --list "*)
+    cat > /dev/null
+    for t in households people ledger_entries audit_events; do
+      fails list && [ "$t" = ledger_entries ] && continue
+      echo "1; 2615 1 TABLE DATA public $t family_time"
+    done
+    echo "2; 2615 2 TABLE DATA drizzle __drizzle_migrations family_time"
+    exit 0 ;;
+  *" volume inspect "*) [[ " ${SHIM_VOLUMES:-} " == *" ${*: -1} "* ]]; exit $? ;;
+  *" --entrypoint tar "* | *" --entrypoint sh "*) fails copy && exit 1; exit 0 ;;
+  *" stop besu "* | *" start besu "* | *" stop api worker "* | *" stop adguard "*) exit 0 ;;
+  *" up -d --wait postgres "*) fails scratch && exit 1; exit 0 ;;
+  *" down -v --remove-orphans "*) exit 0 ;;
+  *" exec -T postgres pg_restore "*) fails pgrestore && exit 1; exit 0 ;;
+  *" exec -T postgres psql "*)
+    sql=${*: -1}
+    table=${sql##* }
+    [[ " ${SHIM_MISSING:-} " == *" $table "* ]] && exit 1
+    if [ "$table" = drizzle.__drizzle_migrations ]; then echo "${SHIM_MIGRATIONS:-12}"; else echo 3; fi
+    exit 0 ;;
+  *"/cli.js backup-recorded "*) echo "${*#*cli.js }" >> "$SHIM_LOG.recorded"; exit 0 ;;
+  *" exec -T api node -e "*)
+    fails api && exit 3
+    case "$args" in
+      *"/healthz'"*) printf '200\n{"status":"ok"}\n' ;;
+      *"/readyz'"*)
+        if fails ready; then printf '503\n{"status":"not_ready","checks":[{"name":"worker","ok":false,"detail":"no heartbeat yet","ms":1}]}\n'
+        else printf '200\n{"status":"ready","checks":[]}\n'; fi ;;
+      *"/version'"*) printf '200\n{"app":"family-time","commit":"%s"}\n' "${SHIM_COMMIT:-${IMAGE_TAG:-}}" ;;
+    esac
+    exit 0 ;;
+  *" up -d "*) exit 0 ;;
+esac
+echo "fake docker: no rule for: $*" >&2
+exit 99

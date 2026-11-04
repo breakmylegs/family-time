@@ -1,0 +1,27 @@
+# Throwaway project for restore drills (scripts/restore.sh, ADR 0017). A Postgres of its own, with
+# its data in memory and only an internal network, so a drill can never touch the live database or
+# reach the internet. The restored files are mounted read-only from RESTORE_DIR.
+name: family-time-restore
+
+services:
+  postgres:
+    image: postgres:18.6-trixie
+    environment:
+      POSTGRES_USER: family_time
+      POSTGRES_DB: family_time
+      POSTGRES_PASSWORD: throwaway
+    tmpfs:
+      - /var/lib/postgresql
+    volumes:
+      - ${RESTORE_DIR:?RESTORE_DIR is set by scripts/restore.sh}:/restore:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U family_time -d family_time"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    networks: [drill]
+    mem_limit: 512m
+
+networks:
+  drill:
+    internal: true

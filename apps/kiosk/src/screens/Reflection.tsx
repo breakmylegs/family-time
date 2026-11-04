@@ -41,7 +41,7 @@ export function Reflection({ home, onDone }: { home: KioskHome; onDone: () => vo
         <h1>How was your week?</h1>
       </header>
       {saved ? (
-        <p class="sent big">
+        <p class="sent big" role="status">
           <Icon name="check" />
           Thanks, {home.child.name}. You can talk about it together.
         </p>

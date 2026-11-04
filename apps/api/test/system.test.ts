@@ -27,18 +27,21 @@ async function seed(hh: Harness) {
 }
 
 describe('maintenance mode', () => {
-  it('pauses changes with the message, while reading and signing in still work', async () => {
+  it('holds other changes with the message, while reading, signing in and Control still work', async () => {
     h = await harness({ now: NOW });
     const s = await seed(h);
     await setMaintenance(h.handle.db, { on: true, message: 'Back by 21:00.' }, NOW);
     expect((await h.app.inject({ url: '/api/maintenance' })).json()).toMatchObject({ on: true, message: 'Back by 21:00.' });
-    const change = await h.app.inject({ method: 'POST', url: `/api/children/${s.ollie}/resume`, headers: s.headers.mum });
+    const change = await h.app.inject({ method: 'PUT', url: '/api/household/pilot', headers: s.headers.mum, payload: { phase: 'reframe' } });
     expect(change.statusCode).toBe(503);
-    expect(change.json()).toEqual({ error: 'maintenance', detail: 'Back by 21:00. Changes are paused until then.' });
+    expect(change.json()).toEqual({ error: 'maintenance', detail: 'Back by 21:00. This change waits until then. Allow, Block and Pause on Control still work.' });
+    // A parent can always pause.
+    const pause = await h.app.inject({ method: 'POST', url: `/api/children/${s.ollie}/overrides`, headers: s.headers.mum, payload: { target: { kind: 'everything' }, type: 'pause', duration: 'until-resume' } });
+    expect(pause.statusCode).toBe(201);
     expect((await h.app.inject({ url: `/api/children/${s.ollie}/status`, headers: s.headers.mum })).statusCode).toBe(200);
     expect((await h.app.inject({ method: 'POST', url: '/api/auth/logout', headers: s.headers.dad })).statusCode).not.toBe(503);
     await setMaintenance(h.handle.db, { on: false, message: null }, NOW);
-    expect((await h.app.inject({ method: 'POST', url: `/api/children/${s.ollie}/resume`, headers: s.headers.mum })).statusCode).toBe(200);
+    expect((await h.app.inject({ method: 'PUT', url: '/api/household/pilot', headers: s.headers.mum, payload: { phase: 'reframe' } })).statusCode).toBe(200);
   });
 });
 

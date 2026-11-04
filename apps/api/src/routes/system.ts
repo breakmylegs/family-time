@@ -53,7 +53,8 @@ export async function systemRoutes(app: FastifyInstance, deps: SystemRouteDeps):
       uptimeSeconds: Math.round(process.uptime()),
       readiness: await readiness({ db, build: deps.build, now }),
       adguard: {
-        setUp: deps.adguardSetUp,
+        // Set up when the server can read AdGuard, or any device has been through it.
+        setUp: deps.adguardSetUp || sync.some((d) => d.state !== null),
         devices: sync.map((d) => ({ label: d.label, state: d.state ?? 'never', confirmedAt: d.confirmedAt?.toISOString() ?? null, lastError: d.lastError })),
       },
       ledger: { adapter: deps.ledgerAdapter, contract: contract?.address ?? null, waiting: (queue?.pending ?? 0) + (queue?.sent ?? 0), failed: queue?.failed ?? 0 },
@@ -82,7 +83,7 @@ export async function systemRoutes(app: FastifyInstance, deps: SystemRouteDeps):
   const entryOf = (r: Awaited<ReturnType<typeof auditRows>>[number]) => ({
     id: r.e.id,
     at: r.e.at.toISOString(),
-    by: r.name ?? r.e.actorLabel ?? 'unknown',
+    by: r.name ?? r.e.actorLabel ?? 'Someone not signed in',
     action: r.e.action,
     target: r.e.targetType ? `${r.e.targetType}${r.e.targetId ? ` ${r.e.targetId}` : ''}` : null,
     detail: r.e.after == null ? null : JSON.stringify(r.e.after).slice(0, 500),

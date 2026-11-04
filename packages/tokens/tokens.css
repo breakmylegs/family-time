@@ -13,6 +13,8 @@
   --surface-3: #d7e1df;
   --line: rgba(18, 38, 42, 0.1);
   --line-strong: rgba(18, 38, 42, 0.22);
+  /* The edge of a text field: 3:1 or more against the card and the page (WCAG 1.4.11). */
+  --field-line: #7c8f93;
   --ink: #12262a;
   --ink-2: #465a5f;
   --ink-3: #5f7377;
@@ -53,6 +55,9 @@
   --k-used: #c9d8d5;
   --k-sun: #efb23a;
   --k-sun-ink: #3f2b00;
+  /* Text on --k-sun-soft (reward tags, the offline note). Not in the mock, whose dark pair is 1.2:1. */
+  --k-sun-soft-ink: #3f2b00;
+  --k-field-line: #6f8a87;
   --k-sun-soft: #fbebc9;
 
   /* Type: the parent app uses the phone's own font; Lora for help reading; Poppins on the kiosk. */
@@ -76,6 +81,7 @@
     --surface-3: #28403f;
     --line: rgba(226, 238, 236, 0.1);
     --line-strong: rgba(226, 238, 236, 0.24);
+    --field-line: #6a7f82;
     --ink: #e6efed;
     --ink-2: #aabcbd;
     --ink-3: #94a8a9;
@@ -114,6 +120,8 @@
     --k-used: #2c4244;
     --k-sun: #efb23a;
     --k-sun-ink: #2e2000;
+    --k-sun-soft-ink: #f2c766;
+    --k-field-line: #6f8a87;
     --k-sun-soft: #3a2e14;
   }
 }
@@ -127,6 +135,7 @@
   --surface-3: #28403f;
   --line: rgba(226, 238, 236, 0.1);
   --line-strong: rgba(226, 238, 236, 0.24);
+  --field-line: #6a7f82;
   --ink: #e6efed;
   --ink-2: #aabcbd;
   --ink-3: #94a8a9;
@@ -165,6 +174,8 @@
   --k-used: #2c4244;
   --k-sun: #efb23a;
   --k-sun-ink: #2e2000;
+  --k-sun-soft-ink: #f2c766;
+  --k-field-line: #6f8a87;
   --k-sun-soft: #3a2e14;
 }
 

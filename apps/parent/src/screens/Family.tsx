@@ -7,6 +7,7 @@ import { useState, type ReactNode } from 'react';
 import { api } from '../api';
 import { Sheet } from '../components/Sheet';
 import { useSheetAction } from '../components/useSheetAction';
+import { PilotMeasures } from '../components/PilotMeasures';
 import { WeekNote } from '../components/WeekNote';
 import { minutes, pence, useLedger, useWeek } from '../economy/data';
 import { HelpButton } from '../help/HelpButton';
@@ -152,6 +153,16 @@ function Child({ kid, canEdit }: { kid: ChildSummary; canEdit: boolean }) {
         <ol className="group agenda">{agenda(kid.name, week)}</ol>
         {canEdit ? <WeekNote childId={kid.id} /> : null}
       </section>
+
+      {canEdit ? (
+        <section className="sec" aria-labelledby={`measures-${kid.id}`}>
+          <div className="sec-head">
+            <h2 id={`measures-${kid.id}`}>Pilot measures</h2>
+            <HelpButton topic="pilot-measures" label="Pilot measures" />
+          </div>
+          <PilotMeasures childId={kid.id} childName={kid.name} />
+        </section>
+      ) : null}
 
       <section className="sec" aria-labelledby={`allow-${kid.id}`}>
         <div className="sec-head">

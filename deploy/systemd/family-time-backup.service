@@ -1,0 +1,13 @@
+# The nightly backup (ADR 0017), started by family-time-backup.timer.
+# Install: see docs/setup/backup.md.
+[Unit]
+Description=Family time backup
+Requires=docker.service
+After=docker.service family-time.service
+
+[Service]
+Type=oneshot
+UMask=0077
+WorkingDirectory=/opt/family-time
+ExecStart=/opt/family-time/scripts/backup.sh
+TimeoutStartSec=1800

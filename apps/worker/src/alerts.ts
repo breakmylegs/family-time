@@ -55,7 +55,7 @@ export async function familyAlert(db: Db, job: Exclude<AlertJob, { deviceIds: st
     return {
       householdId: job.householdId,
       to: 'owners',
-      alert: { title: 'The backup needs a look', body: `${job.problem} Run ./scripts/backup.sh on the server to see why. The family's data is fine; it just isn't copied anywhere safe right now.`, path: '/system' },
+      alert: { title: 'The backup needs a look', body: `${job.problem} Run ./scripts/backup.sh on the server to see why. The family's data is fine, but the newest changes aren't backed up yet.`, path: '/system' },
     };
   }
   if (job.kind === 'ledger') {

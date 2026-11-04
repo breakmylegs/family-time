@@ -23,6 +23,7 @@ x-app: &app
     ADGUARD_USER: familytime
     ADGUARD_PASSWORD_FILE: /run/app-secrets/adguard_password
     VAPID_PRIVATE_KEY_FILE: /run/app-secrets/vapid_private.pem
+    VAPID_PUBLIC_KEY_FILE: /run/app-secrets/vapid_public.txt
     # The ledger: postgres (the default), or besu with the ledger-besu profile (docs/setup/besu.md).
     LEDGER_ADAPTER: ${LEDGER_ADAPTER:-postgres}
     LEDGER_SIGNER_KEY_FILE: /run/app-secrets/ledger_signer_key
@@ -33,7 +34,8 @@ x-app: &app
     MASTER_KEY_FILE: /run/app-secrets/master_key
     LOG_LEVEL: info
     TZ: Europe/London
-  secrets: [postgres_password, adguard_password, vapid_private.pem]
+  # Each service lists only the secrets it needs; this default is the migrate service's.
+  secrets: [postgres_password]
   logging: &logging
     driver: json-file
     options:
@@ -85,7 +87,8 @@ services:
       timeout: 5s
       retries: 6
       start_period: 40s
-    secrets: [postgres_password, adguard_password, vapid_private.pem, master_key]
+    # Only the public half of the alerts key: the worker alone sends alerts (ADR 0017).
+    secrets: [postgres_password, adguard_password, vapid_public.txt, master_key]
     # The kiosk (ADR 0015): its own listener in the api, published on the server's LAN address
     # only, never through Caddy. Firewall it to the tablet on the router (docs/setup/kiosk.md).
     ports:
@@ -191,6 +194,8 @@ secrets:
     file: ../secrets/adguard_password
   vapid_private.pem:
     file: ../secrets/vapid_private.pem
+  vapid_public.txt:
+    file: ../secrets/vapid_public.txt
   ledger_signer_key:
     file: ../secrets/ledger_signer_key
   besu_node_key:

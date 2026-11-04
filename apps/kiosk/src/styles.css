@@ -311,7 +311,7 @@ textarea:focus-visible {
   padding: 5px 12px;
   border-radius: 14px;
   background: var(--k-sun-soft);
-  color: var(--k-sun-ink);
+  color: var(--k-sun-soft-ink);
   font-size: 16px;
   font-weight: 600;
   white-space: nowrap;
@@ -445,7 +445,7 @@ textarea {
   width: 100%;
   margin-top: 8px;
   padding: 14px 18px;
-  border: 2px solid var(--k-used);
+  border: 2px solid var(--k-field-line);
   border-radius: 16px;
   background: var(--k-ground);
   color: var(--k-ink);
@@ -586,16 +586,15 @@ textarea {
   font-size: 19px;
   font-weight: 600;
 }
+/* A time that won't fit: readable at full strength, told apart by its dashed edge, not by fading. */
 .slot.grey {
   background: transparent;
   color: var(--k-ink-2);
-  box-shadow: inset 0 0 0 2px var(--k-used);
-  opacity: 0.75;
+  border: 2px dashed var(--k-field-line);
 }
 .slot.grey[aria-pressed='true'] {
   background: var(--k-surface-2);
   color: var(--k-ink);
-  opacity: 1;
 }
 .why {
   margin-top: 14px;
@@ -711,7 +710,7 @@ textarea {
   gap: 10px;
   padding: 10px 34px;
   background: var(--k-sun-soft);
-  color: var(--k-sun-ink);
+  color: var(--k-sun-soft-ink);
   font-size: 17px;
 }
 

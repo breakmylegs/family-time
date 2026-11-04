@@ -56,8 +56,8 @@ test('plans a session, and a greyed time says why', async ({ page }) => {
   await page.getByRole('button', { name: 'Roblox' }).click();
   await page.getByRole('button', { name: '30 minutes' }).click();
   await expect(page.getByText(/30 minutes is 1 block/)).toBeVisible();
-  // 20:00 is in wind-down: greyed, and tapping it says so in Ollie's words.
-  await page.getByRole('button', { name: '20:00', exact: true }).click();
+  // 20:00 is in wind-down: marked as won't fit, to the eye and to a screen reader, and tapping it says so in Ollie's words.
+  await page.getByRole('button', { name: "20:00, won't fit", exact: true }).click();
   await expect(page.getByRole('status')).toHaveText('Wind-down is on then. Pick another time.');
   await expect(page.getByRole('button', { name: 'Plan it' })).toHaveCount(0);
   await shot(page, 'kiosk-plan-light', PHASE);

@@ -15,9 +15,9 @@ export function Shell({ title, line, children }: { title: string; line?: ReactNo
 
 export function Page({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-dvh bg-ground" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 24px)' }}>
+    <main className="min-h-dvh bg-ground" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 24px)' }}>
       {children}
-    </div>
+    </main>
   );
 }
 

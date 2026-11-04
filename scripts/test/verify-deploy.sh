@@ -36,6 +36,7 @@ make_template() {
   echo pw > "$t/host/secrets/postgres_password"
   echo pw > "$t/host/secrets/adguard_password"
   echo pem > "$t/host/secrets/vapid_private.pem"
+  echo pub > "$t/host/secrets/vapid_public.txt"
   echo key > "$t/host/secrets/ledger_signer_key"
   echo key > "$t/host/secrets/besu_node_key"
   echo key > "$t/host/secrets/master_key"

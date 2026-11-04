@@ -88,8 +88,8 @@ async function week(db: Db, childId: string, from: Date, to: Date, schedules: Pa
 const csvCell = (v: string | number) => {
   const s = String(v);
   // A cell that starts like a formula is quoted as text, so a spreadsheet never runs it.
-  const safe = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
-  return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+  const safe = /^\s*[=+\-@]/.test(s) || /^[\t\r]/.test(s) ? `'${s}` : s;
+  return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 };
 
 export function toCsv(rows: (string | number)[][]): string {

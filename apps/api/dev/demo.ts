@@ -1,7 +1,7 @@
 // The mock's family, for the end-to-end tests and screenshots: Mum, Dad and Ollie on a school
 // night, with YouTube, Roblox and Minecraft, a tea pause, and the history the mock shows at 18:32.
 // The names are the mock's placeholders. Never part of the image.
-import { devices, grants, households, overrides, people, policies, schedules, serviceGroupMembers, serviceGroups, services, settings, type Db } from '@family-time/db';
+import { devices, grants, households, overrides, people, policies, schedules, serviceGroupMembers, serviceGroups, services, settings, usageMinutes, type Db } from '@family-time/db';
 
 const at = (hhmm: string) => new Date(`2026-10-26T${hhmm}:00Z`);
 
@@ -12,7 +12,8 @@ export async function seedDemo(db: Db, origin: string) {
   const [mum] = await db.insert(people).values({ householdId, displayName: 'Mum', role: 'owner' }).returning();
   const [dad] = await db.insert(people).values({ householdId, displayName: 'Dad', role: 'parent' }).returning();
   const [gran] = await db.insert(people).values({ householdId, displayName: 'Gran', role: 'carer' }).returning();
-  const [ollie] = await db.insert(people).values({ householdId, displayName: 'Ollie', role: 'child', pronouns: 'he' }).returning();
+  // Ollie joined two weeks before the mock's Monday, so the pilot measures have weeks to show.
+  const [ollie] = await db.insert(people).values({ householdId, displayName: 'Ollie', role: 'child', pronouns: 'he', createdAt: new Date('2026-10-12T09:00:00Z') }).returning();
   const [jamie] = await db.insert(people).values({ householdId, displayName: 'Jamie', role: 'child', pronouns: 'she' }).returning();
 
   const [youtube] = await db
@@ -61,10 +62,25 @@ export async function seedDemo(db: Db, origin: string) {
       ],
     },
   ]);
-  await db.insert(devices).values([
+  const [ipad] = await db.insert(devices).values([
     { householdId, childId: ollie!.id, label: "Ollie's iPad", type: 'ipad', adguardName: 'ft-ollie-ipad', identifiers: ['192.168.1.50'] },
     { householdId, childId: jamie!.id, label: "Jamie's laptop", type: 'laptop', adguardName: 'ft-jamie-laptop', identifiers: ['192.168.1.51'] },
-  ]);
+  ]).returning();
+
+  // Last week's use, for the pilot measures: YouTube after school, Roblox at the weekend, and a few
+  // minutes after bedtime one night. Minutes only, as the usage reader keeps them.
+  const used: { deviceId: string; serviceId: string; minute: Date; queries: number }[] = [];
+  const minutesOf = (day: number, hhmm: string, n: number, serviceId: string) => {
+    const start = new Date(`2026-10-${String(day).padStart(2, '0')}T${hhmm}:00Z`).getTime();
+    for (let i = 0; i < n; i++) used.push({ deviceId: ipad!.id, serviceId, minute: new Date(start + i * 60_000), queries: 5 });
+  };
+  for (const day of [19, 20, 21, 22, 23]) minutesOf(day, '15:00', 35, youtube!.id);
+  for (const day of [24, 25]) minutesOf(day, '10:00', 50, roblox!.id);
+  minutesOf(22, '19:40', 6, youtube!.id);
+  await db.insert(usageMinutes).values(used);
+
+  // The night's backup, as backup.sh records it.
+  await db.insert(settings).values({ householdId, key: 'last_backup', value: { at: '2026-10-26T02:31:12.000Z', ok: true, lastOkAt: '2026-10-26T02:31:12.000Z', bytes: 1_843_200, snapshot: '4f9c2a1e7b30', problem: null } });
 
   // What the mock shows at 18:32: Dad allowed Minecraft at 17:58, and Ollie planned YouTube at 18:30.
   await db.insert(overrides).values({

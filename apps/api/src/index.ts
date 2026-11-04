@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { PgBoss } from 'pg-boss';
 import { besuLedger, postgresLedger } from '@family-time/ledger';
-import { CHANGE_CHANNEL, vapidFromFile } from '@family-time/notify';
+import { CHANGE_CHANNEL, vapidFromFile, vapidPublicFromFile } from '@family-time/notify';
 import { readBuildInfo } from './build.js';
 import { Changes } from './events.js';
 import { buildKioskServer } from './kiosk/server.js';
@@ -64,7 +64,9 @@ const listen = async () => {
 };
 await listen();
 
-const vapid = vapidFromFile(process.env.VAPID_PRIVATE_KEY_FILE);
+// The public half only (ADR 0017). Older installs without vapid_public.txt still derive it from the
+// private key, until init.sh has been run again.
+const vapidPublicKey = process.env.VAPID_PUBLIC_KEY_FILE ? vapidPublicFromFile(process.env.VAPID_PUBLIC_KEY_FILE) : vapidFromFile(process.env.VAPID_PRIVATE_KEY_FILE)?.publicKey;
 
 // The Besu ledger (ADR 0014) writes as the Postgres one does and queues each entry for the chain;
 // the worker's signer sends them. The api never talks to the node itself.
@@ -77,7 +79,7 @@ const app = await buildServer({
   ledger,
   ...(besu ? { ledgerAdapter: 'besu' as const } : {}),
   changes,
-  ...(vapid ? { vapidPublicKey: vapid.publicKey } : {}),
+  ...(vapidPublicKey ? { vapidPublicKey } : {}),
   build,
   logLevel: process.env.LOG_LEVEL ?? 'info',
   trustedProxyHops: Number(process.env.TRUSTED_PROXY_HOPS ?? 1),

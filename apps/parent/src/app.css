@@ -413,7 +413,7 @@ button.row:focus-visible {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   margin-top: 12px;
-  height: 38px;
+  min-height: 44px;
   padding: 3px;
   border-radius: 11px;
   background: var(--surface-2);
@@ -497,7 +497,7 @@ button.row:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 40px;
+  min-height: 44px;
   padding: 0 12px;
   border-radius: 17px;
   border: 1px solid var(--line-strong);
