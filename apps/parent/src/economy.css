@@ -183,7 +183,8 @@
 }
 .say textarea:focus,
 .field:focus {
-  outline: none;
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
   border-color: var(--primary);
   box-shadow: 0 0 0 3px var(--selection);
 }

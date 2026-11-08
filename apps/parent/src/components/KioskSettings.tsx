@@ -1,6 +1,6 @@
 // Settings, Kiosk (ADR 0015): the family's kiosk tablets, setting a new one up with a code, and
 // removing one, which stops it at once.
-import type { KioskDevice, KioskPairing } from '@family-time/schemas';
+import type { KioskDevice, KioskPairing, KioskPinChild } from '@family-time/schemas';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
 import { HelpButton } from '../help/HelpButton';
@@ -17,10 +17,13 @@ export function KioskSettings() {
   const [pairing, setPairing] = useState<{ code: KioskPairing; from: HTMLElement | null }>();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string>();
+  const [pins, setPins] = useState<KioskPinChild[]>([]);
+  const [pinFor, setPinFor] = useState<{ child: KioskPinChild; from: HTMLElement | null }>();
 
   const load = useCallback(async () => {
     try {
       setKiosks(await api<KioskDevice[]>('GET', '/api/kiosks'));
+      setPins(await api<KioskPinChild[]>('GET', '/api/kiosks/pins'));
     } catch (err) {
       setError((err as Error).message);
     }
@@ -80,10 +83,42 @@ export function KioskSettings() {
           </p>
         ) : null}
       </div>
+      {pins.length > 1 ? (
+        <>
+          <h3 className="sub-head">PINs for brothers and sisters</h3>
+          <div className="group">
+            {pins.map((c) => (
+              <div key={c.id} className="row">
+                <span className="row-text">
+                  {c.name}
+                  <small>{c.pin ? 'Asks for a PIN on the kiosk' : 'No PIN: opens straight to their home'}</small>
+                </span>
+                <span className="row-end">
+                  <button type="button" className="btn btn-quiet row-btn" aria-label={`${c.pin ? 'Change PIN' : 'Set a PIN'} for ${c.name}`} onClick={(e) => setPinFor({ child: c, from: e.currentTarget })}>
+                    {c.pin ? 'Change PIN' : 'Set a PIN'}
+                  </button>
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : null}
       <button type="button" className="btn btn-quiet" style={{ width: '100%', marginTop: 12 }} onClick={(e) => void setUp(e.currentTarget)}>
         <Icon name="plus" />
         Set up the kiosk
       </button>
+      {pinFor ? (
+        <PinSheet
+          child={pinFor.child}
+          from={pinFor.from}
+          onClose={() => setPinFor(undefined)}
+          onSaved={(words) => {
+            setPinFor(undefined);
+            toast(words);
+            void load();
+          }}
+        />
+      ) : null}
       {pairing ? (
         <Sheet
           open={open}
@@ -105,5 +140,51 @@ export function KioskSettings() {
         </Sheet>
       ) : null}
     </section>
+  );
+}
+
+/** Four numbers, chosen with the child. Only the numbers' hash is kept. */
+function PinSheet({ child, from, onClose, onSaved }: { child: KioskPinChild; from: HTMLElement | null; onClose: () => void; onSaved: (words: string) => void }) {
+  const [pin, setPin] = useState('');
+  const [error, setError] = useState<string>();
+  const save = async (value: string | null) => {
+    try {
+      await api('PUT', `/api/kiosks/pins/${child.id}`, { pin: value });
+      onSaved(value ? `${child.name} types the PIN on the kiosk from now on.` : `${child.name}'s PIN is off. Tapping ${child.name} on the kiosk now opens their home straight away.`);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+  return (
+    <Sheet
+      open
+      onClose={onClose}
+      title={`${child.name}'s kiosk PIN`}
+      returnFocus={from}
+      error={error}
+      sub="For brothers and sisters sharing the tablet: each one types their own PIN before their home opens. Choose the four numbers together."
+      footer={
+        child.pin ? (
+          <button type="button" className="btn btn-quiet" onClick={() => void save(null)}>
+            Turn off {child.name}'s PIN
+          </button>
+        ) : undefined
+      }
+    >
+      <form
+        className="form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (/^\d{4}$/.test(pin)) void save(pin);
+          else setError('Type four numbers to save the PIN.');
+        }}
+      >
+        <label htmlFor="kiosk-pin">Four numbers</label>
+        <input id="kiosk-pin" className="field tnum" type="password" inputMode="numeric" autoComplete="off" maxLength={4} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))} />
+        <button type="submit" className="btn btn-primary">
+          Save {child.name}'s PIN
+        </button>
+      </form>
+    </Sheet>
   );
 }

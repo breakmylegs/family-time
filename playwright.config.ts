@@ -52,7 +52,7 @@ export default defineConfig({
     },
     {
       name: 'control',
-      testMatch: ['control.spec.ts', 'help.spec.ts', 'economy.spec.ts', 'system.spec.ts'],
+      testMatch: ['control.spec.ts', 'help.spec.ts', 'economy.spec.ts', 'system.spec.ts', 'ai.spec.ts'],
       // Playwright's WebKit on Windows hangs the page when asked for a push subscription. Push is
       // checked on a real iPhone instead; the tests block the service worker.
       use: { ...devices['Desktop Safari'], baseURL: `http://localhost:${DEMO_PORT}`, viewport: { width: 390, height: 844 }, serviceWorkers: 'block' },

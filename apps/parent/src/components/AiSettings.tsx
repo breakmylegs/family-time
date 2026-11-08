@@ -109,7 +109,7 @@ export function AiSettings({ origin }: { origin: string }) {
                 </span>
                 <span className="row-end">
                   <button type="button" className="btn btn-quiet row-btn" onClick={(e) => setKeyFor({ provider: p, from: e.currentTarget })}>
-                    {p.key ? 'Change key' : 'Add key'}
+                    {p.local ? (p.key ? 'Change address' : 'Set up') : p.key ? 'Change key' : 'Add key'}
                   </button>
                 </span>
               </div>

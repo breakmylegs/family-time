@@ -2,12 +2,16 @@
 // in the WebView's storage, so a reload or a screen-on comes straight back to the right home.
 const TOKEN = 'ft-kiosk-token';
 const CHILD = 'ft-kiosk-child';
+/** A child's unlock ticket, for this tab only: a reload keeps it, closing the WebView forgets it. */
+const TICKET = 'ft-kiosk-ticket:';
 
 export const stored = {
   token: (): string | null => localStorage.getItem(TOKEN),
   setToken: (t: string | null) => (t ? localStorage.setItem(TOKEN, t) : localStorage.removeItem(TOKEN)),
   child: (): string | null => localStorage.getItem(CHILD),
   setChild: (c: string | null) => (c ? localStorage.setItem(CHILD, c) : localStorage.removeItem(CHILD)),
+  ticket: (child: string): string | null => sessionStorage.getItem(TICKET + child),
+  setTicket: (child: string, t: string | null) => (t ? sessionStorage.setItem(TICKET + child, t) : sessionStorage.removeItem(TICKET + child)),
 };
 
 /** A refusal from the server, with words the child can read. */
@@ -24,6 +28,10 @@ export async function api<T>(method: 'GET' | 'POST', path: string, body?: unknow
   const headers: Record<string, string> = {};
   const token = stored.token();
   if (token) headers.authorization = `Bearer ${token}`;
+  // The unlock ticket for the child this path is about, when they have a PIN.
+  const child = /^\/children\/([0-9a-f-]{36})\//.exec(path)?.[1];
+  const ticket = child ? stored.ticket(child) : null;
+  if (ticket) headers['x-kiosk-child'] = ticket;
   if (body !== undefined) headers['content-type'] = 'application/json';
   let res: Response;
   try {
@@ -35,6 +43,7 @@ export async function api<T>(method: 'GET' | 'POST', path: string, body?: unknow
   if (!res.ok) {
     // Removed in Settings, or the server forgot it: back to pairing.
     if (res.status === 401) stored.setToken(null);
+    if (res.status === 423 && child) stored.setTicket(child, null);
     throw new ApiError(res.status, data.message ?? 'That did not work. Try again.');
   }
   return data as T;

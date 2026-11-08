@@ -115,8 +115,11 @@ export function Plan({ home, ask, onDone }: { home: KioskHome; ask: boolean; onD
                   </button>
                 ))}
               </div>
+              <p class="sr" role="status">
+                {why ?? ''}
+              </p>
               {why ? (
-                <p class="why" role="status">
+                <p class="why" aria-hidden="true">
                   {why}
                 </p>
               ) : null}

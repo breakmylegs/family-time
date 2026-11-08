@@ -13,6 +13,7 @@ export function Night({ home }: { home: KioskHome }) {
   return (
     <main class="night" aria-label="Bedtime">
       <Icon name="moon" class="ic moon" />
+      <h1 class="sr">Bedtime</h1>
       <p class="night-time">{time}</p>
       <p class="night-line">{home.nightLine}</p>
     </main>

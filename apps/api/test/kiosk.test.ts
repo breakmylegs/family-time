@@ -68,7 +68,7 @@ describe('pairing', () => {
     const { authorization, code } = await paired(s);
     expect((await s.kiosk.inject({ method: 'POST', url: '/api/pair', payload: { code } })).statusCode).toBe(400);
     const me = KioskMe.parse((await s.kiosk.inject({ url: '/api/me', headers: { authorization } })).json());
-    expect(me.children).toEqual([{ id: s.child, name: 'Ollie' }]);
+    expect(me.children).toEqual([{ id: s.child, name: 'Ollie', pin: false }]);
     expect((await s.kiosk.inject({ url: '/api/me' })).statusCode).toBe(401);
     expect((await s.kiosk.inject({ url: '/api/me', headers: { authorization: 'Bearer not-a-token' } })).statusCode).toBe(401);
   });
@@ -194,5 +194,65 @@ describe('the kiosk port, hardened', () => {
     const { id } = (await s.kiosk.inject({ method: 'POST', url: `/api/children/${s.child}/jobs/${s.dishes.id}/done`, headers: { authorization }, payload: { photo } })).json() as { id: string };
     expect((await s.app.inject({ url: `/api/completions/${id}/photo`, headers: await signedIn(s.db, stranger) })).statusCode).toBe(404);
     expect((await s.app.inject({ url: '/api/completions/not-an-id/photo', headers: s.headers.mum })).statusCode).toBe(400);
+  });
+});
+
+describe('PINs for brothers and sisters', () => {
+  it("keeps a child's home shut until their PIN is typed on this tablet, and only the owner sets one", async () => {
+    const s = await setup();
+    const { authorization } = await paired(s);
+    const jamie = await seedPerson(s.db, s.hh, 'child', 'Jamie');
+    expect((await s.app.inject({ method: 'PUT', url: `/api/kiosks/pins/${s.child}`, headers: s.headers.dad, payload: { pin: '1234' } })).statusCode).toBe(403);
+    expect((await s.app.inject({ method: 'PUT', url: `/api/kiosks/pins/${s.child}`, headers: s.headers.mum, payload: { pin: '12a4' } })).statusCode).toBe(400);
+    expect((await s.app.inject({ method: 'PUT', url: `/api/kiosks/pins/${s.child}`, headers: s.headers.mum, payload: { pin: '1234' } })).json()).toEqual({ ok: true, pin: true });
+    const pins = (await s.app.inject({ url: '/api/kiosks/pins', headers: s.headers.mum })).json();
+    expect(pins).toEqual([
+      { id: jamie, name: 'Jamie', pin: false },
+      { id: s.child, name: 'Ollie', pin: true },
+    ]);
+    expect(JSON.stringify(pins)).not.toContain('scrypt');
+
+    const me = KioskMe.parse((await s.kiosk.inject({ url: '/api/me', headers: { authorization } })).json());
+    expect(me.children.map((c) => [c.name, c.pin])).toEqual([
+      ['Jamie', false],
+      ['Ollie', true],
+    ]);
+    // Without the ticket, Ollie's home, planning and jobs are shut. Jamie's are open.
+    expect((await s.kiosk.inject({ url: `/api/children/${s.child}/home`, headers: { authorization } })).statusCode).toBe(423);
+    expect((await s.kiosk.inject({ method: 'POST', url: `/api/children/${s.child}/jobs/${s.dishes.id}/done`, headers: { authorization }, payload: {} })).statusCode).toBe(423);
+    expect((await s.kiosk.inject({ url: `/api/children/${jamie}/home`, headers: { authorization } })).statusCode).toBe(200);
+
+    const wrong = await s.kiosk.inject({ method: 'POST', url: `/api/children/${s.child}/unlock`, headers: { authorization }, payload: { pin: '4321' } });
+    expect(wrong.statusCode).toBe(403);
+    const right = await s.kiosk.inject({ method: 'POST', url: `/api/children/${s.child}/unlock`, headers: { authorization }, payload: { pin: '1234' } });
+    const { ticket } = right.json() as { ticket: string };
+    expect((await s.kiosk.inject({ url: `/api/children/${s.child}/home`, headers: { authorization, 'x-kiosk-child': ticket } })).statusCode).toBe(200);
+    // A ticket is for one child: it does not open anyone else.
+    await s.app.inject({ method: 'PUT', url: `/api/kiosks/pins/${jamie}`, headers: s.headers.mum, payload: { pin: '9999' } });
+    expect((await s.kiosk.inject({ url: `/api/children/${jamie}/home`, headers: { authorization, 'x-kiosk-child': ticket } })).statusCode).toBe(423);
+
+    // A ticket is for this tablet only.
+    const other = await paired(s);
+    expect((await s.kiosk.inject({ url: `/api/children/${s.child}/home`, headers: { authorization: other.authorization, 'x-kiosk-child': ticket } })).statusCode).toBe(423);
+    // A new PIN ends the old unlock at once.
+    await s.app.inject({ method: 'PUT', url: `/api/kiosks/pins/${s.child}`, headers: s.headers.mum, payload: { pin: '5678' } });
+    expect((await s.kiosk.inject({ url: `/api/children/${s.child}/home`, headers: { authorization, 'x-kiosk-child': ticket } })).statusCode).toBe(423);
+    // The export never carries a PIN hash.
+    const exported = await s.app.inject({ url: '/api/export', headers: s.headers.mum });
+    expect(exported.body).not.toContain('scrypt$');
+
+    // Turned off, the kiosk opens straight to the home again.
+    await s.app.inject({ method: 'PUT', url: `/api/kiosks/pins/${s.child}`, headers: s.headers.mum, payload: { pin: null } });
+    expect((await s.kiosk.inject({ url: `/api/children/${s.child}/home`, headers: { authorization } })).statusCode).toBe(200);
+  });
+
+  it('stops guessing after eight tries', async () => {
+    const s = await setup();
+    const { authorization } = await paired(s);
+    await s.app.inject({ method: 'PUT', url: `/api/kiosks/pins/${s.child}`, headers: s.headers.mum, payload: { pin: '1234' } });
+    const codes: number[] = [];
+    for (let i = 0; i < 9; i++) codes.push((await s.kiosk.inject({ method: 'POST', url: `/api/children/${s.child}/unlock`, headers: { authorization }, payload: { pin: String(1000 + i) } })).statusCode);
+    expect(codes.slice(0, 8).every((c) => c === 403)).toBe(true);
+    expect(codes[8]).toBe(429);
   });
 });

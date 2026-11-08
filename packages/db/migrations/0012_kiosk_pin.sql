@@ -1,0 +1,1 @@
+ALTER TABLE "people" ADD COLUMN "kiosk_pin_hash" text;

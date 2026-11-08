@@ -22,7 +22,7 @@ import { System } from './screens/System';
 import { SignIn } from './screens/SignIn';
 import { Tasks } from './screens/Tasks';
 import { ToastProvider } from './toast';
-import { Notice, Page, Shell } from './ui';
+import { Notice, Page, radioKeys, Shell } from './ui';
 
 export function App() {
   const path = usePath();
@@ -136,7 +136,7 @@ function Screens({ me, path, onSignedOut, onLive }: { me: Me; path: string; onSi
           <TabBar path={path === '/ledger' || path === '/system' ? '/settings' : ['/settings', '/approvals', '/tasks', '/family'].includes(path) && (economy || path === '/settings' || (path === '/approvals' && waiting)) ? path : '/'} economy={economy} waiting={waiting} />
         )}
         <Sheet open={Boolean(picking)} onClose={() => setPicking(null)} title="Choose a child" returnFocus={picking}>
-          <div className="opts" role="radiogroup" aria-label="Choose a child">
+          <div className="opts" role="radiogroup" aria-label="Choose a child" onKeyDown={radioKeys}>
             {(kids ?? []).map((k) => (
               <button
                 key={k.id}

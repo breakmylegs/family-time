@@ -156,9 +156,10 @@ const pkce = () => {
 };
 
 /** Sends the MCP client's requests into the app, as if over the network. */
-function fetchInto(app: FastifyInstance) {
+function fetchInto(app: FastifyInstance, tamper?: (headers: Headers) => void) {
   return async (input: string | URL, init?: RequestInit) => {
     const req = new Request(input, init);
+    tamper?.(req.headers);
     const url = new URL(req.url);
     const body = req.method === 'GET' ? undefined : Buffer.from(await req.arrayBuffer());
     const res = await app.inject({ method: req.method as 'POST', url: url.pathname + url.search, headers: Object.fromEntries(req.headers), ...(body ? { payload: body } : {}) });
@@ -180,14 +181,14 @@ async function signIn(app: FastifyInstance, headers: Record<string, string>, sco
   return { consent: consent.json(), done: done.json(), back, form, tokens: token.json(), verifier };
 }
 
-async function connect(app: FastifyInstance, accessToken: string, confirm = true) {
+async function connect(app: FastifyInstance, accessToken: string, confirm = true, tamper?: (headers: Headers) => void) {
   const asked: string[] = [];
   const client = new Client({ name: 'Test Assistant', version: '1.0.0' }, { capabilities: { elicitation: { form: {} } }, versionNegotiation: { mode: 'auto' } });
   client.setRequestHandler('elicitation/create', async (request) => {
     asked.push(String(request.params.message));
     return { action: 'accept', content: { confirm } };
   });
-  await client.connect(new StreamableHTTPClientTransport(new URL(`${ORIGIN}/mcp`), { authProvider: { token: async () => accessToken }, fetch: fetchInto(app) }));
+  await client.connect(new StreamableHTTPClientTransport(new URL(`${ORIGIN}/mcp`), { authProvider: { token: async () => accessToken }, fetch: fetchInto(app, tamper) }));
   return { client, asked };
 }
 
@@ -329,6 +330,19 @@ describe('MCP', () => {
   it('never fetches an app document from the home network', () => {
     for (const ip of ['10.0.0.1', '192.168.1.20', '127.0.0.1', '169.254.169.254', '198.18.0.1', '::1', 'fd00::1', '::ffff:192.168.1.1', '::ffff:c0a8:101', '64:ff9b::a00:1']) expect(privateAddress(ip), ip).toBe(true);
     for (const ip of ['1.1.1.1', '2606:4700:4700::1111']) expect(privateAddress(ip), ip).toBe(false);
+  });
+
+  it('refuses a call whose Mcp-Method header says something other than its body', async () => {
+    h = await harness({ now: FREE, fetchClientMetadata: metadata });
+    const s = await seed(h.handle.db);
+    await switchOn(h.app, s);
+    const { tokens } = await signIn(h.app, s.headers.mum);
+    // A proxy, or an attacker, that changes the routing header: the server checks it against the body.
+    const { client } = await connect(h.app, tokens.access_token, true, (headers) => {
+      if (headers.get('mcp-method') === 'tools/call') headers.set('mcp-method', 'tools/list');
+    });
+    await expect(client.callTool({ name: 'get_status', arguments: {} })).rejects.toThrow(/header|mismatch|-32020/i);
+    await client.close();
   });
 
   it('refuses a return address the app did not list for itself', async () => {

@@ -7,7 +7,7 @@
 import { randomUUID } from 'node:crypto';
 import { maintenance, type Db } from '@family-time/db';
 import type { LedgerPort } from '@family-time/ledger';
-import { KioskAskRequest, KioskDoneRequest, KioskIdeaRequest, KioskPairRequest, KioskPlanRequest, KioskReflectionRequest } from '@family-time/schemas';
+import { KioskAskRequest, KioskDoneRequest, KioskIdeaRequest, KioskPairRequest, KioskPlanRequest, KioskReflectionRequest, KioskUnlockRequest } from '@family-time/schemas';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { RateLimiter } from '../auth/ratelimit.js';
@@ -15,6 +15,8 @@ import { EconomyError, askRequest, planSession } from '../economy/commands.js';
 import type { Changes } from '../events.js';
 import { loggerOptions, logPath } from '../logging.js';
 import { registerStatic } from '../static.js';
+import { audit } from '../audit.js';
+import { pinMatches, pinOf, Tickets } from './pin.js';
 import { addIdea, kioskChild, kioskDone, kioskFromToken, kioskHome, kioskMe, KioskError, kioskSlots, kioskTargets, MAX_OPEN_REQUESTS, openRequests, pairKiosk, saveReflection } from './commands.js';
 
 declare module 'fastify' {
@@ -54,6 +56,7 @@ const SlotQuery = z.object({ kind: z.enum(['service', 'group']), id: z.uuid(), m
 export async function buildKioskServer(deps: KioskServerDeps): Promise<FastifyInstance> {
   const now = deps.now ?? (() => new Date());
   const limiter = deps.limiter ?? new RateLimiter();
+  const tickets = new Tickets();
   const app = Fastify({
     logger: loggerOptions('kiosk', deps.logLevel ?? 'info', deps.logStream),
     disableRequestLogging: true,
@@ -107,8 +110,19 @@ export async function buildKioskServer(deps: KioskServerDeps): Promise<FastifyIn
     const kiosk = token ? await kioskFromToken(deps.db, token, now()) : null;
     if (!kiosk) return reply.code(401).send({ error: 'unpaired', message: 'This kiosk needs setting up again. Ask a grown-up.' });
     request.kiosk = kiosk;
+    // A child with a PIN needs this tablet's ticket for them, except to unlock.
+    const childId = (request.params as { child?: string } | undefined)?.child;
+    const unlocking = url.endsWith('/unlock');
+    const pinHash = childId && !unlocking && /^[0-9a-f-]{36}$/i.test(childId) ? await pinOf(deps.db, kiosk.householdId, childId) : null;
+    if (childId && pinHash) {
+      const ticket = request.headers['x-kiosk-child'];
+      if (!tickets.valid(typeof ticket === 'string' ? ticket : undefined, childId, kiosk.deviceId, pinHash, now())) {
+        return reply.code(423).send({ error: 'locked', message: 'Tap your name, then type your four numbers.' });
+      }
+    }
     // Maintenance mode: the kiosk still shows everything, but asks the child to wait to change it.
-    if (request.method !== 'GET' && (await maintenance(deps.db, kiosk.householdId)).on) {
+    // Unlocking writes nothing lasting, so a child can still open their (read-only) home.
+    if (request.method !== 'GET' && !unlocking && (await maintenance(deps.db, kiosk.householdId)).on) {
       return reply.code(503).send({ error: 'maintenance', message: 'Family time is having a quick tidy-up. Everything still works. Tap again in a little while.' });
     }
   });
@@ -142,6 +156,23 @@ export async function buildKioskServer(deps: KioskServerDeps): Promise<FastifyIn
   });
 
   app.get('/api/me', device, async (request) => kioskMe(db, hh(request)));
+
+  // The PIN for a child, when they have one. Eight tries per child per tablet each ten minutes.
+  app.post<{ Params: { child: string } }>('/api/children/:child/unlock', device, async (request, reply) => {
+    const { child } = Child.parse(request.params);
+    const { pin } = KioskUnlockRequest.parse(request.body);
+    await kioskChild(db, hh(request), child);
+    const d = limiter.hit(`pin|${request.kiosk!.deviceId}|${child}`, { max: 8, windowMs: 10 * 60_000 });
+    if (!d.allowed) {
+      // Parents can see guessing in the audit log: once per ten minutes, not once per try.
+      if (d.firstRefusal) await audit(db, { householdId: hh(request), actor: { label: 'kiosk' }, action: 'kiosk.pin.too_many_tries', targetType: 'person', targetId: child, after: { kiosk: request.kiosk!.deviceId } });
+      return reply.code(429).header('retry-after', String(d.retryAfterSeconds)).send({ error: 'rate_limited', message: "Let's have a little break. Ask a grown-up to help, or try again soon." });
+    }
+    const stored = await pinOf(db, hh(request), child);
+    if (!stored) return reply.code(409).send({ error: 'no_pin', message: "You don't need numbers any more. Tap your name." });
+    if (!(await pinMatches(stored, pin))) return reply.code(403).send({ error: 'wrong_pin', message: "Those numbers don't match. Have another go, or ask a grown-up." });
+    return { ticket: tickets.issue(child, request.kiosk!.deviceId, stored, now()) };
+  });
 
   app.get<{ Params: { child: string } }>('/api/children/:child/home', device, async (request) => {
     const { child } = Child.parse(request.params);

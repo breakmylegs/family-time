@@ -16,7 +16,8 @@
 //   KIOSK_PORT       also serve the kiosk (apps/kiosk/dist) and its API on this port
 import { AdGuard } from '@family-time/adguard-client';
 import { FakeAdGuard } from '@family-time/adguard-client/fake';
-import { completionPhotos, helpFeedback, ideas, kioskDevices, ledgerConfirmations, ledgerContracts, ledgerTx, overrides, recordHeartbeat, sessionEndings } from '@family-time/db';
+import { answeringModel } from '@family-time/ai/testing';
+import { aiCalls, aiKeys, aiSettings, completionPhotos, helpFeedback, ideas, kioskDevices, ledgerConfirmations, ledgerContracts, ledgerTx, mcpServers, oauthClients, oauthCodes, oauthTokens, overrides, proposals, recordHeartbeat, sessionEndings, settings } from '@family-time/db';
 import { activateContract, besuLedger, fakeChain, indexPass, postgresLedger, signerPass, type FakeChain } from '@family-time/ledger';
 import { eq } from 'drizzle-orm';
 import { testDb } from '@family-time/db/testing';
@@ -43,6 +44,8 @@ const kioskDir = join(here, '..', '..', 'kiosk', 'dist');
 const demo = process.env.FT_DEV_DEMO === '1';
 const frozen = demo ? new Date(process.env.FT_DEV_CLOCK ?? '2026-10-26T18:32:00Z') : undefined;
 const now = () => frozen ?? new Date();
+// The demo has a master key, so its tests can switch AI and connected apps on (they start off).
+if (demo) process.env.MASTER_KEY ??= 'ab'.repeat(32);
 
 const { db, client } = await testDb(process.env.FT_DEV_DATA ? { dataDir: process.env.FT_DEV_DATA } : {});
 
@@ -137,6 +140,14 @@ const app = await buildServer({
   logLevel: process.env.LOG_LEVEL ?? 'warn',
   ...(notifyChange ? { notifyChange } : {}),
   ...(demo ? { ledger: besuLedger(db), ledgerAdapter: 'besu' as const } : {}),
+  // No provider and no network in the demo: a model that always suggests an hour of YouTube, and a
+  // connecting app whose details are made up here.
+  ...(demo
+    ? {
+        aiModel: async () => answeringModel(JSON.stringify({ action: 'allow', child: 'Child A', target: 'YouTube', duration: '1h', why: 'Child A gets an hour of YouTube.' })),
+        fetchClientMetadata: async (url: string) => ({ client_id: url, client_name: 'Claude', redirect_uris: ['https://claude.example/callback'] }),
+      }
+    : {}),
   ...(existsSync(join(staticDir, 'index.html')) ? { staticDir } : {}),
 });
 if (demo) {
@@ -147,6 +158,16 @@ if (demo) {
     for (const o of await db.select({ id: overrides.id }).from(overrides)) if (!seeded.has(o.id)) await db.delete(overrides).where(eq(overrides.id, o.id));
     await db.update(overrides).set({ endsAt: new Date('2026-10-26T19:30:00Z'), endedBy: null, plannedEndsAt: null });
     await db.delete(sessionEndings);
+    // AI and connected apps back off, as a fresh install has them.
+    await db.delete(proposals);
+    await db.delete(aiCalls);
+    await db.delete(aiKeys);
+    await db.delete(aiSettings);
+    await db.delete(oauthTokens);
+    await db.delete(oauthCodes);
+    await db.delete(oauthClients);
+    await db.delete(mcpServers);
+    await db.delete(settings).where(eq(settings.key, 'mcp'));
     await db.delete(helpFeedback);
     // The chain cannot forget a reference, and the reset makes the same ones again: a new chain.
     await db.delete(completionPhotos);

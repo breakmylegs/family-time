@@ -11,6 +11,8 @@ Release notes the app shows on its System page (from Phase 8). One plain line pe
 - Pilot measures on Family, week by week, with a spreadsheet download.
 - Maintenance mode, so the app can say "back soon" while the server is worked on. Allow, Block and Pause still work; what is already set keeps working.
 - An alert to owners when a backup fails or none has run for a day and a half.
+- Brothers and sisters sharing the kiosk can each have a four-number PIN, set by the owner in Settings, Kiosk.
+- Easier to use with a screen reader, with larger text, and in dark mode on the kiosk: clearer reward tags, text boxes with visible edges, and a clear message when a time won't fit.
 
 ## 0.8.0 (Phase 7, AI and connected apps)
 

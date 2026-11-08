@@ -13,6 +13,19 @@ export function Shell({ title, line, children }: { title: string; line?: ReactNo
   );
 }
 
+/** Arrow keys move through a radiogroup's choices, choosing as they go, like native radios. */
+export function radioKeys(e: { key: string; currentTarget: HTMLElement; preventDefault: () => void }) {
+  const step = e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? -1 : 0;
+  if (!step) return;
+  const radios = [...e.currentTarget.querySelectorAll<HTMLElement>('[role="radio"]')];
+  const at = radios.indexOf(document.activeElement as HTMLElement);
+  if (at === -1) return;
+  e.preventDefault();
+  const next = radios[(at + step + radios.length) % radios.length]!;
+  next.focus();
+  next.click();
+}
+
 export function Page({ children }: { children: ReactNode }) {
   return (
     <main className="min-h-dvh bg-ground" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 24px)' }}>

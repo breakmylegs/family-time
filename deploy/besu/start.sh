@@ -56,7 +56,21 @@ EOF
   echo "start.sh: wrote the genesis for validator $(cat "$DATA/validator-address")"
 fi
 
-exec besu \
+# Drop root (ADR 0014, 0017). Started as root only to read the key secret, which Compose mounts
+# root-only: the key is copied to a tmpfs that Besu's own user owns, the data folder is handed to
+# that user, and Besu runs as it. If any step is not possible (an image without setpriv or the
+# besu user), it carries on as root and says so, rather than leave the chain stopped.
+RUN_AS=()
+if [ "$(id -u)" = 0 ] && id besu >/dev/null 2>&1 && command -v setpriv >/dev/null 2>&1 && [ -d /run/besu ]; then
+  if install -o besu -g besu -m 0400 "$KEY" /run/besu/node_key 2>/dev/null && chown -R besu:besu "$DATA" 2>/dev/null; then
+    KEY=/run/besu/node_key
+    RUN_AS=(setpriv --reuid=besu --regid=besu --init-groups --)
+  else
+    echo "start.sh: could not hand the key and data to the besu user, so Besu runs as root" >&2
+  fi
+fi
+
+exec "${RUN_AS[@]}" besu \
   --data-path="$DATA/chain" \
   --genesis-file="$DATA/genesis.json" \
   --node-private-key-file="$KEY" \

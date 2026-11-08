@@ -147,10 +147,14 @@ services:
     profiles: [ledger-besu]
     image: hyperledger/besu:26.10.2
     restart: unless-stopped
-    # Root, so it can read its key secret (mounted root-only, mode 0600), but with every
-    # capability dropped: it reads files it owns and nothing more.
+    # Starts as root only to read its key secret (mounted root-only, mode 0600); start.sh then copies
+    # the key to /run/besu and runs Besu as the image's besu user (ADR 0017). The capabilities are
+    # the ones that hand-over needs, and no more.
     user: "0:0"
     cap_drop: [ALL]
+    cap_add: [CHOWN, SETUID, SETGID]
+    tmpfs:
+      - /run/besu:mode=0700
     security_opt: ["no-new-privileges:true"]
     entrypoint: ["/bin/bash", "/besu-setup/start.sh"]
     environment:

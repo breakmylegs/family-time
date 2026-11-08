@@ -131,11 +131,11 @@ export async function removeKiosk(db: Db, householdId: string, id: string, now: 
 export async function kioskMe(db: Db, householdId: string): Promise<KioskMe> {
   const [hh] = await db.select({ name: households.name }).from(households).where(eq(households.id, householdId));
   const kids = await db
-    .select({ id: people.id, name: people.displayName })
+    .select({ id: people.id, name: people.displayName, pinHash: people.kioskPinHash })
     .from(people)
     .where(and(eq(people.householdId, householdId), eq(people.role, 'child'), eq(people.active, true)))
     .orderBy(asc(people.displayName));
-  return { householdName: hh?.name ?? '', children: kids };
+  return { householdName: hh?.name ?? '', children: kids.map((k) => ({ id: k.id, name: k.name, pin: k.pinHash !== null })) };
 }
 
 /** The child, if they are in the kiosk's own household. A kiosk can never act for anyone else's. */

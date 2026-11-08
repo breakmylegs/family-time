@@ -257,7 +257,7 @@ function DidIt({ job, path, onClose }: { job: KioskHome['jobs'][number]; path: s
     <div class="overlay" role="dialog" aria-modal="true" aria-label={job.title} ref={useDialog(onClose)}>
       <div class="sheet">
         {sent ? (
-          <p class="sent" role="status">
+          <p class="sent" role="status" tabIndex={-1} ref={(el) => el?.focus()}>
             <Icon name="check" />
             Sent to Mum or Dad. Nice one!
           </p>
@@ -370,6 +370,19 @@ function useDialog(onClose: () => void) {
     ref.current?.querySelector<HTMLElement>('h2')?.focus();
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
+      if (e.key !== 'Tab' || !ref.current) return;
+      // Tab and Shift+Tab go round the dialog, never out behind it.
+      const items = [...ref.current.querySelectorAll<HTMLElement>('button:not([disabled]), input, [tabindex="-1"]')];
+      if (!items.length) return;
+      const first = items[0]!;
+      const last = items[items.length - 1]!;
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     addEventListener('keydown', key);
     return () => {

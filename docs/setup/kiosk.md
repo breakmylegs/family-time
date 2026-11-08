@@ -50,6 +50,10 @@ This is a change on your router, so make it yourself when you are ready; nothing
 
 The kiosk works without any of this. Limiting which devices can reach the server's port 8180 needs a rule on the server itself, so ask before changing it.
 
+## Brothers and sisters
+
+When more than one child uses the tablet, the kiosk asks "Who's here?". To keep each child's home their own, set a PIN for each in Settings, Kiosk, PINs for brothers and sisters: four numbers you choose together. The kiosk then asks for it before opening their home. It asks again when someone taps Hi to change who's here, when the screen goes off, after five minutes untouched, and after the tablet restarts. After eight wrong tries it waits ten minutes before trying again, and the audit log notes it. The PIN section shows once you have two or more children. Turn a PIN off, or set a new one if it is forgotten, in the same place.
+
 ## If something is wrong
 
 - **"Set up this kiosk" appears again**: the kiosk was removed in Settings, or the server's data was reset. Make a new code.

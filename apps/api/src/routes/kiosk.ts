@@ -1,11 +1,13 @@
 // The parent app's side of the kiosk (ADR 0015): set one up with a pairing code, see the kiosks
 // the family has, remove one (which stops it at once), and the photo from "I did it".
-import type { Db } from '@family-time/db';
-import { KioskPairingRequest, type KioskPairing } from '@family-time/schemas';
+import { people, type Db } from '@family-time/db';
+import { KioskPairingRequest, KioskPinRequest, type KioskPairing, type KioskPinChild } from '@family-time/schemas';
+import { and, asc, eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { audit } from '../audit.js';
 import { createPairing, listKiosks, photoFor, removeKiosk } from '../kiosk/commands.js';
+import { setKioskPin } from '../kiosk/pin.js';
 import { parseBody } from './validate.js';
 
 export interface KioskRouteDeps {
@@ -21,6 +23,27 @@ export async function kioskRoutes(app: FastifyInstance, deps: KioskRouteDeps): P
   const { db, now } = deps;
 
   app.get('/api/kiosks', { config: { access: 'system.manage' } }, async (request) => listKiosks(db, request.auth!.person.householdId));
+
+  // Kiosk PINs, for siblings sharing a tablet: whether each child has one, never the PIN itself.
+  app.get('/api/kiosks/pins', { config: { access: 'system.manage' } }, async (request): Promise<KioskPinChild[]> => {
+    const rows = await db
+      .select({ id: people.id, name: people.displayName, pin: people.kioskPinHash })
+      .from(people)
+      .where(and(eq(people.householdId, request.auth!.person.householdId), eq(people.role, 'child'), eq(people.active, true)))
+      .orderBy(asc(people.displayName));
+    return rows.map((r) => ({ id: r.id, name: r.name, pin: r.pin !== null }));
+  });
+
+  app.put<{ Params: { id: string } }>('/api/kiosks/pins/:id', { config: { access: 'system.manage', rateLimit: { max: 20, windowMs: 10 * 60_000 } } }, async (request, reply) => {
+    const id = Id.safeParse(request.params);
+    if (!id.success) return reply.code(404).send({ error: 'not_found' });
+    const body = parseBody(KioskPinRequest, request, reply);
+    if (!body) return reply;
+    const me = request.auth!.person;
+    const ok = await setKioskPin(db, { householdId: me.householdId, childId: id.data.id, by: me.id, pin: body.pin, ip: request.ip });
+    if (!ok) return reply.code(404).send({ error: 'not_found', detail: "Family time can't find that child. Reload to see who's in your family now." });
+    return { ok: true, pin: body.pin !== null };
+  });
 
   app.post('/api/kiosks/pairing', { config: { access: 'system.manage', rateLimit: { max: 10, windowMs: 10 * 60_000 } } }, async (request, reply) => {
     const body = parseBody(KioskPairingRequest, request, reply);

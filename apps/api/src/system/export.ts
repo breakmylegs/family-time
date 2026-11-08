@@ -10,7 +10,7 @@ export const EXPORT_VERSION = 1;
 
 /** Tables in the export, with any columns left out of them. */
 const TABLES: [name: string, table: PgTable, omit: string[]][] = [
-  ['people', schema.people, ['oidcSubject']],
+  ['people', schema.people, ['oidcSubject', 'kioskPinHash']],
   ['settings', schema.settings, []],
   ['devices', schema.devices, []],
   ['services', schema.services, []],
@@ -44,6 +44,7 @@ const TABLES: [name: string, table: PgTable, omit: string[]][] = [
 export const LEFT_OUT = [
   { what: 'Passkeys, sign-ins, invite links and connected-app tokens', why: 'They let someone sign in. A new server makes new ones.' },
   { what: 'AI keys', why: "They are sealed with this server's master key and are no use anywhere else. Paste them again on a new server." },
+  { what: 'Kiosk PINs', why: 'Four numbers are easy to work out from what is stored, so they stay on the server. Set them again on a new one.' },
   { what: 'Photos from the kiosk', why: 'They are deleted 30 days after a job is answered, and are kept out of a file that may be shared.' },
   { what: 'The blockchain copy of the ledger', why: 'The ledger entries are all here; the chain can be rebuilt from them.' },
   { what: "AdGuard's own settings and query log", why: 'AdGuard holds them, not Family time; the nightly backup copies its settings.' },

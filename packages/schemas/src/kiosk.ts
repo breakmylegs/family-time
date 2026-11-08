@@ -6,7 +6,14 @@ export const KioskPairRequest = z.object({ code: z.string().regex(/^\d{6}$/, 'Th
 export const KioskPairResponse = z.object({ token: z.string(), householdName: z.string() });
 
 export const KioskChild = z.object({ id: z.uuid(), name: z.string() });
-export const KioskMe = z.object({ householdName: z.string(), children: z.array(KioskChild) });
+export const KioskUnlockRequest = z.object({ pin: z.string().regex(/^\d{4}$/, 'Your PIN is four numbers.') });
+export const KioskUnlockResponse = z.object({ ticket: z.string() });
+/** Owner: set (four numbers) or remove (null) a child's kiosk PIN. */
+export const KioskPinRequest = z.object({ pin: z.string().regex(/^\d{4}$/, 'A PIN is four numbers.').nullable() });
+export const KioskPinChild = z.object({ id: z.uuid(), name: z.string(), pin: z.boolean() });
+export type KioskPinChild = z.infer<typeof KioskPinChild>;
+/** `pin`: the child has a kiosk PIN, so the tablet asks for it before showing their home. */
+export const KioskMe = z.object({ householdName: z.string(), children: z.array(KioskChild.extend({ pin: z.boolean() })) });
 export type KioskMe = z.infer<typeof KioskMe>;
 
 export const KioskTarget = z.object({ kind: z.enum(['service', 'group']), id: z.uuid() });

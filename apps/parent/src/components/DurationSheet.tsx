@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { useHelp } from '../help/HelpContext';
 import { Icon } from '../icons';
 import { Sheet } from './Sheet';
+import { radioKeys } from '../ui';
 
 export type Choice = DurationOption['choice'] | 'until-resume';
 export type SheetKind = 'allow' | 'block' | 'pause';
@@ -101,7 +102,7 @@ export function DurationSheet({ kind, service, status, returnFocus, onClose, onC
 
   return (
     <Sheet open={Boolean(kind)} onClose={onClose} title={title} sub={sub} returnFocus={returnFocus ?? null}>
-      <div className="opts" role="radiogroup" aria-label={title}>
+      <div className="opts" role="radiogroup" aria-label={title} onKeyDown={radioKeys}>
         {options.map((o) => (
           <button key={o.choice} type="button" role="radio" className="opt" aria-checked={o.choice === picked.choice} onClick={() => setChoice(o.choice)}>
             <span className="radio" aria-hidden="true" />

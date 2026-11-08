@@ -87,6 +87,8 @@ export const people = pgTable(
     oidcSubject: text('oidc_subject'),
     /** For help text about a child: he, she or they. Null reads as they. */
     pronouns: text('pronouns').$type<'he' | 'she' | 'they'>(),
+    /** A child's optional kiosk PIN (brief Part 8), for siblings sharing a tablet: a salted scrypt hash. */
+    kioskPinHash: text('kiosk_pin_hash'),
     createdAt: createdAt(),
     deactivatedAt: timestamp('deactivated_at', { withTimezone: true }),
   },
