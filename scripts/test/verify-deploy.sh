@@ -126,6 +126,8 @@ case_1() {
   expect_call "compose.test.yml down"
   expect_call "run --rm migrate .*IMAGE_TAG=$tag"
   expect_call "up -d api worker .*IMAGE_TAG=$tag"
+  # AdGuard is started too, and no optional service the owner has not switched on.
+  expect_call "compose -f deploy/compose.yml up -d adguard \[IMAGE_TAG"
   expect_out "no running database yet"
   expect_state current "$tag"
   expect_state image.env "IMAGE_TAG=$tag"
@@ -144,6 +146,15 @@ case_2() {
   ls "$H"/backups/pre-deploy/*-before-"$new".dump > /dev/null 2>&1 || fail_check "no pre-deploy dump"
   expect_state current "$new"
   expect_state previous "$old"
+  end_case
+}
+
+case_24() {
+  new_case "starts the optional services the owner switched on, with AdGuard"
+  echo 'COMPOSE_PROFILES=ledger-besu,ai-local' > "$H/deploy/.state/ledger.env"
+  run_update
+  expect_rc 0
+  expect_call "compose -f deploy/compose.yml up -d adguard besu ollama \[IMAGE_TAG"
   end_case
 }
 
@@ -366,7 +377,7 @@ case_21() {
   end_case
 }
 
-ALL_CASES=$(seq 1 23)
+ALL_CASES=$(seq 1 24)
 # FT_CASES="6 7 8" runs only those cases. On the Windows laptop a full run can exhaust the process
 # table, so run it there in batches; on Linux run all of them.
 SELECTED=${FT_CASES:-$ALL_CASES}

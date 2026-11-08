@@ -1,0 +1,1 @@
+ALTER TABLE "devices" ADD COLUMN "removed_at" timestamp with time zone;

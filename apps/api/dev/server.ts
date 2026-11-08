@@ -17,9 +17,9 @@
 import { AdGuard } from '@family-time/adguard-client';
 import { FakeAdGuard } from '@family-time/adguard-client/fake';
 import { answeringModel } from '@family-time/ai/testing';
-import { aiCalls, aiKeys, aiSettings, completionPhotos, helpFeedback, ideas, kioskDevices, ledgerConfirmations, ledgerContracts, ledgerTx, mcpServers, oauthClients, oauthCodes, oauthTokens, overrides, proposals, recordHeartbeat, sessionEndings, settings } from '@family-time/db';
+import { adguardSync, aiCalls, aiKeys, aiSettings, completionPhotos, devices, helpFeedback, ideas, kioskDevices, ledgerConfirmations, ledgerContracts, ledgerTx, mcpServers, oauthClients, oauthCodes, oauthTokens, overrides, policies, proposals, recordHeartbeat, schedules, serviceGroupMembers, sessionEndings, SETTING_STOPPING_POINT, settings } from '@family-time/db';
 import { activateContract, besuLedger, fakeChain, indexPass, postgresLedger, signerPass, type FakeChain } from '@family-time/ledger';
-import { eq } from 'drizzle-orm';
+import { eq, notInArray } from 'drizzle-orm';
 import { testDb } from '@family-time/db/testing';
 import { reconcile } from '@family-time/worker/reconcile';
 import { randomBytes } from 'node:crypto';
@@ -154,6 +154,8 @@ if (demo) {
   // For the end-to-end tests only: back to the mock's 18:32 before each test.
   const seeded = new Set((await db.select({ id: overrides.id }).from(overrides)).map((o) => o.id));
   const seededIdeas = new Set((await db.select({ id: ideas.id }).from(ideas)).map((i) => i.id));
+  // Set-up as the demo starts: devices, the rules for each group, which group each app is in, schedules.
+  const setUp = { devices: await db.select().from(devices), policies: await db.select().from(policies), members: await db.select().from(serviceGroupMembers), schedules: await db.select().from(schedules) };
   app.post('/__dev/reset', { config: { access: 'public' } }, async () => {
     for (const o of await db.select({ id: overrides.id }).from(overrides)) if (!seeded.has(o.id)) await db.delete(overrides).where(eq(overrides.id, o.id));
     await db.update(overrides).set({ endsAt: new Date('2026-10-26T19:30:00Z'), endedBy: null, plannedEndsAt: null });
@@ -168,6 +170,7 @@ if (demo) {
     await db.delete(oauthClients);
     await db.delete(mcpServers);
     await db.delete(settings).where(eq(settings.key, 'mcp'));
+    await db.delete(settings).where(eq(settings.key, SETTING_STOPPING_POINT));
     await db.delete(helpFeedback);
     // The chain cannot forget a reference, and the reset makes the same ones again: a new chain.
     await db.delete(completionPhotos);
@@ -175,6 +178,19 @@ if (demo) {
     await db.delete(ledgerTx);
     await db.delete(ledgerConfirmations);
     await db.delete(ledgerContracts);
+    await db.delete(adguardSync).where(notInArray(adguardSync.deviceId, setUp.devices.map((d) => d.id)));
+    await db.delete(devices).where(notInArray(devices.id, setUp.devices.map((d) => d.id)));
+    for (const d of setUp.devices) await db.update(devices).set(d).where(eq(devices.id, d.id));
+    await db.delete(policies).where(notInArray(policies.id, setUp.policies.map((p) => p.id)));
+    for (const p of setUp.policies) await db.update(policies).set(p).where(eq(policies.id, p.id));
+    await db.delete(serviceGroupMembers);
+    await db.insert(serviceGroupMembers).values(setUp.members);
+    await db.delete(schedules).where(notInArray(schedules.id, setUp.schedules.map((s) => s.id)));
+    for (const s of setUp.schedules) {
+      const exists = (await db.select({ id: schedules.id }).from(schedules).where(eq(schedules.id, s.id))).length;
+      if (exists) await db.update(schedules).set(s).where(eq(schedules.id, s.id));
+      else await db.insert(schedules).values(s);
+    }
     if (economy) await resetEconomy(db, client, economy);
     await newChain();
     await notifyChange?.();

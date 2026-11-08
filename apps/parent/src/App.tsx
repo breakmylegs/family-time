@@ -18,6 +18,7 @@ import { Ledger } from './screens/Ledger';
 import { Join } from './screens/Join';
 import { People } from './screens/People';
 import { Settings } from './screens/Settings';
+import { Setup } from './screens/Setup';
 import { System } from './screens/System';
 import { SignIn } from './screens/SignIn';
 import { Tasks } from './screens/Tasks';
@@ -102,6 +103,7 @@ function Screens({ me, path, onSignedOut, onLive }: { me: Me; path: string; onSi
   else if (path === '/settings') screen = <Settings me={me} kids={kids ?? []} onSignedOut={onSignedOut} />;
   else if (path === '/ledger' && can('system.manage')) screen = <Ledger />;
   else if (path === '/system' && can('system.manage')) screen = <System />;
+  else if (path === '/setup' && can('system.manage')) screen = <Setup />;
   // Suggestions from AI and connected apps arrive here even before the economy is switched on.
   else if ((economy || waiting) && path === '/approvals' && can('approvals.decide')) screen = <Approvals me={me} />;
   else if (economy && path === '/tasks') screen = <Tasks kids={kids ?? []} canEdit={can('rules.edit')} />;
@@ -133,7 +135,7 @@ function Screens({ me, path, onSignedOut, onLive }: { me: Me; path: string; onSi
         <MaintenanceBanner />
         {screen}
         {path === '/people' || path === '/oauth/authorize' ? null : (
-          <TabBar path={path === '/ledger' || path === '/system' ? '/settings' : ['/settings', '/approvals', '/tasks', '/family'].includes(path) && (economy || path === '/settings' || (path === '/approvals' && waiting)) ? path : '/'} economy={economy} waiting={waiting} />
+          <TabBar path={path === '/ledger' || path === '/system' || path === '/setup' ? '/settings' : ['/settings', '/approvals', '/tasks', '/family'].includes(path) && (economy || path === '/settings' || (path === '/approvals' && waiting)) ? path : '/'} economy={economy} waiting={waiting} />
         )}
         <Sheet open={Boolean(picking)} onClose={() => setPicking(null)} title="Choose a child" returnFocus={picking}>
           <div className="opts" role="radiogroup" aria-label="Choose a child" onKeyDown={radioKeys}>

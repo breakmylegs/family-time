@@ -1,6 +1,6 @@
 // Family: one child's week in money and time, the savings goal, the family review's agenda, the
-// allowance and the reduction plan with its "agreed at the family review" switch, and the history,
-// where a mistake can be put right by undoing one entry exactly.
+// allowance and the reduction plan with its "agreed at the family review" switch, the history,
+// where a mistake can be put right by undoing one entry exactly, and the whole family's section.
 import type { ChildSummary, LedgerLine, WeekSummary } from '@family-time/schemas';
 import type { TopicId } from '@family-time/help-content/content';
 import { useState, type ReactNode } from 'react';
@@ -9,6 +9,7 @@ import { Sheet } from '../components/Sheet';
 import { useSheetAction } from '../components/useSheetAction';
 import { PilotMeasures } from '../components/PilotMeasures';
 import { WeekNote } from '../components/WeekNote';
+import { WholeFamily } from '../components/WholeFamily';
 import { minutes, pence, useLedger, useWeek } from '../economy/data';
 import { HelpButton } from '../help/HelpButton';
 import { Icon } from '../icons';
@@ -40,6 +41,7 @@ export function Family({ kids, childId, canEdit, onSwitchChild }: Props) {
         <p>Money, time and the family review.</p>
       </div>
       {kid ? <Child key={kid.id} kid={kid} canEdit={canEdit} /> : <p className="empty-large">No children yet.</p>}
+      <WholeFamily canEdit={canEdit} />
     </main>
   );
 }
@@ -126,6 +128,7 @@ function Child({ kid, canEdit }: { kid: ChildSummary; canEdit: boolean }) {
                   <>
                     <small className="tnum">
                       {pence(week.goal.savedPence)} of {pence(week.goal.targetPence)}
+                      {week.goal.matchPercent ? `. You add ${week.goal.matchPercent}% of each week's pocket money` : ''}
                     </small>
                     <span className="progress" role="img" aria-label={`${pence(week.goal.savedPence)} of ${pence(week.goal.targetPence)} towards ${week.goal.title}`}>
                       <i style={{ transform: `translateX(${(Math.min(1, week.goal.savedPence / week.goal.targetPence) - 1) * 100}%)` }} />
@@ -366,6 +369,7 @@ function Sheets({ kid, week, kind, from, base, onClosed, onDone }: SheetsProps) 
   const [key] = useState(() => crypto.randomUUID());
   const [n, setN] = useState(() => (kind === 'pay' ? week.moneyPence : kind === 'convert' ? week.flexPoints : kind === 'makeUp' ? 10 : kind === 'allowance' ? week.allowanceMinutes : kind === 'goal' ? (week.goal?.targetPence ?? 500) : 0));
   const [to, setTo] = useState<'MONEY' | 'TIME'>('MONEY');
+  const [match, setMatch] = useState(week.goal?.matchPercent ?? 0);
   const [text, setText] = useState(kind === 'goal' ? (week.goal?.title ?? '') : '');
   const days = week.nextStep?.resetDays ?? week.resetDays;
   const [plan, setPlan] = useState({
@@ -479,7 +483,18 @@ function Sheets({ kid, week, kind, from, base, onClosed, onDone }: SheetsProps) 
             <input id="goal-title" className="field" value={text} maxLength={80} placeholder="For example: bike lights" onChange={(e) => setText(e.target.value)} />
           </div>
           {nStepper('Costs', pence, 50, 50, 1_000_000)}
-          <button type="button" className="btn btn-primary" disabled={!text.trim() || busy} onClick={() => send('PUT', '/goal', { title: text.trim(), targetPence: n }, `Goal saved: ${text.trim()}.`)}>
+          {stepper(
+            'You add',
+            match ? `${match}%` : 'Nothing',
+            ['Lower your share by 10%', match > 0 ? () => setMatch((m) => Math.max(0, m - 10)) : null],
+            ['Raise your share by 10%', match < 100 ? () => setMatch((m) => Math.min(100, m + 10)) : null],
+          )}
+          <p className="hint">
+            {match
+              ? `When each week ends, you add ${match}% of the pocket money ${kid.name} earned that week, up to the price. It shows as "Matched by Mum and Dad".`
+              : `Optional: add a share of what ${kid.name} earns each week, to help the goal along.`}
+          </p>
+          <button type="button" className="btn btn-primary" disabled={!text.trim() || busy} onClick={() => send('PUT', '/goal', { title: text.trim(), targetPence: n, matchPercent: match }, `Goal saved: ${text.trim()}.`)}>
             {busy ? 'Saving' : 'Save the goal'}
           </button>
         </div>

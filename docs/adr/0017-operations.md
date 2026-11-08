@@ -28,5 +28,5 @@ Brief Part 15 (backups proven by restore, verify, retention, export, maintenance
 - Besu is stopped for a few seconds each night with the `ledger-besu` profile. The signer queues entries meanwhile.
 - Wind-down and bedtime minutes use the timetable as it is now for every week, so a timetable changed mid-pilot shifts the older weeks' figures. The help topic says so.
 - Measures computed on read cost a few queries per week shown. Fine for one family and 18 weeks; V2 may want them stored.
-- The monthly wellbeing check (brief Part 14) waits for the owner to confirm the child scale's licence. The kiosk's optional sibling PIN is left for V2: the pilot has one child on the tablet.
+- The monthly wellbeing check (brief Part 14) waits for the owner to confirm the child scale's licence. The kiosk's optional sibling PIN was first left for V2, then built at the end of Phase 8 (ADR 0015).
 - Besu now drops to the image's `besu` user after `start.sh` copies its key to a tmpfs (`/run/besu`) and hands the data folder over, with only CHOWN, SETUID and SETGID added back. If the image ever lacks `setpriv` or the user, it runs as root and logs why. This path is first exercised on the server with the `ledger-besu` profile: the test project already runs Besu as the image's own user.

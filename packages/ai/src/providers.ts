@@ -81,6 +81,9 @@ export function languageModel(provider: ProviderId, model: string, c: Credential
       return createAmazonBedrock({ region: c.options.region ?? 'eu-west-2', accessKeyId: k.accessKeyId, secretAccessKey: k.secretAccessKey, sessionToken: k.sessionToken })(model);
     }
     case 'ollama':
+      // Ollama's cloud models send the prompt to ollama.com, but Ollama counts as local here, so
+      // the most private data may go to it: a cloud model is never used under this provider.
+      if (/cloud/i.test(model)) throw new ProviderRefused(`${model} runs in Ollama's cloud, not at home. Choose a local model, such as llama3.2.`);
       return createOpenAICompatible({ name: 'ollama', baseURL: c.options.baseUrl ?? 'http://ollama:11434/v1' })(model);
   }
 }

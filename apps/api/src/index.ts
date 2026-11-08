@@ -1,4 +1,4 @@
-import { AdGuard } from '@family-time/adguard-client';
+import { AdGuard, AdGuardError } from '@family-time/adguard-client';
 import { connectionConfig, readSecret, schema, type Db } from '@family-time/db';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { existsSync } from 'node:fs';
@@ -84,7 +84,7 @@ const app = await buildServer({
   logLevel: process.env.LOG_LEVEL ?? 'info',
   trustedProxyHops: Number(process.env.TRUSTED_PROXY_HOPS ?? 1),
   notifyChange,
-  ...(adguard ? { readQuerylog: async (limit: number) => (await adguard.querylog({ limit })).data } : {}),
+  ...(adguard ? { readQuerylog: async (limit: number) => (await adguard.querylog({ limit })).data, pingAdguard: () => pingAdguard(adguard) } : {}),
   ...(existsSync(join(staticDir, 'index.html')) ? { staticDir } : {}),
 });
 
@@ -111,6 +111,24 @@ const kiosk = await buildKioskServer({
 });
 function kioskLog(event: string, error: string) {
   kiosk.log.error({ event, error });
+}
+
+/**
+ * Any HTTP answer means AdGuard is up, including "sign in first" before adguard-setup. One real call
+ * every ten seconds at most, however often /readyz is asked.
+ */
+let lastPing: { at: number; result: Promise<void> } | undefined;
+function pingAdguard(a: AdGuard): Promise<void> {
+  if (lastPing && Date.now() - lastPing.at < 10_000) return lastPing.result;
+  const result = a.status().then(
+    () => undefined,
+    (err: unknown) => {
+      if (err instanceof AdGuardError) return;
+      throw new Error(`AdGuard's admin API is not answering: ${(err as Error).message}`, { cause: err });
+    },
+  );
+  lastPing = { at: Date.now(), result };
+  return result;
 }
 
 const shutdown = async (signal: string) => {

@@ -41,7 +41,16 @@ make_secret adguard_password 24
 # the ledger; the admin key is the cold key, used once by ledger-deploy and then kept offline; the
 # node key is the validator's. Made for every install, used only with the ledger-besu profile.
 make_secret ledger_signer_key 32
-make_secret ledger_admin_key 32
+# Once ./scripts/ft.sh ledger-deploy has used it, the admin key lives offline: never made again here.
+if [ -e deploy/.state/ledger-admin.env ]; then
+  if [ -e secrets/ledger_admin_key ]; then
+    echo "  kept     secrets/ledger_admin_key (the contract is deployed: move it offline and delete it here)"
+  else
+    echo "  skipped  secrets/ledger_admin_key (the contract is deployed; the admin key is kept offline)"
+  fi
+else
+  make_secret ledger_admin_key 32
+fi
 make_secret besu_node_key 32
 
 # The Web Push (VAPID) key: a P-256 private key in PEM. The api gives browsers its public half.

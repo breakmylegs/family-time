@@ -28,6 +28,7 @@ case "$args" in
     exit 0 ;;
   *" run --rm migrate "*) fails migrate && exit 1; exit 0 ;;
   *" up -d api worker "*) printf '%s' "${IMAGE_TAG:-}" > "$SHIM_LOG.running"; exit 0 ;;
+  *" up -d adguard"*) exit 0 ;;
   *" ps -q api "*) echo api0000; exit 0 ;;
   *" ps -q worker "*) echo wrk0000; exit 0 ;;
   *" inspect -f {{.State.Running}} "*) echo true; exit 0 ;;

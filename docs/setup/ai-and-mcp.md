@@ -20,11 +20,28 @@ Without the master key, Settings says AI is not set up, and AI and MCP stay off.
    - **Anthropic, OpenAI, Mistral**: an API key from the provider's console. Set a spending limit there too.
    - **Google**: a key on a paid plan only, and turn on This key is on a paid plan. On the free plan Google uses what you send to improve its products.
    - **Amazon Bedrock**: temporary session credentials as JSON, `{"accessKeyId": "...", "secretAccessKey": "...", "sessionToken": "..."}`, and the region (`eu-west-2` by default). The models are the `eu.` inference profiles. Session credentials expire, so paste fresh ones when calls start failing.
-   - **Ollama**: the address of your own Ollama, for example `http://192.168.1.20:11434/v1`. No key. Nothing leaves your network.
+   - **Ollama**: the address of your own Ollama, for example `http://192.168.1.20:11434/v1`, or `http://ollama:11434/v1` for the one in the stack (below). No key. Nothing leaves your network.
 3. Turn on Use AI, then each feature you want. Pick the provider and model, and set the monthly limit in pence.
 4. Plain-English control sends what you type. Turn on Send what you type to a cloud provider for it, or use Ollama. Children's names are replaced by Child A and Child B before anything leaves.
 
 The key is shown only as its last four characters from then on. To replace it, paste a new one; to stop using a provider, tap Change, then Remove.
+
+### Local AI in the stack (the `ai-local` profile)
+
+If you have no Ollama of your own, Family time can run one beside the rest. It needs memory: a small model such as `llama3.2` uses about 3 GB while it answers, and it is unloaded after five idle minutes. On a Pi 5 with 8 GB, don't run it alongside the Besu ledger.
+
+1. On the server, add `ai-local` to the profiles in `deploy/.state/ledger.env` (create the file if it isn't there):
+
+   ```bash
+   echo 'COMPOSE_PROFILES=ai-local' >> deploy/.state/ledger.env              # with the Postgres ledger
+   # or, with the Besu ledger, change its line to COMPOSE_PROFILES=ledger-besu,ai-local
+   ./scripts/update.sh
+   ./scripts/ft.sh ollama-pull llama3.2
+   ```
+
+2. In Settings, set up Ollama with the address `http://ollama:11434/v1`, and pick `llama3.2` as the model.
+
+Ollama shares a network with the api and nothing else, and has no way out to the internet; no port is published. `ollama-pull` downloads through a one-off container that stops when the download is done. Ollama's cloud models (names with `cloud` in them) are refused, because they would send what you type to ollama.com. To turn it off, take `ai-local` out of the file and run `./scripts/update.sh`. Downloaded models stay in the `ollama-models` volume, which backups leave out: download them again on a new server.
 
 ### What each feature does
 

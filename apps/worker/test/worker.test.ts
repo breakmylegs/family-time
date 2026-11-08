@@ -38,7 +38,7 @@ describe('worker', () => {
       pollingIntervalSeconds: 0.5,
     });
     const beat = await until(() => readHeartbeat(handle!.db));
-    expect(beat).toEqual({ beatAt: at, commit: 'abc123' });
+    expect(beat).toEqual({ beatAt: at, commit: 'abc123', chainSeenAt: null });
     expect(lines.map((l) => JSON.parse(l).event)).toContain('heartbeat');
   });
 });

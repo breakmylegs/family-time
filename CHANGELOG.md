@@ -2,6 +2,16 @@
 
 Release notes the app shows on its System page (from Phase 8). One plain line per change, newest first.
 
+## 0.10.0 (Phase 9, the whole brief)
+
+- Time to find a stopping point: from the pilot's transitions phase, when a planned session or an Allow ends on its own, the app stays allowed for a few more minutes (5 unless you change it) so your child can finish a level or a video. Never into wind-down or bedtime, and Pause and Block still start within a minute.
+- The whole family on the Family screen: each parent's own screen time this week, beside your child's, and one family challenge at a time, such as screen-free tea, that anyone can tick, on the phone or the kiosk.
+- Set-up in Settings for the owner: add, change and remove devices, set each child's rule for each group of apps, move apps between groups, and change the family's schedules. Most changes no longer need the command line.
+- Alerts when blocking stops because AdGuard isn't answering or its protection is off, and when it's working again, plus a reminder an hour before the week resets that the family review is ready.
+- Optional matching on a savings goal: you add a share of the pocket money your child earns each week, shown as Matched by Mum and Dad.
+- Optional local AI in the stack, with no data leaving the house (the ai-local profile).
+- The server's health check now covers AdGuard and, when it is on, the Besu ledger. Only the ledger's own account can write to the chain, and the admin key isn't made again once it has been used.
+
 ## 0.9.0 (Phase 8, ready for the pilot)
 
 - Nightly backups, encrypted, with the family's data, settings and keys kept apart. Each one can be restored into a scratch copy to prove it works.

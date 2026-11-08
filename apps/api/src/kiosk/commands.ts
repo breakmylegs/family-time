@@ -19,7 +19,7 @@ import {
   services,
   type Db,
 } from '@family-time/db';
-import { addDays, blocksOn, civilDate, features, weekStarting, type BlockInterval } from '@family-time/domain';
+import { addDays, blocksOn, civilDate, decideAll, features, FINISHING_UP, weekStarting, type BlockInterval } from '@family-time/domain';
 import type { LedgerPort } from '@family-time/ledger';
 import type { KioskDevice, KioskHome, KioskMe, KioskSlots, KioskTargets, Recurrence } from '@family-time/schemas';
 import { and, asc, desc, eq, gte, gt, inArray, isNull, lte } from 'drizzle-orm';
@@ -27,6 +27,7 @@ import { audit } from '../audit.js';
 import { randomToken, sha256 } from '../auth/tokens.js';
 import { listTasks, logCompletion, planChecks, targetName, weekSummary } from '../economy/commands.js';
 import { minutes, pence } from '../economy/words.js';
+import { familyForKiosk } from '../family/whole.js';
 
 /** How long a pairing code works. */
 const PAIRING_MS = 10 * 60_000;
@@ -206,6 +207,12 @@ export async function kioskHome(db: Db, ledger: LedgerPort, householdId: string,
     const used = (now.getTime() - running.startsAt.getTime()) / (running.endsAt.getTime() - running.startsAt.getTime());
     rightNow = { title: `${name} until ${end}`, detail, icon, used: Math.max(0, Math.min(1, used)) };
   }
+  // Finishing up (the transitions phase): straight from the engine, so a Pause, a Block, school or
+  // bedtime always says otherwise, and the time is when the engine really blocks. No countdown bar.
+  if (!rightNow && (rules.stoppingPointMinutes ?? 0) > 0) {
+    const finishing = [...decideAll(rules, now).values()].filter((d) => d.reason === FINISHING_UP && d.stateUntil).sort((a, b) => b.stateUntil!.getTime() - a.stateUntil!.getTime())[0];
+    if (finishing) rightNow = { title: 'Finishing up', detail: `Find a good place to stop, like the end of a level, by about ${hhmm(finishing.stateUntil!, tz)}.`, icon: null, used: null };
+  }
 
   // The week, as 30-minute blocks.
   let week: KioskHome['week'] = null;
@@ -231,7 +238,10 @@ export async function kioskHome(db: Db, ledger: LedgerPort, householdId: string,
         targetPence: w.goal.targetPence,
         saved: pence(w.goal.savedPence),
         target: pence(w.goal.targetPence),
-        line: w.goal.savedPence >= w.goal.targetPence ? 'You did it! Talk to Mum or Dad about getting it.' : w.features.bonus ? `Saved screen time adds to this on ${resetDay}.` : 'Jobs paid in pocket money add to this.',
+        line:
+          w.goal.savedPence >= w.goal.targetPence
+            ? 'You did it! Talk to Mum or Dad about getting it.'
+            : `${w.features.bonus ? `Saved screen time adds to this on ${resetDay}.` : 'Jobs paid in pocket money add to this.'}${!w.goal.matchPercent ? '' : w.goal.matchPercent === 100 ? ' Mum and Dad add £1 for every £1 you earn.' : ` Mum and Dad add ${w.goal.matchPercent}p for every £1 you earn.`}`,
       };
     }
   }
@@ -330,8 +340,15 @@ export async function kioskHome(db: Db, ledger: LedgerPort, householdId: string,
     ideas: myIdeas,
     notes: notes.slice(0, 4),
     reflection,
+    family: await kioskFamily(db, householdId, now),
     features: { economy: f.economy, goal: f.goal, ideas: f.goal, reflection: f.goal },
   };
+}
+
+async function kioskFamily(db: Db, householdId: string, now: Date): Promise<KioskHome['family']> {
+  const f = await familyForKiosk(db, householdId, now);
+  if (!f) return null;
+  return { challenge: f.challenge, grownUps: f.parentsMinutes === null ? null : `Grown-ups' screen time this week: ${minutes(f.parentsMinutes)}` };
 }
 
 function startOfDay(now: Date, tz: string): Date {

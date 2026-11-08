@@ -30,6 +30,9 @@ const TABLES: [name: string, table: PgTable, omit: string[]][] = [
   ['goals', schema.goals, []],
   ['ideas', schema.ideas, []],
   ['reflections', schema.reflections, []],
+  ['parentScreenTime', schema.parentScreenTime, []],
+  ['familyChallenges', schema.familyChallenges, []],
+  ['challengeTicks', schema.challengeTicks, []],
   ['ledgerEntries', schema.ledgerEntries, []],
   ['kioskDevices', schema.kioskDevices, ['tokenHash']],
   ['helpFeedback', schema.helpFeedback, []],
@@ -67,6 +70,7 @@ export async function exportHousehold(db: Db, householdId: string, now: Date) {
       : 'deviceId' in cols ? inArray(cols['deviceId']!, devices)
       : 'groupId' in cols ? inArray(cols['groupId']!, groups)
       : 'personId' in cols ? inArray(cols['personId']!, people)
+      : 'byPersonId' in cols ? inArray(cols['byPersonId']!, people)
       : undefined;
     if (!where) throw new Error(`The export cannot find ${name} through the household.`);
     const rows = (await db.select().from(table).where(where)) as Record<string, unknown>[];

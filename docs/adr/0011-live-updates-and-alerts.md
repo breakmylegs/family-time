@@ -19,5 +19,5 @@ The carer rule follows the role table in brief Part 8 ("pause everything, no rul
 ## Consequences
 
 - A household whose firewall blocks the server's outbound HTTPS gets no alerts. Settings checks with the server that this phone is still registered and registers it again if not, so a dropped subscription does not look like alerts are on.
-- The api still loads the VAPID private key to derive the public one. Splitting the key so only the worker holds the private half is left for Phase 8's hardening (secrets per service).
+- The api first loaded the VAPID private key to derive the public one. Since Phase 8 it reads only the public half (`secrets/vapid_public.txt`), and the worker alone holds the private key (ADR 0017).
 - Playwright's WebKit build on Windows hangs when asked for a push subscription, so the end-to-end tests block the service worker. Push is checked on a real iPhone.

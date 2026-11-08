@@ -5,7 +5,6 @@ import { postgresLedger, type Verification } from '@family-time/ledger';
 import { setPilotPhase } from '../economy/commands.js';
 import {
   allowances,
-  devices,
   households,
   people,
   policies,
@@ -18,10 +17,10 @@ import {
 } from '@family-time/db';
 import { features, parseClock, PILOT_PHASES, type Features, type ScheduleBlock } from '@family-time/domain';
 import type { ChildStatus, ControlTarget } from '@family-time/schemas';
-import { randomUUID } from 'node:crypto';
 import { and, asc, eq, ilike } from 'drizzle-orm';
 import { audit } from '../audit.js';
 import { childStatus, endOverrides, setOverride } from '../control/commands.js';
+import { createDevice, SetupError } from '../setup/commands.js';
 import { CliError } from './commands.js';
 
 /** The groups every household starts with (brief Part 3). */
@@ -145,18 +144,17 @@ export async function addChild(db: Db, name: string, pronounsRaw?: string): Prom
   return row!.id;
 }
 
-const IDENTIFIER = /^((\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?|([0-9a-f]{2}:){5}[0-9a-f]{2}|[a-z0-9-]{1,63})$/i;
-
+/** The same command as Settings, Devices, Add a device. */
 export async function addDevice(db: Db, input: { child: string; label: string; type: string; ids: string[] }): Promise<{ id: string; adguardName: string }> {
   const hh = await household(db);
   const child = await childNamed(db, hh.id, input.child);
   if (!input.ids.length) throw new CliError('Give at least one --id: the device IP address, MAC address or AdGuard ClientID.');
-  for (const id of input.ids) if (!IDENTIFIER.test(id)) throw new CliError(`"${id}" is not an IP address, MAC address or ClientID.`);
-  const id = randomUUID();
-  const adguardName = `ft-${id.replace(/-/g, '').slice(0, 12)}`;
-  await db.insert(devices).values({ id, householdId: hh.id, childId: child.id, label: input.label.trim(), type: input.type, adguardName, identifiers: input.ids.map((x) => x.toLowerCase()) });
-  await audit(db, { householdId: hh.id, actor: { label: 'cli' }, action: 'device.added', targetType: 'device', targetId: id, after: { child: child.name, label: input.label, ids: input.ids } });
-  return { id, adguardName };
+  try {
+    return await createDevice(db, { householdId: hh.id, childId: child.id, label: input.label, type: input.type, ids: input.ids, actor: { label: 'cli' } });
+  } catch (err) {
+    if (err instanceof SetupError) throw new CliError(err.message);
+    throw err;
+  }
 }
 
 /** Groups, schedules and a blocked-by-default policy per group for a child. Adds only what is missing. */

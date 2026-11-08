@@ -354,6 +354,20 @@ textarea:focus-visible {
 .goal .bar {
   margin-top: 12px;
 }
+.together-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 10px;
+  font-size: 18px;
+  color: var(--k-ink-2);
+}
+.together-row .bar {
+  flex: 1;
+}
+.together .caption {
+  margin-top: 8px;
+}
 .reflect p {
   margin-top: 6px;
   font-size: 18px;

@@ -18,7 +18,7 @@ function uptime(seconds: number) {
 
 const size = (bytes: number) => (bytes >= 1_048_576 ? `${(bytes / 1_048_576).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
 
-const FEATURE_WORDS: Record<string, string> = { economy: 'Allowance and jobs', bonus: 'Unused-time bonus', goal: 'Savings goal', taper: 'Agreed reduction steps' };
+const FEATURE_WORDS: Record<string, string> = { economy: 'Allowance and jobs', bonus: 'Unused-time bonus', goal: 'Savings goal', transitions: 'Stopping points and the whole family', taper: 'Agreed reduction steps' };
 
 const SYNC_WORDS: Record<string, string> = { confirmed: 'Working', pending: 'Starting', 'not-confirmed': 'Not confirmed', never: 'Not set up yet' };
 
@@ -32,6 +32,11 @@ const ACTIONS = [
   { value: 'ai', label: 'AI settings' },
   { value: 'backup', label: 'Backups' },
   { value: 'maintenance', label: 'Maintenance' },
+  { value: 'device', label: 'Devices' },
+  { value: 'policy', label: 'Rules for groups' },
+  { value: 'service', label: 'Apps and groups' },
+  { value: 'schedule', label: 'Schedules' },
+  { value: 'family', label: 'The whole family' },
   { value: 'retention', label: 'Data cleared' },
 ];
 
@@ -61,6 +66,18 @@ const ACTION_WORDS: Record<string, string> = {
   'ai.key.saved': 'AI key saved',
   'ai.key.removed': 'AI key removed',
   'pilot.phase': 'Pilot phase changed',
+  'device.added': 'Device added',
+  'device.changed': 'Device changed',
+  'device.removed': 'Device removed',
+  'policy.changed': 'Rule for a group changed',
+  'service.group': "App's group changed",
+  'schedule.added': 'Schedule added',
+  'schedule.changed': 'Schedule changed',
+  'schedule.removed': 'Schedule removed',
+  'family.challenge.set': 'Family challenge set',
+  'family.challenge.ended': 'Family challenge ended',
+  'family.stopping_point': 'Time to find a stopping point changed',
+  'goal.set': 'Savings goal set',
 };
 const actionWords = (a: string) => ACTION_WORDS[a] ?? a;
 

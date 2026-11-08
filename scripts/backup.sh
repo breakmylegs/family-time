@@ -104,7 +104,7 @@ copy_volume() {
 }
 say "2/5 copying AdGuard's settings"
 copy_volume family-time_adguard-conf adguard-conf.tgz
-if grep -qs '^COMPOSE_PROFILES=ledger-besu$' deploy/.state/ledger.env; then
+if grep -qsE '^COMPOSE_PROFILES=ledger-besu(,ai-local)?$' deploy/.state/ledger.env; then
   say "copying the Besu chain (Besu stops for a moment)"
   compose stop besu >/dev/null || fail 31 "could not stop Besu for the copy"
   besu_stopped=1

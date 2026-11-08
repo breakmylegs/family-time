@@ -1,7 +1,7 @@
 // The mock's economy for the demo family: the week's allowance with 5 h 30 left, last week's 20p
-// bonus, a reduction plan, a savings goal, jobs, and the three things the mock's Approvals screen
-// is waiting on. Never part of the image.
-import { allowances, completions, goals, grants, households, ledgerEntries, reductionPlans, requests, tasks, type Db } from '@family-time/db';
+// bonus, a reduction plan, a savings goal, jobs, the three things the mock's Approvals screen is
+// waiting on, and the whole family's challenge and screen time. Never part of the image.
+import { allowances, challengeTicks, completions, familyChallenges, goals, grants, households, ledgerEntries, parentScreenTime, reductionPlans, requests, tasks, type Db } from '@family-time/db';
 import { postgresLedger } from '@family-time/ledger';
 import { eq, inArray, notInArray, sql } from 'drizzle-orm';
 
@@ -17,7 +17,7 @@ interface Family {
 }
 
 export async function seedEconomy(db: Db, family: Family, ids: { roblox: string; youtubeGrant: string }) {
-  const { householdId, mum, ollie, jamie } = family;
+  const { householdId, mum, dad, ollie, jamie } = family;
   const ledger = postgresLedger(db);
   await db.update(households).set({ pilotPhase: 'taper' }).where(eq(households.id, householdId));
   await db.insert(allowances).values([
@@ -61,6 +61,18 @@ export async function seedEconomy(db: Db, family: Family, ids: { roblox: string;
   ]);
   await db.insert(requests).values({ childId: ollie.id, targetKind: 'service', targetId: ids.roblox, startsAt: today('19:00'), minutes: 30, detail: 'Can I play Roblox with Jamie at 19:00?', askedAt: today('18:20') });
 
+  // The whole family: the parents' own screen time, and screen-free tea twice so far this week.
+  await db.insert(parentScreenTime).values([
+    { personId: dad.id, week: '2026-10-25', minutes: 270, updatedAt: at('2026-10-26T08:00:00Z') },
+    { personId: dad.id, week: '2026-10-18', minutes: 330, updatedAt: at('2026-10-19T08:00:00Z') },
+    { personId: mum.id, week: '2026-10-18', minutes: 240, updatedAt: at('2026-10-19T08:00:00Z') },
+  ]);
+  const [tea] = await db.insert(familyChallenges).values({ householdId, title: 'Screen-free tea', target: 5, week: '2026-10-25', createdBy: mum.id, createdAt: at('2026-10-25T18:30:00Z') }).returning();
+  await db.insert(challengeTicks).values([
+    { challengeId: tea!.id, byPersonId: ollie.id, at: at('2026-10-25T18:45:00Z') },
+    { challengeId: tea!.id, byPersonId: mum.id, at: today('17:50') },
+  ]);
+
   return snapshot(db);
 }
 
@@ -77,6 +89,9 @@ async function snapshot(db: Db) {
     plans: await db.select().from(reductionPlans),
     goals: await db.select().from(goals),
     households: await db.select().from(households),
+    screenTime: await db.select().from(parentScreenTime),
+    challenges: await db.select().from(familyChallenges),
+    ticks: await db.select().from(challengeTicks),
   };
 }
 
@@ -106,4 +121,9 @@ export async function resetEconomy(db: Db, client: { exec: (sql: string) => Prom
   await db.delete(goals).where(notInArray(goals.id, keep(s.goals)));
   for (const g of s.goals) await db.update(goals).set(g).where(eq(goals.id, g.id));
   for (const h of s.households) await db.update(households).set(h).where(eq(households.id, h.id));
+  await db.delete(challengeTicks).where(notInArray(challengeTicks.id, keep(s.ticks)));
+  await db.delete(familyChallenges).where(notInArray(familyChallenges.id, keep(s.challenges)));
+  for (const c of s.challenges) await db.update(familyChallenges).set(c).where(eq(familyChallenges.id, c.id));
+  await db.delete(parentScreenTime);
+  await db.insert(parentScreenTime).values(s.screenTime);
 }

@@ -70,7 +70,16 @@ if [ "$(id -u)" = 0 ] && id besu >/dev/null 2>&1 && command -v setpriv >/dev/nul
   fi
 fi
 
-exec "${RUN_AS[@]}" besu \
+# Only the ledger signer may send transactions, when allowlist.sh has written the list. The test
+# project has none, so any account may.
+PERMS=()
+ACCOUNTS=${PERMISSIONS_FILE:-/permissions/accounts.toml}
+if [ -s "$ACCOUNTS" ]; then
+  PERMS=(--permissions-accounts-config-file-enabled --permissions-accounts-config-file="$ACCOUNTS")
+  echo "start.sh: account permissioning on, from $ACCOUNTS"
+fi
+
+exec "${RUN_AS[@]}" besu "${PERMS[@]}" \
   --data-path="$DATA/chain" \
   --genesis-file="$DATA/genesis.json" \
   --node-private-key-file="$KEY" \

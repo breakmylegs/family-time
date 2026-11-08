@@ -1,5 +1,5 @@
 import type { AdGuard } from '@family-time/adguard-client';
-import { households, recordHeartbeat, sweep, type Db } from '@family-time/db';
+import { households, recordChainSeen, recordHeartbeat, sweep, type Db } from '@family-time/db';
 import { activeContract, checkAgainstChain, indexPass, postgresLedger, signerPass, type ChainClient, type LedgerPort } from '@family-time/ledger';
 import type { Send, Vapid } from '@family-time/notify';
 import type { PgBoss } from 'pg-boss';
@@ -8,6 +8,7 @@ import { economyTick } from './economy.js';
 import { backupProblem } from './backups.js';
 import { prunePhotos } from './photos.js';
 import { reconcile } from './reconcile.js';
+import { adguardProblem, AdGuardWatch, reviewsDue } from './watch.js';
 import { readUsage } from './usage.js';
 
 export const HEARTBEAT_QUEUE = 'heartbeat';
@@ -140,6 +141,10 @@ export async function startWorker(deps: WorkerDeps): Promise<RunningWorker> {
         }
       }
     }
+    // The family review: an hour before the week resets, once a week.
+    for (const r of await reviewsDue(db, now())) {
+      await queueAlert({ kind: 'review', householdId: r.householdId, resets: r.resets.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: r.timeZone }) });
+    }
     log(result.closed || result.allocated || result.refunds || result.charges ? 'info' : 'debug', 'economy', { ...result });
   });
   // The signer, then the indexer. Singleton, so there is only ever one signer and nonces never clash.
@@ -160,6 +165,7 @@ export async function startWorker(deps: WorkerDeps): Promise<RunningWorker> {
           },
         });
         const indexed = await indexPass(db, chain);
+        await recordChainSeen(db, now());
         log(signed.sent || indexed.confirmed ? 'info' : 'debug', 'ledger_chain', { ...signed, confirmed: indexed.confirmed, block: indexed.to });
         // Only when the queue is empty, so entries on their way are not counted as missing. A
         // stolen signer key could write named entries Postgres never made; this is how the owner
@@ -180,8 +186,15 @@ export async function startWorker(deps: WorkerDeps): Promise<RunningWorker> {
       }
     });
   }
+  const adguardWatch = new AdGuardWatch();
   await boss.work(RECONCILE_QUEUE, { pollingIntervalSeconds: deps.pollingIntervalSeconds ?? 2 }, async () => {
     if (!adguard) return log('debug', 'reconcile_skipped', { reason: 'AdGuard is not set up. Run ./scripts/ft.sh adguard-setup' });
+    const problem = await adguardProblem(adguard);
+    const turn = adguardWatch.observe(problem);
+    if (problem) log('warn', 'adguard_unwell', { problem });
+    if (turn) {
+      for (const h of await db.select({ id: households.id }).from(households)) await queueAlert({ kind: 'adguard', householdId: h.id, problem: turn === 'down' ? problem : null });
+    }
     const result = await reconcile({ db, adguard, now, log });
     log(result.failed ? 'warn' : 'debug', 'reconciled', { ...result });
     await changed();

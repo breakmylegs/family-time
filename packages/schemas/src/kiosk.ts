@@ -34,8 +34,8 @@ export const KioskHome = z.object({
       title: z.string(),
       detail: z.string(),
       icon: z.string().nullable(),
-      /** How much of the session has been used, 0 to 1. */
-      used: z.number(),
+      /** How much of the session has been used, 0 to 1. Null in finishing-up time: no countdown. */
+      used: z.number().nullable(),
     })
     .nullable(),
   /** Null until the pilot switches the economy on. */
@@ -66,6 +66,14 @@ export const KioskHome = z.object({
   notes: z.array(z.object({ id: z.string(), text: z.string(), from: z.string(), when: z.string() })),
   /** The Sunday reflection, when it is open. */
   reflection: z.object({ week: z.string(), answered: z.boolean() }).nullable(),
+  /** The whole family (the transitions phase on): this week's challenge, and the grown-ups' own screen time. */
+  family: z
+    .object({
+      challenge: z.object({ title: z.string(), target: z.number().int(), done: z.number().int() }).nullable(),
+      /** "Grown-ups' screen time this week: 6 hours", when a parent has said. */
+      grownUps: z.string().nullable(),
+    })
+    .nullable(),
   /** Which features the pilot phase has switched on. */
   features: z.object({ economy: z.boolean(), goal: z.boolean(), ideas: z.boolean(), reflection: z.boolean() }),
 });

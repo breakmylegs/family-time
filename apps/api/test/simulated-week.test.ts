@@ -19,6 +19,7 @@ import {
   logCompletion,
   planSession,
   recordPayout,
+  setGoal,
   setPlan,
   weekSummary,
 } from '../src/economy/commands.js';
@@ -173,6 +174,8 @@ for (const adapter of ['postgres', 'besu'] as const) {
 
     it('week two: the step is agreed at the review, he uses most of his time, and the next week is a step lower', async () => {
       await agreeStep(db, { householdId: hh, childId: ollie, by: mum }, L('2026-10-25 19:00'));
+      // At the review he chooses bike lights, and Mum and Dad match half of each week's pocket money.
+      await setGoal(db, { householdId: hh, childId: ollie, by: mum, title: 'bike lights', targetPence: 300, matchPercent: 50 }, L('2026-10-25 19:05'));
       for (const day of ['2026-10-26', '2026-10-27', '2026-10-28']) {
         await planSession(db, ledger, { childId: ollie, target: { kind: 'service', id: youtube }, start: L(`${day} 15:30`), minutes: 120 }, L(`${day} 15:30`));
       }
@@ -181,8 +184,11 @@ for (const adapter of ['postgres', 'besu'] as const) {
 
       // The server was off over the weekend and comes back on Monday: it catches up.
       await tick('2026-11-02 07:30');
-      // 60 minutes left: 20p. The agreed step applies: 7 h less 30 minutes.
-      expect(await balances()).toEqual({ time: 390, money: 160, flex: 10 });
+      // 60 minutes left: 20p, and Mum and Dad match half of it, 10p. The agreed step applies: 7 h less 30 minutes.
+      expect(await balances()).toEqual({ time: 390, money: 170, flex: 10 });
+      const match = (await ledger.history(hh, ollie)).find((x) => x.ref.startsWith('match:'))!;
+      expect(match).toMatchObject({ kind: 'award', money: 10, reason: 'Matched by Mum and Dad: 50% towards bike lights', at: new Date('2026-11-01T18:00:00Z') });
+      expect((await weekSummary(db, ledger, ollie, L('2026-11-02 07:30'))).goal).toMatchObject({ savedPence: 30, matchPercent: 50 });
       const [plan] = await db.select().from(reductionPlans);
       expect(plan).toMatchObject({ nextStepOn: '2026-11-29', agreedStepOn: null });
       expect((await weekSummary(db, ledger, ollie, L('2026-11-02 07:30'))).lastWeek).toEqual({ minutesLeft: 60, bonusPence: 20 });

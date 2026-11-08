@@ -13,6 +13,7 @@ Every version is pinned exactly. Checked on the registry on 26 October 2026 unle
 | Foundry | v1.8.7 | Release tarball in the image's `contracts` stage, checked by SHA-256 (amd64 `ba470eb7…25bcf`, arm64 `6f0e5697…18534`, full values in the Dockerfile). Never on the laptop |
 | Solidity | 0.8.38 | `contracts/foundry.toml`, EVM version Cancun |
 | forge-std | v1.17.0, commit `f3dae6e6ee381f25eb6a246f7da9b85c91a68219` | Fetched by commit in the `contracts` stage |
+| Ollama | `ollama/ollama:0.40.15` | Newest release on 3 Nov 2026 (not a pre-release), multi-arch (amd64 and arm64) on Docker Hub. Only with the `ai-local` profile |
 | AdGuard Home | `adguard/adguardhome:v0.107.79` | Newest stable 0.107 on 27 Oct 2026 (v0.108 and v1.0 are betas). Spec vendored in `packages/adguard-client/spec/` |
 | pnpm | 10.34.9 | Through corepack. pnpm 12.15.0 is current, but did not start through corepack on the laptop. Revisit |
 

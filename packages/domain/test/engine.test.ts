@@ -141,3 +141,39 @@ describe('the clock change', () => {
     expect(d.until?.toISOString()).toBe('2026-03-29T06:30:00.000Z');
   });
 });
+
+describe('stopping points (the transitions phase)', () => {
+  const grant = (id: string, start: string, end: string): Grant => ({ id, childId: CHILD, target: { kind: 'service', id: 'roblox' }, start: at(start), end: at(end), source: 'planned', status: 'active' });
+  const on = (extra: Parameters<typeof rules>[0] = {}) => rules({ stoppingPointMinutes: 5, ...extra });
+
+  it('gives a planned session a few minutes to reach a good place to stop, then blocks', () => {
+    const r = on({ grants: [grant('g1', '2026-10-26 18:30', '2026-10-26 19:00')] });
+    const finishing = decide(r, 'roblox', at('2026-10-26 19:02'));
+    expect(finishing).toMatchObject({ state: 'allowed', layer: 'allowed-time', sourceId: 'g1', reason: 'Finishing up: time to find a good place to stop.' });
+    expect(finishing.stateUntil).toEqual(at('2026-10-26 19:05'));
+    expect(decide(r, 'roblox', at('2026-10-26 19:05')).state).toBe('blocked');
+    // While the session runs, "allowed until" is its own end: the extra minutes show as they happen.
+    expect(decide(r, 'roblox', at('2026-10-26 18:40')).stateUntil).toEqual(at('2026-10-26 19:00'));
+  });
+
+  it('gives an Allow that ran out the same, but not one a parent ended early', () => {
+    expect(decide(on({ overrides: [allow('o1', '2026-10-26 18:20', '2026-10-26 19:00')] }), 'roblox', at('2026-10-26 19:03')).state).toBe('allowed');
+    expect(decide(on({ overrides: [allow('o1', '2026-10-26 18:20', '2026-10-26 18:50', { endedEarly: true })] }), 'roblox', at('2026-10-26 18:52')).state).toBe('blocked');
+  });
+
+  it('never runs into wind-down or bedtime, and a Block still wins', () => {
+    expect(decide(on({ grants: [grant('g1', '2026-10-26 19:00', '2026-10-26 19:30')] }), 'roblox', at('2026-10-26 19:32')).state).toBe('blocked');
+    expect(decide(on({ grants: [grant('g1', '2026-10-26 20:00', '2026-10-26 20:28')] }), 'roblox', at('2026-10-26 20:31')).state).toBe('blocked');
+    const block: Override = { ...allow('b1', '2026-10-26 19:01', '2026-10-26 19:30'), type: 'block' };
+    expect(decide(on({ grants: [grant('g1', '2026-10-26 18:30', '2026-10-26 19:00')], overrides: [block] }), 'roblox', at('2026-10-26 19:02')).state).toBe('blocked');
+  });
+
+  it('gives none after a session a parent stopped with Block, even once the Block is over', () => {
+    const block: Override = { ...allow('b1', '2026-10-26 18:32', '2026-10-26 19:02'), type: 'block' };
+    expect(decide(on({ grants: [{ ...grant('g1', '2026-10-26 18:30', '2026-10-26 19:00'), status: 'ended' }], overrides: [block] }), 'roblox', at('2026-10-26 19:03')).state).toBe('blocked');
+  });
+
+  it('does nothing when switched off', () => {
+    expect(decide(rules({ grants: [grant('g1', '2026-10-26 18:30', '2026-10-26 19:00')] }), 'roblox', at('2026-10-26 19:02')).state).toBe('blocked');
+  });
+});

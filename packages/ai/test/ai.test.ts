@@ -8,6 +8,8 @@ import {
   FALLBACK_IDEAS,
   costCentipence,
   invoke,
+  languageModel,
+  ProviderRefused,
   masterKeyFrom,
   NoMasterKey,
   open,
@@ -82,6 +84,14 @@ describe('the gateway', () => {
   it('turns a provider failure into a refusal, never a throw', async () => {
     const d = deps(config());
     expect(await invoke(d.deps, 'control', async () => Promise.reject(new Error('timeout')))).toMatchObject({ ok: false, refusal: 'provider_failed' });
+  });
+});
+
+describe('Ollama', () => {
+  it("never uses one of Ollama's cloud models, which would send the prompt out of the house", () => {
+    const local = { key: 'local', paidTier: false, options: {} };
+    expect(() => languageModel('ollama', 'gpt-oss:120b-cloud', local)).toThrow(ProviderRefused);
+    expect(() => languageModel('ollama', 'llama3.2', local)).not.toThrow();
   });
 });
 

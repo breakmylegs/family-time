@@ -23,6 +23,8 @@ dist/
 /backups/
 /.deploy/
 /deploy/.state/
+# The break-glass admin address for Besu's allowlist, only ever there for one restart.
+/deploy/besu/admin-allowlist
 
 # OS and editor
 .DS_Store

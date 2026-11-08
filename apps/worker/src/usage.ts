@@ -3,7 +3,7 @@
 import type { AdGuard, QueryLogItem } from '@family-time/adguard-client';
 import { devices, households, querylogCursor, schedules, services, usageMinutes, type Db } from '@family-time/db';
 import { activeBlocks, type Schedule, type ScheduleBlock } from '@family-time/domain';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { Log } from './worker.js';
 
 /** A device silent this long outside bedtime is marked quiet: mobile data, a VPN, or other DNS. */
@@ -34,7 +34,7 @@ export function serviceFor(name: string, domains: Map<string, string>): string |
 export async function readUsage(deps: UsageDeps): Promise<{ read: number; minutes: number; quiet: string[] }> {
   const { db, adguard, log } = deps;
   const now = deps.now();
-  const deviceRows = await db.select({ id: devices.id, name: devices.adguardName, ids: devices.identifiers }).from(devices);
+  const deviceRows = await db.select({ id: devices.id, name: devices.adguardName, ids: devices.identifiers }).from(devices).where(isNull(devices.removedAt));
   if (!deviceRows.length) return { read: 0, minutes: 0, quiet: [] };
   const serviceRows = await db.select({ id: services.id, domains: services.domains }).from(services);
   const domainToService = new Map<string, string>();
@@ -104,7 +104,7 @@ export async function markQuiet(db: Db, now: Date, log?: Log): Promise<string[]>
   if (!household) return [];
   const scheduleRows = await db.select().from(schedules).where(eq(schedules.householdId, household.id));
   const all: Schedule[] = scheduleRows.map((s) => ({ id: s.id, name: s.name, childId: s.childId, weekdays: s.weekdays, blocks: s.blocks as ScheduleBlock[] }));
-  const rows = await db.select().from(devices).where(eq(devices.householdId, household.id));
+  const rows = await db.select().from(devices).where(and(eq(devices.householdId, household.id), isNull(devices.removedAt)));
   const quiet: string[] = [];
   for (const d of rows) {
     if (!d.childId || d.quietSince) continue;

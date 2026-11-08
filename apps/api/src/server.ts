@@ -15,7 +15,9 @@ import { authRoutes } from './routes/auth.js';
 import { Changes, eventRoutes } from './events.js';
 import { controlRoutes, type QueryLogEntry } from './routes/control.js';
 import { economyRoutes } from './routes/economy.js';
+import { familyRoutes } from './routes/family.js';
 import { kioskRoutes } from './routes/kiosk.js';
+import { setupRoutes } from './routes/setup.js';
 import { mcpRoutes } from './routes/mcp.js';
 import { peopleRoutes } from './routes/people.js';
 import { pushRoutes } from './routes/push.js';
@@ -45,6 +47,8 @@ export interface ServerDeps {
   /** The ledger. The Postgres one unless a test or the Besu adapter says otherwise. */
   ledger?: LedgerPort;
   ledgerAdapter?: 'postgres' | 'besu';
+  /** For readiness: asks AdGuard's admin API anything. */
+  pingAdguard?: () => Promise<void>;
   /** The kiosk's address on the LAN, shown with a pairing code. */
   kioskUrl?: string;
   /** Tests: a mock model instead of a provider, a fake forecast, a client document without fetching. */
@@ -101,9 +105,12 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   const health = { config: { access: 'public' as const } };
   app.get('/healthz', health, async (): Promise<Liveness> => ({ status: 'ok' }));
 
-  app.get('/readyz', health, async (_request, reply) => {
-    const result = await readiness({ db: deps.db, build: deps.build, now });
-    return reply.code(result.status === 'ready' ? 200 : 503).send(result);
+  // Which checks fail (AdGuard down means blocking is off) is for the server itself: the container's
+  // health check and verify.sh ask from inside. Anyone else, through Caddy, gets the status only.
+  app.get('/readyz', health, async (request, reply) => {
+    const result = await readiness({ db: deps.db, build: deps.build, now, ...(deps.pingAdguard ? { pingAdguard: deps.pingAdguard } : {}), ...(deps.ledgerAdapter ? { ledgerAdapter: deps.ledgerAdapter } : {}) });
+    const inside = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(request.socket.remoteAddress ?? '');
+    return reply.code(result.status === 'ready' ? 200 : 503).send(inside ? result : { status: result.status });
   });
 
   app.get('/version', health, async (): Promise<Version> => {
@@ -132,6 +139,8 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     ...(deps.ledgerAdapter ? { ledgerAdapter: deps.ledgerAdapter } : {}),
   });
   await kioskRoutes(app, { db: deps.db, now, ...(deps.kioskUrl ? { kioskUrl: deps.kioskUrl } : {}) });
+  await familyRoutes(app, { db: deps.db, now, changes, notifyChange: deps.notifyChange ?? (async () => undefined) });
+  await setupRoutes(app, { db: deps.db, now, changes, notifyChange: deps.notifyChange ?? (async () => undefined) });
   await aiRoutes(app, {
     db: deps.db,
     ledger,

@@ -249,7 +249,14 @@ deploy() {
 # (which calls /readyz) until it is healthy, unhealthy, or three minutes pass. Not `up --wait`,
 # whose handling of a one-shot dependency like migrate has changed between Compose versions.
 start_and_wait() {
-  local tag=$1 api worker status i
+  local tag=$1 api worker status i profiles others=(adguard)
+  # AdGuard, and the optional services the owner has switched on, first: readiness checks AdGuard.
+  # Their images are pinned in compose.yml, not built here, so a rollback leaves them as they are.
+  # Only services whose profile is on: Compose starts any service named here, profile or not.
+  profiles=$(sed -n 's/^COMPOSE_PROFILES=//p' deploy/.state/ledger.env 2>/dev/null | tail -n 1)
+  [[ ",$profiles," == *,ledger-besu,* ]] && others+=(besu)
+  [[ ",$profiles," == *,ai-local,* ]] && others+=(ollama)
+  IMAGE_TAG=$tag run_logged compose up -d "${others[@]}" || return 1
   IMAGE_TAG=$tag run_logged compose up -d api worker || return 1
   api=$(IMAGE_TAG=$tag compose ps -q api 2>>"$FT_LOG" || true)
   worker=$(IMAGE_TAG=$tag compose ps -q worker 2>>"$FT_LOG" || true)

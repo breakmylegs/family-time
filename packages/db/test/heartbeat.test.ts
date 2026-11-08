@@ -14,7 +14,7 @@ describe('heartbeat', () => {
     expect(await readHeartbeat(handle.db)).toBeUndefined();
     await recordHeartbeat(handle.db, 'aaa', new Date('2026-10-26T10:00:00Z'));
     await recordHeartbeat(handle.db, 'bbb', new Date('2026-10-26T10:00:30Z'));
-    expect(await readHeartbeat(handle.db)).toEqual({ beatAt: new Date('2026-10-26T10:00:30Z'), commit: 'bbb' });
+    expect(await readHeartbeat(handle.db)).toEqual({ beatAt: new Date('2026-10-26T10:00:30Z'), commit: 'bbb', chainSeenAt: null });
     const count = await handle.client.query<{ n: number }>('select count(*)::int as n from worker_heartbeat');
     expect(count.rows[0]?.n).toBe(1);
   });

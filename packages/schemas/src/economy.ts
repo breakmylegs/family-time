@@ -137,7 +137,7 @@ export const WeekSummary = z.object({
     .nullable(),
   /** The next four reset days, for setting up a plan when there is none yet. */
   resetDays: z.array(z.object({ on: z.string(), label: z.string() })),
-  goal: z.object({ title: z.string(), targetPence: z.number().int(), savedPence: z.number().int() }).nullable(),
+  goal: z.object({ title: z.string(), targetPence: z.number().int(), savedPence: z.number().int(), matchPercent: z.number().int() }).nullable(),
   /** The child's answers to the Sunday questions on the kiosk, this week's or last week's. */
   reflection: z.object({ week: z.string(), wentWell: z.string(), wasHard: z.string(), nextGoal: z.string() }).nullable(),
   rates: z.object({ pencePerBlock: z.number().int(), weeklyCapPence: z.number().int(), flexPence: z.number().int(), flexMinutes: z.number().int() }),
@@ -197,5 +197,10 @@ export const PlanRequest = z.object({
   floorMinutes: z.number().int().min(0).max(7 * 24 * 60),
   nextStepOn: z.iso.date(),
 });
-export const GoalRequest = z.object({ title: z.string().trim().min(1).max(80), targetPence: z.number().int().min(1).max(1_000_000) });
+export const GoalRequest = z.object({
+  title: z.string().trim().min(1).max(80),
+  targetPence: z.number().int().min(1).max(1_000_000),
+  /** Parental matching: the parents add this percent of each week's pocket money towards the goal. */
+  matchPercent: z.number().int().min(0).max(100).default(0),
+});
 export const PilotPhaseRequest = z.object({ phase: z.enum(['baseline', 'reframe', 'reward-less', 'transitions', 'taper']) });

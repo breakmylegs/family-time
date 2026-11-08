@@ -92,6 +92,27 @@
       "when": 1794149734807,
       "tag": "0012_kiosk_pin",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1794161243368,
+      "tag": "0013_whole_family",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1794162594560,
+      "tag": "0014_removed_devices",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1794164256684,
+      "tag": "0015_chain_seen",
+      "breakpoints": true
     }
   ]
 }

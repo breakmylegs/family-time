@@ -1,10 +1,11 @@
 // Alerts to parents' phones. About devices: a change AdGuard has not confirmed after three tries,
-// and a device that has gone quiet. About the economy: a job to approve, a request to answer, and,
-// to owners only, a ledger chain that does not check out. Each is sent once, when it happens.
+// and a device that has gone quiet, and AdGuard itself unwell or back. About the economy: a job to
+// approve, a request to answer, the family review coming up, and, to owners only, a ledger chain
+// that does not check out. Each is sent once, when it happens.
 import { completions, devices, households, people, requests, serviceGroups, services, settings, tasks, type Db } from '@family-time/db';
 import { clockLabel } from '@family-time/domain';
 import { parentsOf, pushTo, type Alert, type Send, type Vapid } from '@family-time/notify';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import type { Log } from './worker.js';
 
 /** The household setting the owner's invite wrote: the address the parent app is on. */
@@ -42,7 +43,10 @@ export type AlertJob =
   | { kind: DeviceAlertKind; deviceIds: string[] }
   | { kind: 'completion' | 'request'; id: string }
   | { kind: 'ledger'; householdId: string; problem: string }
-  | { kind: 'backup'; householdId: string; problem: string };
+  | { kind: 'backup'; householdId: string; problem: string }
+  /** `problem` null: AdGuard is working again. */
+  | { kind: 'adguard'; householdId: string; problem: string | null }
+  | { kind: 'review'; householdId: string; resets: string };
 
 async function originOf(db: Db, householdId: string): Promise<string | undefined> {
   const v = (await db.select({ value: settings.value }).from(settings).where(and(eq(settings.householdId, householdId), eq(settings.key, SETTING_PUBLIC_ORIGIN))))[0]?.value;
@@ -56,6 +60,22 @@ export async function familyAlert(db: Db, job: Exclude<AlertJob, { deviceIds: st
       householdId: job.householdId,
       to: 'owners',
       alert: { title: 'The backup needs a look', body: `${job.problem} Run ./scripts/backup.sh on the server to see why. The family's data is fine, but the newest changes aren't backed up yet.`, path: '/system' },
+    };
+  }
+  if (job.kind === 'adguard') {
+    return {
+      householdId: job.householdId,
+      to: 'parents',
+      alert: job.problem
+        ? { title: 'Blocking has stopped for now', body: `${job.problem} Until it's back, apps aren't blocked on any device. Anything you set on Control is kept and starts again when it's back. The owner can see why on the System page.`, path: '/' }
+        : { title: 'Blocking is working again', body: 'Every device on home Wi-Fi is back on the family rules within a minute.', path: '/' },
+    };
+  }
+  if (job.kind === 'review') {
+    return {
+      householdId: job.householdId,
+      to: 'parents',
+      alert: { title: 'The family review is coming up', body: `The week resets at ${job.resets}. The agenda is ready on Family: how the week went, and what to agree for the next one.`, path: '/family' },
     };
   }
   if (job.kind === 'ledger') {
@@ -123,7 +143,7 @@ export async function sendDeviceAlerts(deps: AlertDeps, kind: DeviceAlertKind, d
     .select({ id: devices.id, label: devices.label, childId: devices.childId, householdId: devices.householdId })
     .from(devices)
     .innerJoin(people, eq(people.id, devices.childId))
-    .where(inArray(devices.id, deviceIds));
+    .where(and(inArray(devices.id, deviceIds), isNull(devices.removedAt)));
   let sent = 0;
   for (const d of rows) {
     if (!d.childId) continue;

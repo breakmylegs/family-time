@@ -137,7 +137,7 @@ export async function weekSummary(db: Db, ledger: LedgerPort, childId: string, n
         }
       : null,
     resetDays: days,
-    goal: e.goal ? { title: e.goal.title, targetPence: e.goal.targetPence, savedPence: await goalSaved(db, ledger, e.householdId, childId, e.goal.id, e.goal.targetPence) } : null,
+    goal: e.goal ? { title: e.goal.title, targetPence: e.goal.targetPence, matchPercent: e.goal.matchPercent, savedPence: await goalSaved(db, ledger, e.householdId, childId, e.goal.id, e.goal.targetPence) } : null,
     reflection: await recentReflection(db, childId, addIsoDays(week.date, -7)),
     rates: { pencePerBlock: e.rates.bonus.pencePerBlock, weeklyCapPence: e.rates.bonus.weeklyCapPence, flexPence: e.rates.flexPence, flexMinutes: e.rates.flexMinutes },
   };
@@ -876,11 +876,18 @@ export async function unagreeStep(db: Db, input: { householdId: string; childId:
   await audit(db, { householdId: input.householdId, actor: { personId: input.by }, action: 'plan.unagreed', targetType: 'person', targetId: input.childId });
 }
 
-export async function setGoal(db: Db, input: { householdId: string; childId: string; by: string; title: string; targetPence: number }, now: Date) {
+export async function setGoal(db: Db, input: { householdId: string; childId: string; by: string; title: string; targetPence: number; matchPercent?: number }, now: Date) {
   await childOf(db, input.householdId, input.childId);
-  await db.update(goals).set({ active: false }).where(and(eq(goals.childId, input.childId), eq(goals.active, true)));
-  await db.insert(goals).values({ childId: input.childId, title: input.title, targetPence: input.targetPence, createdAt: now });
-  await audit(db, { householdId: input.householdId, actor: { personId: input.by }, action: 'goal.set', targetType: 'person', targetId: input.childId, after: { title: input.title, targetPence: input.targetPence } });
+  const matchPercent = input.matchPercent ?? 0;
+  const current = (await db.select().from(goals).where(and(eq(goals.childId, input.childId), eq(goals.active, true))))[0];
+  // The same goal with a new price or match keeps its bar; a new goal starts a new one.
+  if (current && current.title === input.title) {
+    await db.update(goals).set({ targetPence: input.targetPence, matchPercent }).where(eq(goals.id, current.id));
+  } else {
+    await db.update(goals).set({ active: false }).where(and(eq(goals.childId, input.childId), eq(goals.active, true)));
+    await db.insert(goals).values({ childId: input.childId, title: input.title, targetPence: input.targetPence, matchPercent, createdAt: now });
+  }
+  await audit(db, { householdId: input.householdId, actor: { personId: input.by }, action: 'goal.set', targetType: 'person', targetId: input.childId, after: { title: input.title, targetPence: input.targetPence, matchPercent } });
 }
 
 export async function setPilotPhase(db: Db, input: { householdId: string; by?: string; phase: string }) {

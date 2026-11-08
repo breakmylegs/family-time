@@ -8,7 +8,7 @@ export const LiveVersion = createContext(0);
 
 export interface Pilot {
   phase: string;
-  features: { economy: boolean; bonus: boolean; goal: boolean; taper: boolean };
+  features: { economy: boolean; bonus: boolean; goal: boolean; transitions: boolean; taper: boolean };
 }
 
 /** Fetches `path` now and on every live change. `undefined` until the first answer. */

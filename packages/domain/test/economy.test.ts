@@ -169,11 +169,11 @@ describe('an Allow that counts in weekly time', () => {
 
 describe('the pilot phases', () => {
   it('switch features on in the order of the pilot', () => {
-    expect(features('baseline')).toEqual({ economy: false, bonus: false, goal: false, taper: false });
-    expect(features('reframe')).toEqual({ economy: true, bonus: false, goal: false, taper: false });
-    expect(features('reward-less')).toEqual({ economy: true, bonus: true, goal: true, taper: false });
-    expect(features('transitions')).toEqual({ economy: true, bonus: true, goal: true, taper: false });
-    expect(features('taper')).toEqual({ economy: true, bonus: true, goal: true, taper: true });
+    expect(features('baseline')).toEqual({ economy: false, bonus: false, goal: false, transitions: false, taper: false });
+    expect(features('reframe')).toEqual({ economy: true, bonus: false, goal: false, transitions: false, taper: false });
+    expect(features('reward-less')).toEqual({ economy: true, bonus: true, goal: true, transitions: false, taper: false });
+    expect(features('transitions')).toEqual({ economy: true, bonus: true, goal: true, transitions: true, taper: false });
+    expect(features('taper')).toEqual({ economy: true, bonus: true, goal: true, transitions: true, taper: true });
   });
 
   it('a 30-minute block is the unit everywhere', () => {

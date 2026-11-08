@@ -31,6 +31,8 @@ export class FakeAdGuard {
   querylogConfig = { enabled: true, interval: 90 * 86_400_000, anonymize_client_ip: false, ignored: [] as string[] };
   statsConfig = { enabled: true, interval: 86_400_000, ignored: [] as string[] };
   faults: FakeFaults = {};
+  /** Off when someone switches AdGuard's protection off in its own screens. */
+  protectionEnabled = true;
   /** Every write, for tests that check nothing else was touched. */
   writes: string[] = [];
   private server?: Server;
@@ -81,7 +83,7 @@ export class FakeAdGuard {
     const route = `${req.method} ${path}`;
     switch (route) {
       case 'GET /status':
-        return send(200, { version: 'v0.107.79', running: true, protection_enabled: true });
+        return send(200, { version: 'v0.107.79', running: true, protection_enabled: this.protectionEnabled });
       case 'GET /clients':
         return send(200, { clients: this.clients.length ? structuredClone(this.clients) : null, auto_clients: [], supported_tags: [] });
       case 'POST /clients/add': {
@@ -100,6 +102,13 @@ export class FakeAdGuard {
         }
         // The whole client is replaced by `data`: fields left out are gone.
         if (!this.faults.dropUpdates) this.clients[i] = structuredClone(body.data);
+        return send(200);
+      }
+      case 'POST /clients/delete': {
+        const i = this.clients.findIndex((c) => c.name === body.name);
+        if (i === -1) return send(400, `client "${body.name}" not found`);
+        this.writes.push(route);
+        this.clients.splice(i, 1);
         return send(200);
       }
       case 'GET /blocked_services/all':

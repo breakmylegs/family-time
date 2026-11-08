@@ -8,6 +8,7 @@ export const CALLS = [
   { method: 'get', path: '/clients' },
   { method: 'post', path: '/clients/add', schema: 'Client' },
   { method: 'post', path: '/clients/update', schema: 'ClientUpdate' },
+  { method: 'post', path: '/clients/delete', schema: 'ClientDelete' },
   { method: 'get', path: '/blocked_services/all' },
   { method: 'get', path: '/filtering/status' },
   { method: 'post', path: '/filtering/set_rules', schema: 'SetRulesRequest' },
@@ -137,6 +138,11 @@ export class AdGuard {
 
   addClient(client: AdGuardClientRecord) {
     return this.call<void>('POST', '/clients/add', client);
+  }
+
+  /** Only ever for one of our own `ft-` clients, when its device is removed in Settings. */
+  deleteClient(name: string) {
+    return this.call<void>('POST', '/clients/delete', { name });
   }
 
   /** AdGuard replaces the whole client with `data`, so always send the full object. */

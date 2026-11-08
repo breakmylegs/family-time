@@ -12,9 +12,17 @@ export async function recordHeartbeat(db: Db, commit: string, at: Date): Promise
     .onConflictDoUpdate({ target: workerHeartbeat.id, set: { beatAt: at, commit } });
 }
 
-export async function readHeartbeat(db: Db): Promise<{ beatAt: Date; commit: string } | undefined> {
+/** The worker reached the Besu node just now. Only ever after a beat, so the row is there. */
+export async function recordChainSeen(db: Db, at: Date): Promise<void> {
+  await db.update(workerHeartbeat).set({ chainSeenAt: at }).where(eq(workerHeartbeat.id, 1));
+}
+
+/** Two minutes: a few of the signer's five-second passes, with room for a node restart. */
+export const CHAIN_STALE_AFTER_MS = 120_000;
+
+export async function readHeartbeat(db: Db): Promise<{ beatAt: Date; commit: string; chainSeenAt: Date | null } | undefined> {
   const rows = await db
-    .select({ beatAt: workerHeartbeat.beatAt, commit: workerHeartbeat.commit })
+    .select({ beatAt: workerHeartbeat.beatAt, commit: workerHeartbeat.commit, chainSeenAt: workerHeartbeat.chainSeenAt })
     .from(workerHeartbeat)
     .where(eq(workerHeartbeat.id, 1));
   return rows[0];

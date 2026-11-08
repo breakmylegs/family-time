@@ -40,6 +40,8 @@ export const workerHeartbeat = pgTable(
     id: smallint('id').primaryKey().default(1),
     beatAt: timestamp('beat_at', { withTimezone: true }).notNull(),
     commit: text('commit').notNull(),
+    /** With the Besu ledger: when the worker last reached the node. Readiness reads it (the api cannot reach Besu). */
+    chainSeenAt: timestamp('chain_seen_at', { withTimezone: true }),
   },
   (t) => [check('worker_heartbeat_single_row', sql`${t.id} = 1`)],
 );
@@ -307,6 +309,8 @@ export const devices = pgTable(
     identifiers: text('identifiers').array().notNull(),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
     quietSince: timestamp('quiet_since', { withTimezone: true }),
+    /** Removed in Settings: kept for its usage history, and its AdGuard client is taken away. */
+    removedAt: timestamp('removed_at', { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex('devices_adguard_name').on(t.adguardName), check('devices_has_identifier', sql`cardinality(${t.identifiers}) > 0`)],
@@ -974,6 +978,54 @@ export const mcpServers = pgTable('mcp_servers', {
   createdAt: createdAt(),
 });
 
+// ---------------------------------------------------------------------------------------------
+// The whole family (Phase 9, the pilot's transitions phase): the parents' own screen time, and one
+// cooperative challenge at a time. No points and nothing lost: shared progress only.
+
+/** A parent's own estimate of their leisure screen time for one week. Self-reported, never measured. */
+export const parentScreenTime = pgTable(
+  'parent_screen_time',
+  {
+    personId: uuid('person_id')
+      .notNull()
+      .references(() => people.id),
+    /** The household week's first day, `2026-11-08`. */
+    week: text('week').notNull(),
+    minutes: integer('minutes').notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.personId, t.week] })],
+);
+
+/** A family challenge: "Screen-free tea, 5 times this week". One at a time per household. */
+export const familyChallenges = pgTable('family_challenges', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  householdId: uuid('household_id')
+    .notNull()
+    .references(() => households.id),
+  title: text('title').notNull(),
+  /** How many times this week. */
+  target: smallint('target').notNull(),
+  week: text('week').notNull(),
+  createdBy: uuid('created_by')
+    .notNull()
+    .references(() => people.id),
+  createdAt: createdAt(),
+  endedAt: timestamp('ended_at', { withTimezone: true }),
+});
+
+/** One "we did it", by a parent in the app or a child on the kiosk. Never taken away. */
+export const challengeTicks = pgTable('challenge_ticks', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  challengeId: uuid('challenge_id')
+    .notNull()
+    .references(() => familyChallenges.id),
+  byPersonId: uuid('by_person_id')
+    .notNull()
+    .references(() => people.id),
+  at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const goals = pgTable('goals', {
   id: uuid('id').primaryKey().defaultRandom(),
   childId: uuid('child_id')
@@ -982,5 +1034,7 @@ export const goals = pgTable('goals', {
   title: text('title').notNull(),
   targetPence: integer('target_pence').notNull(),
   active: boolean('active').notNull().default(true),
+  /** Optional parental matching (brief Part 6): this percent of each payout is added as the parents' own award. */
+  matchPercent: smallint('match_percent').notNull().default(0),
   createdAt: createdAt(),
 });

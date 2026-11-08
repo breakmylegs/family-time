@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { RateLimiter } from '../auth/ratelimit.js';
 import { EconomyError, askRequest, planSession } from '../economy/commands.js';
 import type { Changes } from '../events.js';
+import { FamilyError, tickChallenge } from '../family/whole.js';
 import { loggerOptions, logPath } from '../logging.js';
 import { registerStatic } from '../static.js';
 import { audit } from '../audit.js';
@@ -235,6 +236,20 @@ export async function buildKioskServer(deps: KioskServerDeps): Promise<FastifyIn
     await saveReflection(db, { householdId: hh(request), childId: child, ...body }, now());
     await changed(hh(request));
     return { ok: true };
+  });
+
+  // "We did it": once more towards the family challenge. Nothing is ever taken away.
+  app.post<{ Params: { child: string } }>('/api/children/:child/challenge/tick', device, async (request) => {
+    const { child } = Child.parse(request.params);
+    await kioskChild(db, hh(request), child);
+    try {
+      const c = await tickChallenge(db, { householdId: hh(request), by: child }, now());
+      await changed(hh(request));
+      return { title: c.title, target: c.target, done: c.done };
+    } catch (err) {
+      if (err instanceof FamilyError) throw new KioskError(err.code, "There isn't a family challenge this week.", err.status);
+      throw err;
+    }
   });
 
   // The kiosk app itself: public, it holds nothing until paired.

@@ -42,6 +42,18 @@ for (const scheme of ['light', 'dark'] as const) {
   });
 }
 
+test('the family challenge, ticked from the kiosk', async ({ page }) => {
+  await open(page);
+  const card = page.getByRole('region', { name: 'Our family' });
+  await expect(card.getByRole('heading', { name: 'Our challenge: Screen-free tea' })).toBeVisible();
+  await expect(card.getByText('2 of 5 times this week')).toBeVisible();
+  await expect(card.getByText("Grown-ups' screen time this week: 4 h 30")).toBeVisible();
+  await shot(page, 'kiosk-family-light', 'phase-9');
+  await card.getByRole('button', { name: 'We did it' }).click();
+  await expect(card.getByRole('status')).toHaveText('Nice one! That counts for everyone.');
+  await expect(card.getByText('3 of 5 times this week')).toBeVisible();
+});
+
 test('setting up asks for the code, and says when it is wrong', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Set up this kiosk' })).toBeVisible();

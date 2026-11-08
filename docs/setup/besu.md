@@ -31,7 +31,9 @@ free -h
 
    It prints the contract's address and how many entries it has queued. The worker writes them to the chain over the next few minutes.
 
-4. Move the admin key somewhere offline, for example an encrypted USB stick, and delete it from the server. Nothing on the server needs it again. If you ever deploy a new contract, give its address instead: `./scripts/ft.sh ledger-deploy --admin 0x...`.
+4. Move the admin key somewhere offline, for example an encrypted USB stick, and delete it from the server. Nothing on the server needs it again, and `init.sh` won't make a new one once a contract is deployed. If you ever deploy a new contract, give its address instead: `./scripts/ft.sh ledger-deploy --admin 0x...`.
+
+Only the ledger signer can send transactions to the node. Before Besu starts, a one-off step works out the signer's address from its key, with no network, and the node refuses every other account. Besu itself never holds the signer key.
 
 ## Check it
 
@@ -45,6 +47,16 @@ The owner's Ledger screen (Settings, then Ledger) shows each entry's block and t
 ## If the chain refuses an entry
 
 The worker stops writing to the chain and sends the owner an alert. Run `./scripts/ft.sh ledger-check` to see what differs, and keep the output. Nothing the family uses is affected: Postgres keeps working as before.
+
+## If the signer key is ever stolen
+
+Only the signer's account can send transactions to the node, so the admin key cannot act on chain until you let it, for one start:
+
+1. Put the admin key's address (not the key) in `deploy/besu/admin-allowlist`, one line, `0x` and 40 hex digits.
+2. Run `./scripts/ft.sh besu-restart`, which restarts Besu with that address allowed too. Then revoke the old signer and grant a new one from the admin key, signed offline.
+3. Delete `deploy/besu/admin-allowlist` and run `./scripts/ft.sh besu-restart` again.
+
+Paste what happened into the build chat first: this is a step we take together.
 
 ## Switch it off
 

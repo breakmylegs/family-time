@@ -66,9 +66,11 @@ export function Home({ home, go, reload, switchChild }: Props) {
                     <p>{home.rightNow.detail}</p>
                   </div>
                 </div>
-                <div class="bar" role="img" aria-label={`About ${Math.round(home.rightNow.used * 100)}% of this session used`}>
-                  <i style={{ transform: `scaleX(${home.rightNow.used})` }} />
-                </div>
+                {home.rightNow.used === null ? null : (
+                  <div class="bar" role="img" aria-label={`About ${Math.round(home.rightNow.used * 100)}% of this session used`}>
+                    <i style={{ transform: `scaleX(${home.rightNow.used})` }} />
+                  </div>
+                )}
               </>
             ) : (
               <div class="now-row">
@@ -126,6 +128,8 @@ export function Home({ home, go, reload, switchChild }: Props) {
               ) : null}
             </section>
           ) : null}
+
+          {home.family ? <Together family={home.family} path={`${base}/challenge/tick`} reload={reload} /> : null}
         </div>
 
         <div class="col">
@@ -228,6 +232,55 @@ export function Home({ home, go, reload, switchChild }: Props) {
         />
       ) : null}
     </main>
+  );
+}
+
+/** The whole family: this week's challenge with We did it, and the grown-ups' own screen time. */
+function Together({ family, path, reload }: { family: NonNullable<KioskHome['family']>; path: string; reload: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false);
+  const [said, setSaid] = useState<string>();
+  const c = family.challenge;
+  if (!c && !family.grownUps) return null;
+  const tick = async () => {
+    setBusy(true);
+    try {
+      const after = await api<{ done: number; target: number }>('POST', path, {});
+      setSaid(after.done >= after.target ? 'You did it together. Brilliant!' : 'Nice one! That counts for everyone.');
+      await reload();
+    } catch (err) {
+      setSaid((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section class="card together" aria-label="Our family">
+      <h2>{c ? `Our challenge: ${c.title}` : 'Our family'}</h2>
+      {c ? (
+        <>
+          <div class="together-row">
+            <div class="bar sun" role="img" aria-label={`${c.done} of ${c.target} times this week`}>
+              <i style={{ transform: `scaleX(${Math.min(1, c.done / c.target)})` }} />
+            </div>
+            <span>
+              {c.done} of {c.target} {c.target === 1 ? 'time' : 'times'} this week
+            </span>
+            {c.done < c.target ? (
+              <button type="button" class="btn small" disabled={busy} onClick={() => void tick()}>
+                <Icon name="check" />
+                We did it
+              </button>
+            ) : null}
+          </div>
+          {said ? (
+            <p class="caption" role="status">
+              {said}
+            </p>
+          ) : null}
+        </>
+      ) : null}
+      {family.grownUps ? <p class="caption">{family.grownUps}</p> : null}
+    </section>
   );
 }
 

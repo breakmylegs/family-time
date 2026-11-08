@@ -224,7 +224,7 @@ export async function childStatus(db: Db, childId: string, now: Date): Promise<C
     })
     .from(devices)
     .leftJoin(adguardSync, eq(adguardSync.deviceId, devices.id))
-    .where(eq(devices.childId, childId));
+    .where(and(eq(devices.childId, childId), isNull(devices.removedAt)));
 
   const today = civilDate(now, rules.timeZone);
   const midnight = zonedTime(today.year, today.month, today.day, 0, rules.timeZone);

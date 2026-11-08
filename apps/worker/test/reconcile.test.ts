@@ -1,6 +1,6 @@
 import { AdGuard, BEGIN, BYPASS_RULES, END } from '@family-time/adguard-client';
 import { FakeAdGuard } from '@family-time/adguard-client/fake';
-import { adguardSync, overrides, settings } from '@family-time/db';
+import { adguardSync, devices, overrides, settings } from '@family-time/db';
 import { testDb, type TestDb } from '@family-time/db/testing';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -64,6 +64,17 @@ describe('reconcile', () => {
     await run();
     expect(fake.userRules.slice(0, 1 + BYPASS_RULES.length)).toEqual([BEGIN, ...BYPASS_RULES]);
     expect(fake.userRules).toContain("||minecraft.net^$client='ft-ollieipad'");
+  });
+
+  it("takes away the client of a device removed in Settings, and never anyone else's", async () => {
+    const s = await seedHome(handle.db);
+    await run();
+    fake.clients.push({ name: 'living-room-tv', ids: ['192.168.1.60'] });
+    await handle.db.update(devices).set({ removedAt: FREE_TIME }).where(eq(devices.id, s.ipad.id));
+    expect(await run()).toEqual({ devices: 0, confirmed: 0, failed: 0 });
+    expect(client()).toBeUndefined();
+    expect(fake.clients.map((c) => c.name)).toEqual(['living-room-tv']);
+    expect(fake.userRules).toEqual([BEGIN, END]);
   });
 
   it('writes nothing when nothing changed', async () => {

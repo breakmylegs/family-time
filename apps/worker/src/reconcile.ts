@@ -16,7 +16,7 @@ import {
 } from '@family-time/adguard-client';
 import { adguardSync, devices, households, loadRules, people, services, settings, type Db } from '@family-time/db';
 import { decideAll } from '@family-time/domain';
-import { and, eq, isNotNull } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import type { Log } from './worker.js';
 
 /** After this many failed confirmations in a row the device shows "Not confirmed". */
@@ -52,9 +52,9 @@ export interface ReconcileResult {
 /** Set by ./scripts/ft.sh adguard-setup, after the owner has approved the bypass rules. */
 export { SETTING_BYPASS_RULES };
 
-export async function plan(db: Db, now: Date): Promise<{ timeZone: string; devices: DevicePlan[]; bypass: boolean }> {
+export async function plan(db: Db, now: Date): Promise<{ timeZone: string; devices: DevicePlan[]; bypass: boolean; removed: string[] }> {
   const household = (await db.select({ id: households.id, timeZone: households.timezone }).from(households).limit(1))[0];
-  if (!household) return { timeZone: 'Europe/London', devices: [], bypass: false };
+  if (!household) return { timeZone: 'Europe/London', devices: [], bypass: false, removed: [] };
   const bypassSetting = await db
     .select({ value: settings.value })
     .from(settings)
@@ -64,7 +64,9 @@ export async function plan(db: Db, now: Date): Promise<{ timeZone: string; devic
     .select({ id: devices.id, name: devices.adguardName, ids: devices.identifiers, childId: devices.childId })
     .from(devices)
     .innerJoin(people, eq(people.id, devices.childId))
-    .where(and(eq(devices.householdId, household.id), isNotNull(devices.childId), eq(people.active, true)));
+    .where(and(eq(devices.householdId, household.id), isNotNull(devices.childId), isNull(devices.removedAt), eq(people.active, true)));
+  // Devices removed in Settings: their AdGuard clients are taken away.
+  const removed = (await db.select({ name: devices.adguardName }).from(devices).where(and(eq(devices.householdId, household.id), isNotNull(devices.removedAt)))).map((d) => d.name);
   const serviceRows = await db.select().from(services).where(eq(services.householdId, household.id));
   const byId = new Map(serviceRows.map((s) => [s.id, s]));
 
@@ -84,14 +86,14 @@ export async function plan(db: Db, now: Date): Promise<{ timeZone: string; devic
     }
     out.push({ deviceId: d.id, name: d.name, ids: d.ids, blocked: blocked.sort(), rules: domains.length ? blockRules(d.name, domains) : [] });
   }
-  return { timeZone: household.timeZone, devices: out, bypass };
+  return { timeZone: household.timeZone, devices: out, bypass, removed };
 }
 
 export async function reconcile(deps: ReconcileDeps): Promise<ReconcileResult> {
   const { db, adguard, log } = deps;
   const now = deps.now();
-  const { timeZone, devices: plans, bypass } = await plan(db, now);
-  if (!plans.length && !bypass) return { devices: 0, confirmed: 0, failed: 0 };
+  const { timeZone, devices: plans, bypass, removed } = await plan(db, now);
+  if (!plans.length && !bypass && !removed.length) return { devices: 0, confirmed: 0, failed: 0 };
 
   const failures = new Map<string, string>();
   let rulesError: string | undefined;
@@ -117,6 +119,11 @@ export async function reconcile(deps: ReconcileDeps): Promise<ReconcileResult> {
     for (const p of plans) failures.set(p.deviceId, `AdGuard could not be reached: ${(err as Error).message}`);
   }
   if (!failures.size) {
+    // Only our own clients, by name: anything else in AdGuard is never touched.
+    for (const name of removed) {
+      if (!/^ft-[a-z0-9]{1,60}$/.test(name) || !existing.some((c) => c.name === name)) continue;
+      await adguard.deleteClient(name).catch((err: Error) => log('warn', 'client_not_removed', { device: name, error: err.message }));
+    }
     for (const p of plans) {
       try {
         const current = existing.find((c) => c.name === p.name);

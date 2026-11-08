@@ -1,0 +1,1 @@
+ALTER TABLE "worker_heartbeat" ADD COLUMN "chain_seen_at" timestamp with time zone;

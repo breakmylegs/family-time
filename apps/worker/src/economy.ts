@@ -5,7 +5,7 @@
 //   - planned sessions that have ended: minutes a parent's Block or Pause took back are refunded
 //   - Allows that count in weekly time and have ended: the minutes they ran are charged
 //   - the nightly walk of the ledger's hash chain
-import { allowances, grants, households, ledgerEntries, loadEconomy, overrides, people, reductionPlans, serviceGroupMembers, settings, type Db } from '@family-time/db';
+import { allowances, goals, grants, households, ledgerEntries, loadEconomy, overrides, people, reductionPlans, serviceGroupMembers, settings, type Db } from '@family-time/db';
 import { allowCharge, civilDate, isoDate, localParts, minutesLost, nextAllowance, weekStarting, type Span } from '@family-time/domain';
 import type { LedgerPort } from '@family-time/ledger';
 import { and, desc, eq, gt, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
@@ -102,6 +102,7 @@ async function weekTurn(deps: EconomyDeps, childId: string, now: Date, result: E
       data: { week: lastWeek },
     });
     result.closed++;
+    await matchWeek(deps, e, lastWeek, closesAt);
   }
 
   // This week's allowance, after a reduction step if one is due and was agreed.
@@ -123,6 +124,44 @@ async function weekTurn(deps: EconomyDeps, childId: string, now: Date, result: E
     data: { week: week.date, stepped: step.stepped },
   });
   result.allocated++;
+}
+
+/**
+ * Parental matching on the savings goal (brief Part 6): after a week closes, the parents add their
+ * percent of the pocket money the child earned in it, as their own MONEY award. Never more than the
+ * goal still needs, never a deduction, and once a week through its reference.
+ */
+async function matchWeek(deps: EconomyDeps, e: Awaited<ReturnType<typeof loadEconomy>>, week: string, closesAt: Date) {
+  const g = e.goal;
+  if (!g || !g.matchPercent || !e.features.goal) return;
+  const { db, ledger } = deps;
+  const start = weekStarting(new Date(`${week}T12:00:00Z`), e.weekReset, e.timeZone).start;
+  const created = (await db.select({ at: goals.createdAt }).from(goals).where(eq(goals.id, g.id)))[0]?.at ?? start;
+  const from = created > start ? created : start;
+  const entries = (await ledger.history(e.householdId, e.childId, { since: from, limit: 5000 })).filter((x) => x.at <= closesAt);
+  // Earned, net of corrections, as the goal's bar counts it: payouts and the parents' own matches aside.
+  const left = new Set(entries.filter((x) => x.kind === 'payout' || x.ref.startsWith('match:')).map((x) => x.ref));
+  const earned = Math.max(0, entries.filter((x) => !left.has(x.ref) && !(x.kind === 'reversal' && left.has(String(x.data.reverses)))).reduce((n, x) => n + x.money, 0));
+  const saved = await savedTowards(ledger, e.householdId, e.childId, created);
+  const amount = Math.min(Math.floor((earned * g.matchPercent) / 100), Math.max(0, g.targetPence - saved));
+  if (amount <= 0) return;
+  await ledger.award({
+    ref: `match:${e.childId}:${week}`,
+    householdId: e.householdId,
+    childId: e.childId,
+    reason: `Matched by Mum and Dad: ${g.matchPercent}% towards ${g.title}`,
+    at: closesAt,
+    currency: 'MONEY',
+    amount,
+    data: { week, goal: g.id, matchPercent: g.matchPercent },
+  });
+}
+
+/** What the goal's bar shows: pocket money earned since it was set, payouts not taken off. */
+async function savedTowards(ledger: LedgerPort, householdId: string, childId: string, since: Date): Promise<number> {
+  const entries = await ledger.history(householdId, childId, { since, limit: 5000 });
+  const payouts = new Set(entries.filter((x) => x.kind === 'payout').map((x) => x.ref));
+  return entries.filter((x) => x.kind !== 'payout' && !(x.kind === 'reversal' && payouts.has(String(x.data.reverses)))).reduce((n, x) => n + x.money, 0);
 }
 
 /** Overrides that stopped this target: Blocks and Pauses on it, its group, or everything. */

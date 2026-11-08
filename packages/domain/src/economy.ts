@@ -209,6 +209,8 @@ export interface Features {
   bonus: boolean;
   /** The child's savings goal. */
   goal: boolean;
+  /** Stopping-point endings, the parents' own screen time card and a family challenge. */
+  transitions: boolean;
   /** Reduction steps can apply. */
   taper: boolean;
 }
@@ -216,5 +218,5 @@ export interface Features {
 /** What each pilot phase switches on (brief Part 14). Unknown phases are treated as baseline. */
 export function features(phase: string): Features {
   const i = PILOT_PHASES.indexOf(phase as PilotPhase);
-  return { economy: i >= 1, bonus: i >= 2, goal: i >= 2, taper: i >= 4 };
+  return { economy: i >= 1, bonus: i >= 2, goal: i >= 2, transitions: i >= 3, taper: i >= 4 };
 }

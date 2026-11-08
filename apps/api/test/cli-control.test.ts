@@ -88,7 +88,7 @@ describe('setting up from the command line', () => {
     const { db } = await home();
     await addChild(db, 'Ollie');
     await expect(addDevice(db, { child: 'Ollie', label: 'x', type: 'ipad', ids: [] })).rejects.toThrow(/at least one --id/);
-    await expect(addDevice(db, { child: 'Ollie', label: 'x', type: 'ipad', ids: ["1.2.3.4'; drop"] })).rejects.toThrow(/not an IP address/);
+    await expect(addDevice(db, { child: 'Ollie', label: 'x', type: 'ipad', ids: ["1.2.3.4'; drop"] })).rejects.toThrow(/doesn't look like an address/);
     await expect(addDevice(db, { child: 'Nobody', label: 'x', type: 'ipad', ids: ['1.2.3.4'] })).rejects.toThrow(/No child called Nobody/);
     await expect(resolveTarget(db, {})).rejects.toThrow(/Say what/);
     await expect(control(db, { child: 'Ollie', type: 'allow', target: { kind: 'everything' } }, FREE)).rejects.toThrow(/--for/);

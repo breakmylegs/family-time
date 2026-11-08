@@ -10,6 +10,11 @@
 //
 // One exception protects sleep: an Allow does not beat bedtime unless the parent chose "Through
 // bedtime" (`overridesBedtime`). A Block always wins over everything below it.
+//
+// Stopping points (the pilot's transitions phase): when a planned session or an Allow ends on its
+// own, the block waits a few minutes so the child can reach a natural stopping point. Never into
+// bedtime, school or wind-down, never after a parent ended it early or used Block or Pause on it,
+// and a Pause or a Block still wins.
 
 import { activeBlocks, blocksAround, ruleNameAt, type BlockInterval, type Schedule } from './schedule.js';
 
@@ -43,6 +48,8 @@ export interface Override {
   createdByName: string;
   /** Only for allow: keeps working through bedtime. Off unless the parent chose it. */
   overridesBedtime?: boolean;
+  /** A parent ended it before its time (Normal, Undo): no finishing-up time after it. */
+  endedEarly?: boolean;
 }
 
 export interface Grant {
@@ -66,7 +73,12 @@ export interface Rules {
   schedules: Schedule[];
   overrides: Override[];
   grants: Grant[];
+  /** Minutes to reach a natural stopping point after a session or Allow ends. 0 or absent: off. */
+  stoppingPointMinutes?: number;
 }
+
+/** The reason of a decision in finishing-up time, which the kiosk looks for. */
+export const FINISHING_UP = 'Finishing up: time to find a good place to stop.';
 
 export interface Decision {
   state: State;
@@ -168,6 +180,9 @@ function decideRaw(rules: Rules, service: Service, at: Date): Raw {
   if (wind && !policy?.allowedDuringWindDown) {
     return { state: 'blocked', layer: 'schedule', reason: `${blockName(wind)}. Screens are off.` };
   }
+  // Finishing up: after every block that protects sleep and school, so it never runs into them.
+  const ending = finishingUp(rules, service, at);
+  if (ending) return { state: 'allowed', layer: 'allowed-time', sourceId: ending, reason: FINISHING_UP };
 
   // 4. Allowed time
   const grant = rules.grants
@@ -194,6 +209,27 @@ function decideRaw(rules: Rules, service: Service, at: Date): Raw {
   return { state: 'blocked', layer: 'default', reason: `Not planned today.${rule ? ` Usual ${rule.toLowerCase()} rule.` : ''}` };
 }
 
+/** The session or Allow that ended on its own in the last few minutes, if stopping points are on. */
+function finishingUp(rules: Rules, service: Service, at: Date): string | undefined {
+  const grace = (rules.stoppingPointMinutes ?? 0) * 60_000;
+  if (grace <= 0) return undefined;
+  const t = at.getTime();
+  const within = (end: Date | null) => end !== null && end.getTime() <= t && t < end.getTime() + grace;
+  // A parent who used Block or Pause on it while it ran meant it to stop: no extra minutes after.
+  const stopped = (start: Date, end: Date) =>
+    rules.overrides.some(
+      (o) => o.childId === rules.childId && (o.type === 'block' || o.type === 'pause') && (o.type === 'pause' || targets(o.target, service)) && o.start.getTime() < end.getTime() && (o.end === null || o.end.getTime() > start.getTime()),
+    );
+  const session = rules.grants
+    .filter((g) => g.childId === rules.childId && (g.status === 'active' || g.status === 'scheduled' || g.status === 'ended') && targets(g.target, service) && within(g.end) && !stopped(g.start, g.end))
+    .sort((a, b) => b.end.getTime() - a.end.getTime())[0];
+  if (session) return session.id;
+  const allow = rules.overrides
+    .filter((o) => o.childId === rules.childId && o.type === 'allow' && !o.endedEarly && targets(o.target, service) && within(o.end) && !stopped(o.start, o.end!))
+    .sort((a, b) => b.end!.getTime() - a.end!.getTime())[0];
+  return allow?.id;
+}
+
 /** "30 minutes", "1 hour", "1 hour 30 minutes". */
 export function durationWords(minutes: number): string {
   if (minutes % 60 === 0) return minutes === 60 ? '1 hour' : `${minutes / 60} hours`;
@@ -211,13 +247,17 @@ function boundaries(rules: Rules, at: Date): number[] {
     const x = d.getTime();
     if (x > t && x <= limit) out.add(x);
   };
+  const grace = (rules.stoppingPointMinutes ?? 0) * 60_000;
+  const after = (d: Date | null) => (d && grace > 0 ? new Date(d.getTime() + grace) : null);
   for (const o of rules.overrides) if (o.childId === rules.childId) {
     add(o.start);
     add(o.end);
+    if (o.type === 'allow' && !o.endedEarly) add(after(o.end));
   }
   for (const g of rules.grants) if (g.childId === rules.childId) {
     add(g.start);
     add(g.end);
+    add(after(g.end));
   }
   for (const b of blocksAround(rules.schedules, rules.childId, at, rules.timeZone, 1, 2)) {
     add(b.start);
@@ -236,7 +276,9 @@ export function decide(rules: Rules, serviceId: string, at: Date): Decision {
   for (const b of boundaries(rules, at)) {
     const next = decideRaw(rules, service, new Date(b));
     if (!until && (next.state !== now.state || next.layer !== now.layer || next.sourceId !== now.sourceId)) until = new Date(b);
-    const differs = now.state === 'blocked' ? next.state === 'allowed' : next.state !== now.state;
+    // The session's own end is what parent and child agreed: finishing-up time after it is shown
+    // as it happens, not folded into "allowed until".
+    const differs = now.state === 'blocked' ? next.state === 'allowed' : next.state !== now.state || (next.reason === FINISHING_UP && now.reason !== FINISHING_UP);
     if (differs) {
       stateUntil = new Date(b);
       break;

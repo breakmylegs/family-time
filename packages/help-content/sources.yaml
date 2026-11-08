@@ -1,6 +1,8 @@
 # Sources for the help panel's research claims. From the brief's Appendix B, with the study design
-# and finding as docs/research/03-motivation.md and 02-v1-research.md describe them. A claim in a
-# topic must match what its source says here.
+# and finding as docs/research/03-motivation.md and 02-v1-research.md describe them, plus two added
+# in Phase 9 from the evidence table in 03-motivation.md (schmidt-persson-2024, mcdaniel-radesky-2018),
+# whose citations the owner checks against the papers. A claim in a topic must match what its source
+# says here.
 
 - id: epstein-2008
   citation: "Epstein LH and others, 2008, Archives of Pediatrics and Adolescent Medicine."
@@ -41,6 +43,16 @@
   citation: "Hiniker A and others, 2016, CHI."
   design: "Diary study of families with children aged 1 to 5."
   finding: "Routines and natural stopping points were linked to easier endings. Two-minute warnings were linked to more upset. Parents named autoplay as a driver of battles."
+
+- id: schmidt-persson-2024
+  citation: "Schmidt-Persson J and others, 2024. The SCREENS trial."
+  design: "Randomised trial of whole families, children aged 4 to 17, with the adults cutting back too."
+  finding: "When every family member cut their leisure screen use for two weeks, children gained about 45 minutes a day of active leisure and had better scores for emotional and behavioural difficulties."
+
+- id: mcdaniel-radesky-2018
+  citation: "McDaniel BT and Radesky JS, 2018."
+  design: "Longitudinal study of parents and their children. Ages are not given in the research docs. Check against the paper."
+  finding: "Parents' device use during time with their child was linked to more acting-out behaviour in the child later, and the child's behaviour was linked to more parent device use in turn."
 
 - id: jones-2021
   citation: "Jones A and others, 2021, International Journal of Behavioral Nutrition and Physical Activity."

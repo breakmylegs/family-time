@@ -49,6 +49,9 @@ export {
   oauthCodes,
   oauthTokens,
   mcpServers,
+  parentScreenTime,
+  familyChallenges,
+  challengeTicks,
   LEDGER_KINDS,
   REWARD_TYPES,
   type LedgerKind,
@@ -63,8 +66,8 @@ export type { Db } from './types.js';
 export { connectionConfig } from './connection.js';
 export { readSecret } from './secrets.js';
 export { migrationsFolder, latestMigrationTag, shippedMigrationCount, appliedMigrationCount } from './migrations.js';
-export { recordHeartbeat, readHeartbeat, heartbeatFresh, HEARTBEAT_STALE_AFTER_MS } from './heartbeat.js';
-export { loadRules } from './control.js';
+export { recordHeartbeat, readHeartbeat, heartbeatFresh, HEARTBEAT_STALE_AFTER_MS, recordChainSeen, CHAIN_STALE_AFTER_MS } from './heartbeat.js';
+export { DEFAULT_STOPPING_POINT_MINUTES, loadRules, SETTING_STOPPING_POINT } from './control.js';
 export { loadEconomy, loadRates, DEFAULT_RATES, DEFAULT_ALLOWANCE_MINUTES, SETTING_ECONOMY, type Economy, type Rates } from './economy.js';
 export { lastBackup, maintenance, recordBackup, setMaintenance, SETTING_LAST_BACKUP, SETTING_MAINTENANCE, type LastBackup, type Maintenance } from './ops.js';
 export { AUDIT_DAYS, RETENTION, sweep, type RetentionRule } from './retention.js';

@@ -96,9 +96,11 @@ services:
     # egress: out to the AI providers, an app's client metadata document, the weather service and
     # the owner's Ollama (ADR 0016). The api only calls out once the owner switches AI or MCP on.
     # Nothing is published on it.
+    # ai: the stack's own Ollama, when the ai-local profile is on.
     networks:
       internal: {}
       egress: {}
+      ai: {}
       proxy:
         aliases: [family-time-api]
     mem_limit: 384m
@@ -143,10 +145,34 @@ services:
   # gas, five-second blocks. Its RPC answers on the internal network only and nothing is
   # published, so nothing outside the stack can reach it. The validator key is a Docker secret
   # init.sh made; the chain lives in its own volume, which backups snapshot (Phase 8).
+  # Works out the ledger signer's address, once, with no network, so the node can refuse every
+  # other account (ADR 0014). Only the address reaches the node, through the besu-permissions volume.
+  besu-allowlist:
+    profiles: [ledger-besu]
+    image: hyperledger/besu:26.10.2
+    restart: "no"
+    user: "0:0"
+    network_mode: none
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    entrypoint: ["/bin/bash", "/besu-setup/allowlist.sh"]
+    environment:
+      LEDGER_SIGNER_KEY_FILE: /run/secrets/ledger_signer_key
+      JAVA_OPTS: -Xmx256m
+    secrets: [ledger_signer_key]
+    volumes:
+      - ./besu:/besu-setup:ro
+      - besu-permissions:/permissions
+    mem_limit: 512m
+    logging: *logging
+
   besu:
     profiles: [ledger-besu]
     image: hyperledger/besu:26.10.2
     restart: unless-stopped
+    depends_on:
+      besu-allowlist:
+        condition: service_completed_successfully
     # Starts as root only to read its key secret (mounted root-only, mode 0600); start.sh then copies
     # the key to /run/besu and runs Besu as the image's besu user (ADR 0017). The capabilities are
     # the ones that hand-over needs, and no more.
@@ -166,6 +192,7 @@ services:
     volumes:
       - ./besu:/besu-setup:ro
       - besu-data:/opt/besu/data
+      - besu-permissions:/permissions:ro
     # Its own network, shared only with the worker: the api, AdGuard and Postgres cannot reach it.
     networks:
       ledger:
@@ -174,7 +201,47 @@ services:
     pids_limit: 512
     logging: *logging
 
-  # Ollama is not part of the stack: the owner points Settings at their own (docs/setup/ai-and-mcp.md).
+  # Local AI (brief Part 16), only with the ai-local profile: Ollama, which the api reaches as
+  # http://ollama:11434. Its own network, shared only with the api, with no route out: nothing else
+  # in the stack can reach it, and it cannot reach the internet, so nothing leaves the house.
+  # Off by default; an Ollama elsewhere on the home network works too (docs/setup/ai-and-mcp.md).
+  ollama:
+    profiles: [ai-local]
+    image: ollama/ollama:0.40.15
+    restart: unless-stopped
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      # One model in memory at a time, unloaded after five idle minutes, so the Pi keeps its RAM.
+      OLLAMA_MAX_LOADED_MODELS: "1"
+      OLLAMA_KEEP_ALIVE: 5m
+    volumes:
+      - ollama-models:/root/.ollama
+    networks:
+      ai:
+        aliases: [ollama]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 256
+    mem_limit: 4g
+    logging: *logging
+
+  # Downloads a model into the same volume, then stops (./scripts/ft.sh ollama-pull). The only Ollama
+  # with a way out, and only while it runs. Never started by itself: its profile is never switched on.
+  ollama-pull:
+    profiles: [ai-local-pull]
+    image: ollama/ollama:0.40.15
+    restart: "no"
+    entrypoint: ["/bin/sh", "-c", "ollama serve >/dev/null 2>&1 & sleep 3; ollama pull \"$$MODEL\""]
+    environment:
+      OLLAMA_HOST: 127.0.0.1:11434
+    volumes:
+      - ollama-models:/root/.ollama
+    networks: [egress]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 256
+    mem_limit: 1g
+    logging: *logging
 
 networks:
   # No route out. Postgres is reachable only from inside the stack.
@@ -185,6 +252,9 @@ networks:
   egress: {}
   # The Besu node and the worker, and nothing else. No route out.
   ledger:
+    internal: true
+  # Local AI: Ollama and the api, and nothing else. No route out.
+  ai:
     internal: true
   # Caddy's network. Only the api joins it.
   proxy:
@@ -212,3 +282,5 @@ volumes:
   adguard-work:
   adguard-conf:
   besu-data:
+  besu-permissions:
+  ollama-models:

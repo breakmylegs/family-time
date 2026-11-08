@@ -97,6 +97,20 @@ export function Settings({ me, kids, onSignedOut }: { me: Me; kids: ChildSummary
             </button>
           ) : null}
           {me.capabilities.includes('system.manage') ? (
+            <button type="button" className="row" onClick={() => navigate('/setup')}>
+              <span className="row-icon">
+                <Icon name="device" />
+              </span>
+              <span className="row-text">
+                Set-up
+                <small>Devices, the rules for each group, and schedules</small>
+              </span>
+              <span className="row-end">
+                <Icon name="right" />
+              </span>
+            </button>
+          ) : null}
+          {me.capabilities.includes('system.manage') ? (
             <button type="button" className="row" onClick={() => navigate('/system')}>
               <span className="row-icon">
                 <Icon name="sliders" />
@@ -155,7 +169,7 @@ export function Settings({ me, kids, onSignedOut }: { me: Me; kids: ChildSummary
               </span>
             </div>
           ))}
-          {!statuses ? <p className="empty">Checking devices.</p> : !devices.length ? <p className="empty">No devices yet. Whoever set up Family time can add them.</p> : null}
+          {!statuses ? <p className="empty">Checking devices.</p> : !devices.length ? <p className="empty">{me.capabilities.includes('system.manage') ? 'No devices yet. Add them in Set-up.' : 'No devices yet. Whoever set up Family time can add them.'}</p> : null}
         </div>
       </section>
 

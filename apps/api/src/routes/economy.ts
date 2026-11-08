@@ -200,7 +200,7 @@ export async function economyRoutes(app: FastifyInstance, deps: EconomyRouteDeps
   childAction('/api/children/:id/plan', PlanRequest, 'put', (c) => setPlan(db, { ...c, plan: c.body }, now()));
   childAction('/api/children/:id/plan/agree', z.object({}), 'post', (c) => agreeStep(db, c, now()));
   childAction('/api/children/:id/plan/unagree', z.object({}), 'post', (c) => unagreeStep(db, c, now()));
-  childAction('/api/children/:id/goal', GoalRequest, 'put', (c) => setGoal(db, { ...c, title: c.body.title, targetPence: c.body.targetPence }, now()));
+  childAction('/api/children/:id/goal', GoalRequest, 'put', (c) => setGoal(db, { ...c, title: c.body.title, targetPence: c.body.targetPence, matchPercent: c.body.matchPercent }, now()));
 
   // ---- The pilot phase: anyone signed in can see it, the owner sets it
   app.get('/api/household/pilot', { config: { access: 'status.view' } }, async (request) => {

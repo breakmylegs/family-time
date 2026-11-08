@@ -32,7 +32,8 @@ export interface Economy {
   allowanceMinutes: number;
   plan: ReductionPlan | null;
   rates: Rates;
-  goal: { id: string; title: string; targetPence: number } | null;
+  /** `matchPercent`: the parents add this percent of the week's pocket money towards it. */
+  goal: { id: string; title: string; targetPence: number; matchPercent: number } | null;
 }
 
 export async function loadRates(db: Db, householdId: string): Promise<Rates> {
@@ -75,6 +76,6 @@ export async function loadEconomy(db: Db, childId: string): Promise<Economy> {
     allowanceMinutes: allowance[0]?.weeklyMinutes ?? DEFAULT_ALLOWANCE_MINUTES,
     plan: p ? { stepMinutes: p.stepMinutes, everyWeeks: p.everyWeeks, floorMinutes: p.floorMinutes, nextStepOn: p.nextStepOn, agreedStepOn: p.agreedStepOn } : null,
     rates,
-    goal: g ? { id: g.id, title: g.title, targetPence: g.targetPence } : null,
+    goal: g ? { id: g.id, title: g.title, targetPence: g.targetPence, matchPercent: g.matchPercent } : null,
   };
 }

@@ -1,9 +1,13 @@
 // Loads a child's rules from the database in the engine's shape. The api's status route and the
 // worker's reconciler both use this one loader, so the two can never read the rules differently.
-import type { Grant, Override, Policy, Rules, Schedule, ScheduleBlock, Service } from '@family-time/domain';
+import { features, type Grant, type Override, type Policy, type Rules, type Schedule, type ScheduleBlock, type Service } from '@family-time/domain';
 import { and, eq, gt, inArray, isNull, or } from 'drizzle-orm';
-import { grants, households, overrides, people, policies, schedules, serviceGroupMembers, services } from './schema.js';
+import { grants, households, overrides, people, policies, schedules, serviceGroupMembers, services, settings } from './schema.js';
 import type { Db } from './types.js';
+
+/** Minutes to reach a natural stopping point, unless the household set its own (0 turns it off). */
+export const DEFAULT_STOPPING_POINT_MINUTES = 5;
+export const SETTING_STOPPING_POINT = 'stopping_point_minutes';
 
 /** Overrides and grants that ended more than this long ago cannot affect now or the next two days. */
 const LOOKBACK_MS = 2 * 24 * 3_600_000;
@@ -11,7 +15,7 @@ const LOOKBACK_MS = 2 * 24 * 3_600_000;
 export async function loadRules(db: Db, childId: string, now: Date): Promise<Rules> {
   const child = (
     await db
-      .select({ id: people.id, name: people.displayName, householdId: people.householdId, timeZone: households.timezone })
+      .select({ id: people.id, name: people.displayName, householdId: people.householdId, timeZone: households.timezone, pilotPhase: households.pilotPhase })
       .from(people)
       .innerJoin(households, eq(households.id, people.householdId))
       .where(and(eq(people.id, childId), eq(people.role, 'child'), eq(people.active, true)))
@@ -40,6 +44,7 @@ export async function loadRules(db: Db, childId: string, now: Date): Promise<Rul
         startsAt: overrides.startsAt,
         endsAt: overrides.endsAt,
         overridesBedtime: overrides.overridesBedtime,
+        endedBy: overrides.endedBy,
         createdByName: people.displayName,
       })
       .from(overrides)
@@ -48,7 +53,7 @@ export async function loadRules(db: Db, childId: string, now: Date): Promise<Rul
     db
       .select()
       .from(grants)
-      .where(and(eq(grants.childId, childId), gt(grants.endsAt, since), inArray(grants.status, ['scheduled', 'active', 'paused']))),
+      .where(and(eq(grants.childId, childId), gt(grants.endsAt, since), inArray(grants.status, ['scheduled', 'active', 'paused', 'ended']))),
   ]);
 
   const groupsOf = new Map<string, string[]>();
@@ -78,6 +83,7 @@ export async function loadRules(db: Db, childId: string, now: Date): Promise<Rul
     end: o.endsAt,
     createdByName: o.createdByName,
     overridesBedtime: o.overridesBedtime,
+    endedEarly: o.endedBy !== null,
   }));
   const grn: Grant[] = grantRows.map((g) => ({
     id: g.id,
@@ -89,5 +95,12 @@ export async function loadRules(db: Db, childId: string, now: Date): Promise<Rul
     status: g.status,
   }));
 
-  return { timeZone: child.timeZone, childName: child.name, childId, services: svc, policies: pol, schedules: sch, overrides: ovr, grants: grn };
+  // Stopping points are part of the pilot's transitions phase (brief Part 14).
+  let stoppingPointMinutes = 0;
+  if (features(child.pilotPhase).transitions) {
+    const set = (await db.select({ value: settings.value }).from(settings).where(and(eq(settings.householdId, child.householdId), eq(settings.key, SETTING_STOPPING_POINT))))[0]?.value;
+    stoppingPointMinutes = typeof set === 'number' && set >= 0 && set <= 15 ? set : DEFAULT_STOPPING_POINT_MINUTES;
+  }
+
+  return { timeZone: child.timeZone, childName: child.name, childId, services: svc, policies: pol, schedules: sch, overrides: ovr, grants: grn, stoppingPointMinutes };
 }

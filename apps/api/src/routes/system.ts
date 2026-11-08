@@ -43,7 +43,7 @@ export async function systemRoutes(app: FastifyInstance, deps: SystemRouteDeps):
       .select({ label: devices.label, state: adguardSync.state, confirmedAt: adguardSync.confirmedAt, lastError: adguardSync.lastError })
       .from(devices)
       .leftJoin(adguardSync, eq(adguardSync.deviceId, devices.id))
-      .where(eq(devices.householdId, householdId));
+      .where(and(eq(devices.householdId, householdId), isNull(devices.removedAt)));
     const contract = deps.ledgerAdapter === 'besu' ? await activeContract(db) : null;
     const queue = deps.ledgerAdapter === 'besu' ? await signerStatus(db) : null;
     const ai = (await db.select({ on: aiSettings.on }).from(aiSettings).where(eq(aiSettings.householdId, householdId)))[0];
