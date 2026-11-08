@@ -36,7 +36,8 @@ export function Pair({ onPaired }: { onPaired: () => void }) {
       <div class="pair-text">
         <h1>Set up this kiosk</h1>
         <p>A grown-up opens Family time on their phone, goes to Settings, then Kiosk, and taps Set up the kiosk. Type the six numbers it shows.</p>
-        <p class="pair-code" aria-label={`${code.length} of 6 numbers typed`}>
+        <p class="sr" role="status">{`${code.length} of 6 numbers typed`}</p>
+        <p class="pair-code" aria-hidden="true">
           {Array.from({ length: 6 }, (_, i) => (
             <span key={i} class={i < code.length ? 'on' : ''}>
               {code[i] ?? ''}

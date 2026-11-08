@@ -1,7 +1,7 @@
 // Home, from the mock: hello and the time, what's on now, the week as 30-minute blocks with Plan my
 // time, my jobs with I did it, my savings goal, and my own ideas for when I'm bored.
 import type { KioskHome } from '@family-time/schemas';
-import { useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { api } from '../api';
 import type { Screen } from '../App';
 import { Icon, IDEA_PICTURES } from '../icons';
@@ -25,7 +25,7 @@ export function Home({ home, go, reload, switchChild }: Props) {
         <div class="hello">
           <h1>
             {switchChild ? (
-              <button type="button" class="hi-switch" onClick={switchChild}>
+              <button type="button" class="hi-switch" aria-label={`Hi ${home.child.name}. Tap to change who is here`} onClick={switchChild}>
                 Hi {home.child.name}
               </button>
             ) : (
@@ -66,7 +66,7 @@ export function Home({ home, go, reload, switchChild }: Props) {
                     <p>{home.rightNow.detail}</p>
                   </div>
                 </div>
-                <div class="bar" role="img" aria-label="How much of this session has been used">
+                <div class="bar" role="img" aria-label={`About ${Math.round(home.rightNow.used * 100)}% of this session used`}>
                   <i style={{ transform: `scaleX(${home.rightNow.used})` }} />
                 </div>
               </>
@@ -254,7 +254,7 @@ function DidIt({ job, path, onClose }: { job: KioskHome['jobs'][number]; path: s
   };
 
   return (
-    <div class="overlay" role="dialog" aria-modal="true" aria-label={job.title}>
+    <div class="overlay" role="dialog" aria-modal="true" aria-label={job.title} ref={useDialog(onClose)}>
       <div class="sheet">
         {sent ? (
           <p class="sent" role="status">
@@ -263,7 +263,7 @@ function DidIt({ job, path, onClose }: { job: KioskHome['jobs'][number]; path: s
           </p>
         ) : (
           <>
-            <h2>{job.title}</h2>
+            <h2 tabIndex={-1}>{job.title}</h2>
             <p>Want to show them? Take a photo, or just send it.</p>
             {photo ? <img class="preview" src={photo} alt="Your photo" /> : null}
             <input ref={input} class="hidden" type="file" accept="image/*" capture="environment" onChange={(e) => void shrink((e.target as HTMLInputElement).files?.[0]).then(setPhoto)} />
@@ -329,9 +329,9 @@ function AddIdea({ path, onClose }: { path: string; onClose: () => void }) {
     }
   };
   return (
-    <div class="overlay" role="dialog" aria-modal="true" aria-label="Add an idea">
+    <div class="overlay" role="dialog" aria-modal="true" aria-label="Add an idea" ref={useDialog(onClose)}>
       <div class="sheet">
-        <h2>Add an idea</h2>
+        <h2 tabIndex={-1}>Add an idea</h2>
         <label for="idea">Something fun to do when you're bored</label>
         <input id="idea" class="field" value={text} maxLength={40} placeholder="Trampoline tricks" onInput={(e) => setText((e.target as HTMLInputElement).value)} />
         <div class="pictures" role="group" aria-label="Picture">
@@ -357,4 +357,26 @@ function AddIdea({ path, onClose }: { path: string; onClose: () => void }) {
       </div>
     </div>
   );
+}
+
+/**
+ * A dialog that behaves like one: its heading takes focus when it opens, Escape closes it, and
+ * focus goes back to whatever opened it.
+ */
+function useDialog(onClose: () => void) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    ref.current?.querySelector<HTMLElement>('h2')?.focus();
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    addEventListener('keydown', key);
+    return () => {
+      removeEventListener('keydown', key);
+      opener?.focus?.();
+    };
+    // Once per opening; onClose is stable enough for a sheet that closes itself.
+  }, []);
+  return ref;
 }

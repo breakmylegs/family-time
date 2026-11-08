@@ -355,7 +355,7 @@ function ServiceRow({ svc, devices, watching, done, notConfirmed, canChange, pau
         <p className="svc-line tnum">{serviceLine(svc)}</p>
         <p className="svc-reason">{svc.reason}</p>
         {pending ? (
-          <p className="svc-pending" data-done={Boolean(pending.done)} data-problem={Boolean(pending.problem)}>
+          <p className="svc-pending" role="status" data-done={Boolean(pending.done)} data-problem={Boolean(pending.problem)}>
             <Icon name={pending.done ? 'check' : pending.problem ? 'alert' : 'clock'} />
             <span>{pending.text}</span>
           </p>

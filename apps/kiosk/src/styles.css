@@ -83,7 +83,7 @@ textarea:focus-visible {
   color: var(--k-primary-ink);
 }
 .btn.small {
-  height: 48px;
+  min-height: 56px;
   padding: 0 18px;
   font-size: 17px;
 }
@@ -99,7 +99,7 @@ textarea:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  height: 48px;
+  min-height: 56px;
   padding: 0 14px;
   border-radius: 14px;
   font-size: 17px;
@@ -162,10 +162,12 @@ textarea:focus-visible {
 .hello .note {
   margin-top: 2px;
   font-size: 18px;
+  line-height: 1.35;
   color: var(--k-ink-2);
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 .hello .note b {
   color: var(--k-ink);
@@ -593,8 +595,9 @@ textarea {
   border: 2px dashed var(--k-field-line);
 }
 .slot.grey[aria-pressed='true'] {
-  background: var(--k-surface-2);
-  color: var(--k-ink);
+  background: var(--k-primary);
+  color: var(--k-primary-ink);
+  border-color: var(--k-primary-ink);
 }
 .why {
   margin-top: 14px;
@@ -780,4 +783,22 @@ textarea {
 }
 .ideas {
   gap: 10px;
+}
+
+/* For screen readers only. */
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+/* "Hi Ollie" switches child: a small arrow says it can be tapped. */
+.hi-switch::after {
+  content: '\25BE';
+  margin-left: 8px;
+  font-size: 0.6em;
+  vertical-align: middle;
+  color: var(--k-ink-2);
 }

@@ -67,7 +67,7 @@ export function KioskSettings() {
               <small>{seen(k.lastSeen)}</small>
             </span>
             <span className="row-end">
-              <button type="button" className="btn btn-quiet row-btn" aria-label={`Remove ${k.label}, ${seen(k.lastSeen)}`} onClick={() => void remove(k)}>
+              <button type="button" className="btn btn-quiet row-btn" aria-label={`Remove this tablet: ${k.label}, ${seen(k.lastSeen)}`} onClick={() => void remove(k)}>
                 Remove this tablet
               </button>
             </span>
@@ -98,8 +98,9 @@ export function KioskSettings() {
           returnFocus={pairing.from}
           sub={`Type this code on the kiosk tablet. It works once, until ${pairing.code.expires}.${pairing.code.kioskUrl ? ` If the tablet isn't showing the code screen, open ${pairing.code.kioskUrl}.` : ''}`}
         >
-          <p className="pair-code tnum" aria-label={`Code ${pairing.code.code.split('').join(' ')}`}>
-            {pairing.code.code}
+          <p className="pair-code tnum">
+            <span aria-hidden="true">{pairing.code.code}</span>
+            <span className="sr">{`Code ${pairing.code.code.split('').join(' ')}`}</span>
           </p>
         </Sheet>
       ) : null}

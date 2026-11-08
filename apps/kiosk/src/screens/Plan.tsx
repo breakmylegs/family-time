@@ -1,5 +1,5 @@
 // Plan my time, and Ask a grown-up (brief Part 11): choose what to play, 30 or 60 minutes, and a
-// time. Times that won't fit are greyed, and tapping one says why. Asking sends any time to a
+// time. Times that won't fit have a dashed edge and say so to a screen reader, and tapping one says why. Asking sends any time to a
 // grown-up instead, for them to say yes or not this time.
 import type { KioskHome, KioskSlots, KioskTargets } from '@family-time/schemas';
 import { useEffect, useState } from 'preact/hooks';

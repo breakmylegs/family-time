@@ -135,7 +135,7 @@ function Child({ kid, canEdit }: { kid: ChildSummary; canEdit: boolean }) {
               </span>
               {canEdit ? (
                 <span className="row-end">
-                  <button type="button" className="btn btn-quiet row-btn" onClick={open('goal')} aria-label={week.goal ? 'Change the savings goal' : 'Set a savings goal'}>
+                  <button type="button" className="btn btn-quiet row-btn" onClick={open('goal')} aria-label={week.goal ? 'Change the savings goal' : 'Set a goal'}>
                     {week.goal ? 'Change' : 'Set a goal'}
                   </button>
                 </span>
