@@ -3,9 +3,17 @@ import { useState } from 'react';
 import { signInWithPasskey } from '../passkeys';
 import { Notice, Page, Shell } from '../ui';
 
-export function SignIn({ setup, onSignedIn }: { setup: AuthState['setup']; onSignedIn: (me: Me) => void }) {
+/** What came back from Authentik, from the `sso` the api puts on the address. */
+const SSO_WORDS: Record<string, string> = {
+  failed: "Authentik didn't confirm who you are. Try again, or sign in with your passkey.",
+  unknown: 'That Authentik account is not linked to an owner here. Sign in with your passkey, then link it in Settings.',
+  unreachable: "Family time couldn't reach Authentik. Sign in with your passkey for now.",
+  off: 'Sign-in with Authentik is switched off. Sign in with your passkey.',
+};
+
+export function SignIn({ setup, sso, onSignedIn }: { setup: AuthState['setup']; sso: boolean; onSignedIn: (me: Me) => void }) {
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<string | undefined>(() => SSO_WORDS[new URLSearchParams(location.search).get('sso') ?? '']);
 
   if (setup === 'needs-owner') {
     return (
@@ -38,6 +46,11 @@ export function SignIn({ setup, onSignedIn }: { setup: AuthState['setup']; onSig
         <button type="button" className="btn btn-primary w-full" onClick={signIn} disabled={busy}>
           {busy ? 'Waiting for your passkey' : 'Sign in'}
         </button>
+        {sso ? (
+          <a className="btn btn-quiet mt-3 w-full" href="/api/auth/oidc/start">
+            Sign in with Authentik
+          </a>
+        ) : null}
         <Notice>{error}</Notice>
         <p className="mx-1 mt-6 text-[15px] leading-snug text-ink-3">New here? Open the invite link you were sent, on the phone you want to use.</p>
       </div>

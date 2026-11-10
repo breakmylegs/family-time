@@ -80,7 +80,7 @@ export async function peopleRoutes(app: FastifyInstance, deps: PeopleRouteDeps):
     const target = await findPerson(db, me.householdId, request.params.id);
     if (!target) return reply.code(404).send({ error: 'not_found', detail: 'That person is not in this family.' });
     if (target.role === body.role) return { ok: true };
-    if (await refusedAsLastOwner(() => db.update(people).set({ role: body.role }).where(eq(people.id, target.id)))) {
+    if (await refusedAsLastOwner(() => db.update(people).set({ role: body.role, ...(body.role === 'owner' ? {} : { oidcSubject: null }) }).where(eq(people.id, target.id)))) {
       return lastOwner(reply);
     }
     await revokeAllSessions(db, target.id);
@@ -96,7 +96,7 @@ export async function peopleRoutes(app: FastifyInstance, deps: PeopleRouteDeps):
     const me = request.auth!.person;
     const target = await findPerson(db, me.householdId, request.params.id);
     if (!target) return reply.code(404).send({ error: 'not_found', detail: 'That person is not in this family.' });
-    if (await refusedAsLastOwner(() => db.update(people).set({ active: false, deactivatedAt: now() }).where(eq(people.id, target.id)))) {
+    if (await refusedAsLastOwner(() => db.update(people).set({ active: false, deactivatedAt: now(), oidcSubject: null }).where(eq(people.id, target.id)))) {
       return lastOwner(reply);
     }
     await revokeAllSessions(db, target.id);

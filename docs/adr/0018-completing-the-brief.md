@@ -22,4 +22,4 @@ A walk through the brief, part by part, found items no phase had finished (docs/
 - More of the owner's set-up moves off the command line; the command line keeps working for everything, and stays the way in when the app cannot be reached.
 - A parent's own screen time is on the kiosk as a total. Parents who would rather not share it simply leave it blank.
 - AdGuard down now makes the api not ready. A failed deploy because AdGuard is down rolls back the api, which does not fix AdGuard; the log says which check failed.
-- Still not built, with reasons, in docs/plans/phase-9.md: the monthly wellbeing check (licence), owner OIDC, kiosk HTTPS on the LAN and router rules (the owner's network), and the on-chain contract changes (next contract version).
+- Still not built, with reasons, in docs/plans/phase-9.md: the monthly wellbeing check (licence), kiosk HTTPS on the LAN and router rules (the owner's network), and the on-chain contract changes (next contract version).

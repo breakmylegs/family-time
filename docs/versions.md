@@ -71,7 +71,7 @@ Every version is pinned exactly. Checked on the registry on 26 October 2026 unle
 | Package | Version on 26 Oct 2026 | Phase |
 |---|---|---|
 | vite-plugin-pwa | 2.0.0 (supports Vite 8). Not used: a hand-written service worker is a few dozen lines (Phase 3 plan, decision 7) | 3 |
-| openid-client | 6.8.8 | when owner OIDC is switched on (deferred from Phase 1) |
+| openid-client | 6.8.8 | api. Phase 10: optional owner sign-in through Authentik |
 
 
 ## Tooling

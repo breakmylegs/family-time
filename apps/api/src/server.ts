@@ -1,11 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import type { LanguageModel, ProviderId, WeatherServer } from '@family-time/ai';
-import type { Db } from '@family-time/db';
+import { people, type Db } from '@family-time/db';
+import { isNotNull } from 'drizzle-orm';
 import { postgresLedger, type LedgerPort } from '@family-time/ledger';
 import type { Liveness, Version } from '@family-time/schemas';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { BuildInfo } from './build.js';
 import { registerAccess } from './auth/access.js';
+import type { Oidc } from './auth/oidc.js';
 import type { RateLimiter } from './auth/ratelimit.js';
 import { readiness } from './health.js';
 import { HEALTH_PATHS, loggerOptions, logPath } from './logging.js';
@@ -17,6 +19,7 @@ import { controlRoutes, type QueryLogEntry } from './routes/control.js';
 import { economyRoutes } from './routes/economy.js';
 import { familyRoutes } from './routes/family.js';
 import { kioskRoutes } from './routes/kiosk.js';
+import { oidcRoutes, ownerSso } from './routes/oidc.js';
 import { setupRoutes } from './routes/setup.js';
 import { mcpRoutes } from './routes/mcp.js';
 import { peopleRoutes } from './routes/people.js';
@@ -49,6 +52,8 @@ export interface ServerDeps {
   ledgerAdapter?: 'postgres' | 'besu';
   /** For readiness: asks AdGuard's admin API anything. */
   pingAdguard?: () => Promise<void>;
+  /** Owner sign-in through Authentik, when secrets/oidc_client_secret holds the client secret. */
+  oidc?: Oidc;
   /** The kiosk's address on the LAN, shown with a pairing code. */
   kioskUrl?: string;
   /** Tests: a mock model instead of a provider, a fake forecast, a client document without fetching. */
@@ -118,7 +123,12 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     return { app: name, commit, builtAt, schema };
   });
 
-  await authRoutes(app, { db: deps.db, now });
+  await authRoutes(app, {
+    db: deps.db,
+    now,
+    ssoOffered: async () => Boolean((await ownerSso(deps.db, deps.oidc)) && (await deps.db.select({ id: people.id }).from(people).where(isNotNull(people.oidcSubject)).limit(1)).length),
+  });
+  await oidcRoutes(app, { db: deps.db, now, ...(deps.oidc ? { oidc: deps.oidc } : {}) });
   await peopleRoutes(app, { db: deps.db, now });
   const changes = deps.changes ?? new Changes();
   await controlRoutes(app, {

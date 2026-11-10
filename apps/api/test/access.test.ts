@@ -227,7 +227,7 @@ describe('people', () => {
 describe('auth state', () => {
   it('says the owner is still needed until one exists', async () => {
     h = await harness();
-    expect((await h.app.inject('/api/auth/state')).json()).toEqual({ setup: 'needs-owner', me: null });
+    expect((await h.app.inject('/api/auth/state')).json()).toEqual({ setup: 'needs-owner', me: null, sso: false });
     const hh = await seedHousehold(h.handle.db);
     const owner = await seedPerson(h.handle.db, hh, 'owner', 'Dad');
     const state = (await h.app.inject({ url: '/api/auth/state', headers: await signedIn(h.handle.db, owner) })).json();

@@ -126,6 +126,8 @@ deploy() {
   # Added in later versions; init.sh is safe to run again and only adds what is missing.
   [ -s secrets/adguard_password ] && [ -s deploy/.state/network.env ] && [ -s secrets/vapid_private.pem ] && [ -s secrets/vapid_public.txt ] && [ -s secrets/ledger_signer_key ] && [ -s secrets/besu_node_key ] && [ -s secrets/master_key ] \
     || fail "$EXIT_PREFLIGHT" "this version needs new setup (the AdGuard password, the LAN address, the alerts keys, the ledger keys and the master key). Run ./scripts/init.sh again"
+  # Owner sign-in through Authentik is optional: an empty secret file is off, and Compose needs the file.
+  [ -e secrets/oidc_client_secret ] || (umask 077 && : > secrets/oidc_client_secret)
   # Never while a backup has Besu stopped or a restore is replacing the database.
   [ ! -e .deploy/backup.lock ] || fail "$EXIT_LOCKED" "a backup or restore is running (.deploy/backup.lock). Try again when it has finished"
   local proxy_net=${PROXY_NETWORK:-proxy_net}

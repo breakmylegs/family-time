@@ -35,6 +35,8 @@ const RP_NAME = 'Family time';
 export interface AuthRouteDeps {
   db: Db;
   now: () => Date;
+  /** Whether the sign-in screen offers Authentik: set up and linked to at least one owner. */
+  ssoOffered?: () => Promise<boolean>;
 }
 
 export async function authRoutes(app: FastifyInstance, deps: AuthRouteDeps): Promise<void> {
@@ -47,7 +49,7 @@ export async function authRoutes(app: FastifyInstance, deps: AuthRouteDeps): Pro
       ? await db.select({ id: people.id }).from(people).where(and(eq(people.householdId, household.id), eq(people.role, 'owner'), eq(people.active, true))).limit(1)
       : [];
     const me = request.auth ? await meOf(db, request.auth.person) : null;
-    return { setup: owners.length ? 'ready' : 'needs-owner', me };
+    return { setup: owners.length ? 'ready' : 'needs-owner', me, sso: owners.length ? ((await deps.ssoOffered?.()) ?? false) : false };
   });
 
   app.get('/api/me', { config: { access: 'session' } }, async (request): Promise<Me> => meOf(db, request.auth!.person));
@@ -248,7 +250,7 @@ async function meOf(db: Db, person: SessionPerson): Promise<Me> {
 }
 
 /** A new session id every time someone signs in, and a fresh CSRF token with it. */
-async function startSession(reply: FastifyReply, db: Db, personId: string, userAgent: string | undefined, now: Date) {
+export async function startSession(reply: FastifyReply, db: Db, personId: string, userAgent: string | undefined, now: Date) {
   const sessionId = await createSession(db, personId, userAgent, now);
   const maxAgeSeconds = Math.floor(SESSION_ABSOLUTE_MS / 1000);
   reply.header('set-cookie', [

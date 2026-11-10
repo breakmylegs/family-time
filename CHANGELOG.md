@@ -2,6 +2,10 @@
 
 Release notes the app shows on its System page (from Phase 8). One plain line per change, newest first.
 
+## 0.11.0 (Phase 10, Authentik sign-in)
+
+- The owner can also sign in with Authentik, once it is set up on the server and linked in Settings. Passkeys keep working as before.
+
 ## 0.10.0 (Phase 9, the whole brief)
 
 - Time to find a stopping point: from the pilot's transitions phase, when a planned session or an Allow ends on its own, the app stays allowed for a few more minutes (5 unless you change it) so your child can finish a level or a video. Never into wind-down or bedtime, and Pause and Block still start within a minute.

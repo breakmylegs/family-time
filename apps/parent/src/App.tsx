@@ -44,7 +44,7 @@ export function App() {
   }, [refresh]);
 
   const signedIn = (me: Me) => {
-    setState({ setup: 'ready', me });
+    setState({ setup: 'ready', me, sso: state?.sso ?? false });
     // Replace, so Back does not return to a used invite link. Signing in to connect an app goes
     // back to the consent screen, with the app's request as it was.
     navigate(location.pathname === '/oauth/authorize' ? location.pathname + location.search : '/', { replace: true });
@@ -62,10 +62,10 @@ export function App() {
   }
   if (!state) return <Page>{null}</Page>;
 
-  if (!state.me) return <SignIn setup={state.setup} onSignedIn={signedIn} />;
+  if (!state.me) return <SignIn setup={state.setup} sso={state.sso} onSignedIn={signedIn} />;
 
   const signedOut = () => {
-    setState({ setup: 'ready', me: null });
+    setState({ setup: 'ready', me: null, sso: state?.sso ?? false });
     navigate('/');
   };
   return <SignedIn me={state.me} path={path} onSignedOut={signedOut} />;

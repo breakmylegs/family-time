@@ -37,6 +37,7 @@ const MAINTENANCE_EXEMPT = new Set([
   '/api/auth/login/options',
   '/api/auth/login/verify',
   '/api/auth/logout',
+  '/api/auth/oidc/unlink',
   '/api/children/:id/overrides',
   '/api/children/:id/overrides/:overrideId/end',
   '/api/children/:id/normal',

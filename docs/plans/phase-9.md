@@ -15,7 +15,7 @@ Branch `phase-9`, from `phase-8`. A walk through the brief, part by part, agains
 | 7 | ADR 0014 | Phase 5 security follow-ups: node permissioning, the admin key in `secrets/` | Account permissioning on the node; `init.sh` stops keeping the admin key once it has been used |
 | 8 | Plans and ADRs | Notes still say "left for later" about things since done | Corrected |
 
-Still not built, with reasons: the monthly wellbeing check (the child scale's licence is the owner's to confirm, and the pilot child is over 8, so the parent mood check does not apply); owner OIDC (`OWNER_SSO` is `none`); kiosk HTTPS on the LAN and router rules (the owner's network); on-chain contract changes from ADR 0014 (they need Foundry, which runs only in the image build; recorded for the next contract version).
+Still not built, with reasons: the monthly wellbeing check (the child scale's licence is the owner's to confirm, and the pilot child is over 8, so the parent mood check does not apply); owner OIDC (`OWNER_SSO` is `none`; since built in Phase 10, docs/plans/phase-10.md); kiosk HTTPS on the LAN and router rules (the owner's network); on-chain contract changes from ADR 0014 (they need Foundry, which runs only in the image build; recorded for the next contract version).
 
 ## Decisions
 

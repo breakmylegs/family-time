@@ -8,6 +8,7 @@ import { audit } from './audit.js';
 import { CliError, ownerInvite, recoveryLink } from './cli/commands.js';
 import { addChild, addDevice, adguardSetup, allowanceFor, control, ledgerVerify, pilotPhase, resolveTarget, setChildPronouns, setupDefaults, status, syncServices } from './cli/control.js';
 import { ledgerCheck, ledgerDeploy, ledgerStatus } from './cli/ledger.js';
+import { ssoSetup } from './cli/sso.js';
 
 const USAGE = `Usage: ./scripts/ft.sh <command> [options]
 
@@ -59,9 +60,14 @@ Operations
       While on, the app shows the message and refuses changes; sign-in still works and AdGuard keeps
       what it has.
   backup-recorded --result ok|failed [--bytes 123456] [--snapshot abc123] [--problem "why"]
-      backup.sh runs this after each backup, so the System page shows it and owners hear of a failure.`;
+      backup.sh runs this after each backup, so the System page shows it and owners hear of a failure.
 
-const SWITCHES = new Set(['everything', 'yes']);
+Owner sign-in through Authentik (optional; docs/setup/authentik.md)
+  sso-setup [--issuer https://auth.example.com/application/o/family-time/ --client-id ID | --off]
+      Shows the setting, saves the provider's issuer and client id, or switches it off. The client
+      secret goes in secrets/oidc_client_secret.`;
+
+const SWITCHES = new Set(['everything', 'yes', 'off']);
 const REPEATABLE = new Set(['id']);
 
 function flags(args: string[]): { values: Record<string, string>; lists: Record<string, string[]>; switches: Set<string> } {
@@ -253,6 +259,10 @@ async function run(db: Db, command: string, args: ReturnType<typeof flags>): Pro
       await recordBackup(db, { ok: result === 'ok', bytes: Number.isFinite(bytes) ? bytes : null, snapshot: values.snapshot ?? null, problem: values.problem?.slice(0, 300) ?? null }, now);
       await audit(db, { actor: { label: 'backup' }, action: result === 'ok' ? 'backup.done' : 'backup.failed', after: { bytes, snapshot: values.snapshot ?? null, problem: values.problem ?? null } });
       console.log(`Recorded the backup as ${result === 'ok' ? 'done' : 'failed'}.`);
+      return 0;
+    }
+    case 'sso-setup': {
+      console.log(await ssoSetup(db, { ...(values.issuer ? { issuer: values.issuer } : {}), ...(values['client-id'] ? { clientId: values['client-id'] } : {}), off: switches.has('off') }));
       return 0;
     }
     default:

@@ -52,6 +52,15 @@ else
   make_secret ledger_admin_key 32
 fi
 make_secret besu_node_key 32
+# Owner sign-in through Authentik's client secret, which Authentik makes: left empty (off) here, and
+# filled in by the owner (docs/setup/authentik.md). Never replaced once it holds something.
+if [ -e secrets/oidc_client_secret ]; then
+  echo "  kept     secrets/oidc_client_secret"
+else
+  : > secrets/oidc_client_secret
+  chmod 600 secrets/oidc_client_secret
+  echo "  created  secrets/oidc_client_secret (empty: sign-in through Authentik is off)"
+fi
 
 # The Web Push (VAPID) key: a P-256 private key in PEM. The api gives browsers its public half.
 if [ -s secrets/vapid_private.pem ]; then

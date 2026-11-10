@@ -1,13 +1,14 @@
 import { AdGuard, AdGuardError } from '@family-time/adguard-client';
 import { connectionConfig, readSecret, schema, type Db } from '@family-time/db';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { PgBoss } from 'pg-boss';
 import { besuLedger, postgresLedger } from '@family-time/ledger';
 import { CHANGE_CHANNEL, vapidFromFile, vapidPublicFromFile } from '@family-time/notify';
+import { Oidc } from './auth/oidc.js';
 import { readBuildInfo } from './build.js';
 import { Changes } from './events.js';
 import { buildKioskServer } from './kiosk/server.js';
@@ -68,6 +69,12 @@ await listen();
 // private key, until init.sh has been run again.
 const vapidPublicKey = process.env.VAPID_PUBLIC_KEY_FILE ? vapidPublicFromFile(process.env.VAPID_PUBLIC_KEY_FILE) : vapidFromFile(process.env.VAPID_PRIVATE_KEY_FILE)?.publicKey;
 
+// Owner sign-in through Authentik (brief Part 8): on when secrets/oidc_client_secret holds the
+// client secret. init.sh leaves that file empty, which means off.
+const oidcSecretFile = process.env.OIDC_CLIENT_SECRET_FILE;
+const oidcSecret = oidcSecretFile && existsSync(oidcSecretFile) ? readFileSync(oidcSecretFile, 'utf8').trim() : '';
+const oidc = oidcSecret ? new Oidc(oidcSecret) : undefined;
+
 // The Besu ledger (ADR 0014) writes as the Postgres one does and queues each entry for the chain;
 // the worker's signer sends them. The api never talks to the node itself.
 const besu = process.env.LEDGER_ADAPTER === 'besu';
@@ -86,6 +93,7 @@ const app = await buildServer({
   notifyChange,
   ...(adguard ? { readQuerylog: async (limit: number) => (await adguard.querylog({ limit })).data, pingAdguard: () => pingAdguard(adguard) } : {}),
   ...(existsSync(join(staticDir, 'index.html')) ? { staticDir } : {}),
+  ...(oidc ? { oidc } : {}),
 });
 
 // The kiosk's own server, on its own port, which Compose publishes on the LAN address only (ADR

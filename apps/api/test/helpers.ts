@@ -40,6 +40,7 @@ export async function harness(
     aiModel?: ServerDeps['aiModel'];
     readWeather?: ServerDeps['readWeather'];
     fetchClientMetadata?: ServerDeps['fetchClientMetadata'];
+    oidc?: ServerDeps['oidc'];
   } = {},
 ): Promise<Harness> {
   const handle = await testDb({ migrated: options.migrated ?? true });
@@ -59,6 +60,7 @@ export async function harness(
     ...(options.aiModel ? { aiModel: options.aiModel } : {}),
     ...(options.readWeather ? { readWeather: options.readWeather } : {}),
     ...(options.fetchClientMetadata ? { fetchClientMetadata: options.fetchClientMetadata } : {}),
+    ...(options.oidc ? { oidc: options.oidc } : {}),
   });
   return {
     app,

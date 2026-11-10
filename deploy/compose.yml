@@ -32,6 +32,8 @@ x-app: &app
     KIOSK_LAN_URL: http://${LAN_IP}:${KIOSK_HOST_PORT:-8180}
     # Seals AI keys and signs MCP confirmations (ADR 0016). Only the api has the file; without it AI stays off.
     MASTER_KEY_FILE: /run/app-secrets/master_key
+    # Owner sign-in through Authentik (docs/setup/authentik.md). Empty, the init.sh default, is off.
+    OIDC_CLIENT_SECRET_FILE: /run/app-secrets/oidc_client_secret
     LOG_LEVEL: info
     TZ: Europe/London
   # Each service lists only the secrets it needs; this default is the migrate service's.
@@ -88,13 +90,14 @@ services:
       retries: 6
       start_period: 40s
     # Only the public half of the alerts key: the worker alone sends alerts (ADR 0017).
-    secrets: [postgres_password, adguard_password, vapid_public.txt, master_key]
+    secrets: [postgres_password, adguard_password, vapid_public.txt, master_key, oidc_client_secret]
     # The kiosk (ADR 0015): its own listener in the api, published on the server's LAN address
     # only, never through Caddy. Firewall it to the tablet on the router (docs/setup/kiosk.md).
     ports:
       - "${LAN_IP}:${KIOSK_HOST_PORT:-8180}:3001"
-    # egress: out to the AI providers, an app's client metadata document, the weather service and
-    # the owner's Ollama (ADR 0016). The api only calls out once the owner switches AI or MCP on.
+    # egress: out to the AI providers, an app's client metadata document, the weather service, the
+    # owner's Ollama (ADR 0016) and Authentik for owner sign-in (ADR 0019). The api only calls out
+    # once the owner switches one of them on.
     # Nothing is published on it.
     # ai: the stack's own Ollama, when the ai-local profile is on.
     networks:
@@ -276,6 +279,8 @@ secrets:
     file: ../secrets/besu_node_key
   master_key:
     file: ../secrets/master_key
+  oidc_client_secret:
+    file: ../secrets/oidc_client_secret
 
 volumes:
   pgdata:

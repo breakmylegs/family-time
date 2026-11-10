@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { api, ApiFailure } from '../api';
 import { AiSettings } from '../components/AiSettings';
 import { KioskSettings } from '../components/KioskSettings';
+import { SsoSetting } from '../components/SsoSetting';
 import { HelpButton } from '../help/HelpButton';
 import { useHelp } from '../help/HelpContext';
 import { SYNC } from '../help/rightNow';
@@ -138,6 +139,7 @@ export function Settings({ me, kids, onSignedOut }: { me: Me; kids: ChildSummary
               </span>
             </button>
           ) : null}
+          {me.role === 'owner' ? <SsoSetting /> : null}
           {kids.map((k) => (
             <div key={k.id} className="row">
               <span className="row-icon">
