@@ -368,6 +368,10 @@ textarea:focus-visible {
 .together .caption {
   margin-top: 8px;
 }
+/* Empty until We did it is tapped, but always there, so the words that come are announced. */
+.together .caption:empty {
+  margin: 0;
+}
 .reflect p {
   margin-top: 6px;
   font-size: 18px;

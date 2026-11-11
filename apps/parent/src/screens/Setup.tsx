@@ -2,7 +2,7 @@
 // child's rule for each group of apps, and the schedules. The same commands as the command line;
 // every change reaches AdGuard through the control service within a minute.
 import { DEVICE_KINDS, SCHEDULE_BLOCK_TYPES, type SetupView } from '@family-time/schemas';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { api } from '../api';
 import { Sheet } from '../components/Sheet';
 import { useSheetAction } from '../components/useSheetAction';
@@ -117,7 +117,7 @@ export function Setup() {
               <HelpButton topic="allow-block-normal" label="Allow, Block and Normal" />
             </div>
             {v.children.length > 1 ? (
-              <div className="choice" role="group" aria-label="Whose rules">
+              <div className="choice choice-above" role="group" aria-label="Whose rules">
                 {v.children.map((c) => (
                   <button key={c.id} type="button" aria-pressed={c.id === kid?.id} onClick={() => setChildId(c.id)}>
                     {c.name}
@@ -302,8 +302,8 @@ function DeviceSheet({ device, view, common, busy, send }: { device: Device | nu
         </div>
         <div>
           <label htmlFor="device-ids">Its addresses</label>
-          <input id="device-ids" className="field" value={ids} placeholder="192.168.1.50" autoCapitalize="off" autoCorrect="off" spellCheck={false} onChange={(e) => setIds(e.target.value)} />
-          <p className="hint">The IP address or MAC address. Your router's list of connected devices shows them. Separate more than one with commas.</p>
+          <input id="device-ids" className="field" aria-describedby="device-ids-hint" value={ids} placeholder="192.168.1.50" autoCapitalize="off" autoCorrect="off" spellCheck={false} onChange={(e) => setIds(e.target.value)} />
+          <p id="device-ids-hint" className="hint">The IP address or MAC address. Your router's list of connected devices shows them. Separate more than one with commas.</p>
         </div>
         <button
           type="button"
@@ -399,6 +399,12 @@ function ScheduleSheet({ schedule, view, common, busy, send }: { schedule: Sched
   const [weekdays, setWeekdays] = useState<number[]>(schedule?.weekdays ?? []);
   const [blocks, setBlocks] = useState<Block[]>(schedule?.blocks ?? [{ type: 'free', start: '15:30', end: '19:30' }, { type: 'wind-down', start: '19:30', end: '20:30' }, { type: 'bed', start: '20:30', end: '07:00' }]);
   const setBlock = (i: number, patch: Partial<Block>) => setBlocks((bs) => bs.map((b, j) => (j === i ? { ...b, ...patch } : b)));
+  // Removing a part takes its button away: focus goes to Add a part of the day, never to the page.
+  const addPart = useRef<HTMLButtonElement>(null);
+  const removeBlock = (i: number) => {
+    setBlocks((bs) => bs.filter((_, j) => j !== i));
+    requestAnimationFrame(() => addPart.current?.focus());
+  };
   const ready = name.trim() && weekdays.length && blocks.length;
   const body = { name: name.trim(), childId, weekdays, blocks: blocks.map((b) => ({ type: b.type, start: b.start, end: b.end, ...(b.type === 'pause' && b.label?.trim() ? { label: b.label.trim() } : {}) })) };
   return (
@@ -448,7 +454,7 @@ function ScheduleSheet({ schedule, view, common, busy, send }: { schedule: Sched
             </div>
           </div>
         ) : null}
-        <fieldset className="blocks-edit">
+        <fieldset className="blocks-edit" aria-describedby="blocks-hint">
           <legend className="label">Parts of the day</legend>
           {blocks.map((b, i) => (
             <div key={i} className="block-edit" role="group" aria-label={`Part ${i + 1}: ${BLOCK_WORDS[b.type]}`}>
@@ -461,17 +467,22 @@ function ScheduleSheet({ schedule, view, common, busy, send }: { schedule: Sched
               </select>
               <input className="field tnum" type="time" aria-label={`Part ${i + 1}: from`} value={b.start} onChange={(e) => setBlock(i, { start: e.target.value })} />
               <input className="field tnum" type="time" aria-label={`Part ${i + 1}: to`} value={b.end} onChange={(e) => setBlock(i, { end: e.target.value })} />
-              <button type="button" className="btn btn-quiet icon-btn" aria-label={`Remove part ${i + 1}: ${BLOCK_WORDS[b.type]}`} onClick={() => setBlocks((bs) => bs.filter((_, j) => j !== i))}>
+              <button type="button" className="btn btn-quiet icon-btn" aria-label={`Remove part ${i + 1}: ${BLOCK_WORDS[b.type]}`} onClick={() => removeBlock(i)}>
                 <Icon name="minus" />
               </button>
-              {b.type === 'pause' ? <input className="field" aria-label={`Part ${i + 1}: called`} value={b.label ?? ''} maxLength={20} placeholder="For example: Tea" onChange={(e) => setBlock(i, { label: e.target.value })} /> : null}
+              {b.type === 'pause' ? (
+                <label className="block-name">
+                  <span aria-hidden="true">Called</span>
+                  <input className="field" aria-label={`Part ${i + 1}: called`} value={b.label ?? ''} maxLength={20} placeholder="For example: Tea" onChange={(e) => setBlock(i, { label: e.target.value })} />
+                </label>
+              ) : null}
             </div>
           ))}
-          <button type="button" className="btn btn-quiet" disabled={blocks.length >= 12} onClick={() => setBlocks((bs) => [...bs, { type: 'free', start: '16:00', end: '17:00' }])}>
+          <button ref={addPart} type="button" className="btn btn-quiet" disabled={blocks.length >= 12} onClick={() => setBlocks((bs) => [...bs, { type: 'free', start: '16:00', end: '17:00' }])}>
             <Icon name="plus" />
             Add a part of the day
           </button>
-          <p className="hint">Bedtime can run past midnight, like 20:30 to 07:00. Times are UK time, 24-hour.</p>
+          <p id="blocks-hint" className="hint">Bedtime can run past midnight, like 20:30 to 07:00. Times are UK time, 24-hour.</p>
         </fieldset>
         <button
           type="button"

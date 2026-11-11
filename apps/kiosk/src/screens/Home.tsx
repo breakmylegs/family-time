@@ -272,11 +272,9 @@ function Together({ family, path, reload }: { family: NonNullable<KioskHome['fam
               </button>
             ) : null}
           </div>
-          {said ? (
-            <p class="caption" role="status">
-              {said}
-            </p>
-          ) : null}
+          <p class="caption" role="status">
+            {said ?? ''}
+          </p>
         </>
       ) : null}
       {family.grownUps ? <p class="caption">{family.grownUps}</p> : null}
