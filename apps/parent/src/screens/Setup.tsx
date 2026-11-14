@@ -20,6 +20,8 @@ type App = SetupView['ungrouped'][number];
 type Block = Schedule['blocks'][number];
 
 const KIND_WORDS: Record<(typeof DEVICE_KINDS)[number], string> = { ipad: 'iPad or tablet', phone: 'Phone', console: 'Games console', laptop: 'Laptop', tv: 'TV', kiosk: 'Kiosk', other: 'Something else' };
+/** Each kind of device at a glance in the list. */
+const KIND_ICONS = { ipad: 'tablet', phone: 'device', console: 'pad', laptop: 'laptop', tv: 'tv', kiosk: 'tablet', other: 'apps' } as const satisfies Record<(typeof DEVICE_KINDS)[number], string>;
 const BLOCK_WORDS: Record<(typeof SCHEDULE_BLOCK_TYPES)[number], string> = { school: 'School', pause: 'Pause', 'wind-down': 'Wind-down', bed: 'Bedtime', free: 'Free time' };
 /** Monday first, as a week reads; stored as 0 Sunday to 6 Saturday. */
 const DAYS: [number, string, string][] = [
@@ -88,7 +90,7 @@ export function Setup() {
               {v.devices.map((d) => (
                 <div key={d.id} className="row">
                   <span className="row-icon">
-                    <Icon name="device" />
+                    <Icon name={KIND_ICONS[d.type as keyof typeof KIND_ICONS] ?? 'device'} />
                   </span>
                   <span className="row-text">
                     {d.label}

@@ -74,6 +74,24 @@ const PATHS = {
       <path d="M11 17.6h2" />
     </>
   ),
+  tablet: (
+    <>
+      <rect x="3.5" y="4" width="17" height="16" rx="2.6" />
+      <path d="M11 16.6h2" />
+    </>
+  ),
+  laptop: (
+    <>
+      <rect x="5" y="5" width="14" height="10" rx="2" />
+      <path d="M3 18.5h18" />
+    </>
+  ),
+  tv: (
+    <>
+      <rect x="3" y="4.5" width="18" height="12" rx="2.5" />
+      <path d="M12 16.5v3.5M8.5 20h7" />
+    </>
+  ),
   alert: (
     <>
       <circle cx="12" cy="12" r="9" />
