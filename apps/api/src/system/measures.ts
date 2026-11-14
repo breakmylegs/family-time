@@ -1,10 +1,10 @@
 // The pilot's measures (brief Part 14), week by week for one child: what the parents look at in the
 // family review and can download. Counts only, from what Family time already keeps; nothing here
 // is shown to the child.
-import { completions, devices, ideas, ledgerEntries, loadEconomy, loadRules, people, services, sessionEndings, usageMinutes, type Db } from '@family-time/db';
+import { completions, devices, ideas, journal, ledgerEntries, loadEconomy, loadRules, moodChecks, people, services, sessionEndings, unmanagedTime, usageMinutes, type Db } from '@family-time/db';
 import { addDays, blocksOn, civilDate, weekStarting } from '@family-time/domain';
 import type { PilotMeasures, PilotWeek } from '@family-time/schemas';
-import { and, count, countDistinct, eq, gte, lt, sql } from 'drizzle-orm';
+import { and, count, countDistinct, desc, eq, gte, lt, sql } from 'drizzle-orm';
 
 /** A minute counts as use when a device asked for the app at least this often (as on Control). */
 const BUSY_MINUTE_QUERIES = 3;
@@ -20,14 +20,20 @@ export async function pilotMeasures(db: Db, childId: string, now: Date, weeks = 
   for (let i = 0; i < weeks; i++) {
     const from = w.start;
     const to = w.next;
-    out.push(await week(db, childId, from, to, rules.schedules, e.timeZone));
+    out.push(await week(db, childId, w.date, from, to, rules.schedules, e.timeZone));
     if (child && from.getTime() <= child.createdAt.getTime()) break;
     w = weekStarting(new Date(from.getTime() - 1), e.weekReset, e.timeZone);
   }
-  return { childId, phase: e.pilotPhase, weeks: out };
+  const moods = await db.select().from(moodChecks).where(eq(moodChecks.childId, childId)).orderBy(desc(moodChecks.month)).limit(Math.ceil(weeks / 4) + 1);
+  return {
+    childId,
+    phase: e.pilotPhase,
+    weeks: out,
+    moods: moods.map((m) => ({ month: m.month, label: new Date(`${m.month}-15T12:00:00Z`).toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' }), rating: m.rating, note: m.note })),
+  };
 }
 
-async function week(db: Db, childId: string, from: Date, to: Date, schedules: Parameters<typeof blocksOn>[0], timeZone: string): Promise<PilotWeek> {
+async function week(db: Db, childId: string, weekDate: string, from: Date, to: Date, schedules: Parameters<typeof blocksOn>[0], timeZone: string): Promise<PilotWeek> {
   const inWeek = (col: Parameters<typeof gte>[0]) => and(gte(col, from), lt(col, to));
   const busy = and(eq(devices.childId, childId), gte(usageMinutes.queries, BUSY_MINUTE_QUERIES), inWeek(usageMinutes.minute));
 
@@ -68,16 +74,20 @@ async function week(db: Db, childId: string, from: Date, to: Date, schedules: Pa
   const approved = and(eq(completions.childId, childId), eq(completions.status, 'approved'), inWeek(completions.decidedAt));
   const [jobs] = await db.select({ n: count(), different: countDistinct(completions.taskId) }).from(completions).where(approved);
   const [newIdeas] = await db.select({ n: count() }).from(ideas).where(and(eq(ideas.childId, childId), inWeek(ideas.createdAt)));
+  const [didOffline] = await db.select({ n: count() }).from(journal).where(and(eq(journal.childId, childId), inWeek(journal.at)));
+  const [unmanaged] = await db.select({ minutes: unmanagedTime.minutes }).from(unmanagedTime).where(and(eq(unmanagedTime.childId, childId), eq(unmanagedTime.week, weekDate)));
 
   const moods = await db.select({ mood: sessionEndings.mood, n: count() }).from(sessionEndings).where(and(eq(sessionEndings.childId, childId), inWeek(sessionEndings.endedAt))).groupBy(sessionEndings.mood);
   const mood = (m: string) => Number(moods.find((x) => x.mood === m)?.n ?? 0);
 
   return {
-    week: from.toISOString().slice(0, 10),
+    // The household's own date: in summer, a Monday midnight in London is still Sunday in UTC.
+    week: weekDate,
     label: `Week from ${from.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone })}`,
     minutesByApp: byApp.map((r) => ({ app: r.app, minutes: Number(r.minutes) })).sort((a, b) => b.minutes - a.minutes),
     unusedMinutesConverted: Number(converted?.minutes ?? 0),
-    offlineVariety: Number(jobs?.different ?? 0) + Number(newIdeas?.n ?? 0),
+    offlineVariety: Number(jobs?.different ?? 0) + Number(newIdeas?.n ?? 0) + Number(didOffline?.n ?? 0),
+    unmanagedMinutes: unmanaged?.minutes ?? null,
     endings: { calm: mood('calm'), grumble: mood('grumble'), meltdown: mood('meltdown') },
     windDownMinutes: windDown,
     bedtimeMinutes: bedtime,
@@ -98,7 +108,7 @@ export function toCsv(rows: (string | number)[][]): string {
 
 export function measuresCsv(m: PilotMeasures, childName: string): string {
   const apps = [...new Set(m.weeks.flatMap((w) => w.minutesByApp.map((a) => a.app)))].sort();
-  const head = ['Child', 'Week starting', ...apps.map((a) => `${a} minutes`), 'Unused minutes converted', 'Different jobs and ideas', 'Calm endings', 'Grumble endings', 'Meltdown endings', 'Minutes in wind-down', 'Minutes at bedtime', 'Jobs approved'];
-  const rows = m.weeks.map((w) => [childName, w.week, ...apps.map((a) => w.minutesByApp.find((x) => x.app === a)?.minutes ?? 0), w.unusedMinutesConverted, w.offlineVariety, w.endings.calm, w.endings.grumble, w.endings.meltdown, w.windDownMinutes, w.bedtimeMinutes, w.jobsApproved]);
+  const head = ['Child', 'Week starting', ...apps.map((a) => `${a} minutes`), 'Unused minutes converted', 'Different jobs, ideas and things done away from screens', 'Screen time Family time cannot see (estimate, minutes)', 'Mood check that month (1 to 5)', 'Calm endings', 'Grumble endings', 'Meltdown endings', 'Minutes in wind-down', 'Minutes at bedtime', 'Jobs approved'];
+  const rows = m.weeks.map((w) => [childName, w.week, ...apps.map((a) => w.minutesByApp.find((x) => x.app === a)?.minutes ?? 0), w.unusedMinutesConverted, w.offlineVariety, w.unmanagedMinutes ?? '', m.moods.find((x) => x.month === w.week.slice(0, 7))?.rating ?? '', w.endings.calm, w.endings.grumble, w.endings.meltdown, w.windDownMinutes, w.bedtimeMinutes, w.jobsApproved]);
   return toCsv([head, ...rows]);
 }

@@ -821,3 +821,44 @@ textarea {
   vertical-align: middle;
   color: var(--k-ink-2);
 }
+
+/* Me */
+.mine {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 22px;
+  margin-top: 26px;
+  align-items: start;
+}
+.mine .btn {
+  margin-top: 16px;
+}
+.mine-list li {
+  display: flex;
+  gap: 12px;
+  margin-top: 14px;
+  font-size: 19px;
+  line-height: 1.4;
+}
+.mine-list li > .ic {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  color: var(--k-primary);
+}
+.mine-list small {
+  display: block;
+  font-size: 16px;
+  color: var(--k-ink-2);
+}
+.mine-list .praise {
+  display: block;
+  margin-top: 6px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--k-surface-2);
+  font-size: 17px;
+}
+.mine-list .can {
+  font-weight: 600;
+}

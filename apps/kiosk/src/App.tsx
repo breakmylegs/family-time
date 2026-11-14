@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'preact/hooks';
 import { api, ApiError, stored } from './api';
 import { kioskBridge } from './bridge';
 import { Home } from './screens/Home';
+import { Mine } from './screens/Mine';
 import { Night } from './screens/Night';
 import { Pair } from './screens/Pair';
 import { PinEntry } from './screens/PinEntry';
@@ -13,7 +14,7 @@ import { Plan } from './screens/Plan';
 import { Reflection } from './screens/Reflection';
 import { Icon } from './icons';
 
-export type Screen = { name: 'home' } | { name: 'plan'; ask?: boolean } | { name: 'reflection' } | { name: 'parents' };
+export type Screen = { name: 'home' } | { name: 'plan'; ask?: boolean } | { name: 'reflection' } | { name: 'parents' } | { name: 'mine' };
 
 const POLL_MS = 15_000;
 
@@ -166,6 +167,7 @@ export function App() {
       ) : null}
       {screen.name === 'plan' ? <Plan home={home} ask={Boolean(screen.ask)} onDone={back} /> : null}
       {screen.name === 'reflection' ? <Reflection home={home} onDone={back} /> : null}
+      {screen.name === 'mine' ? <Mine home={home} onDone={back} /> : null}
       {screen.name === 'parents' ? <ParentsSee home={home} onDone={back} /> : null}
       {screen.name === 'home' ? <Home home={home} go={setScreen} reload={load} {...(switchChild ? { switchChild } : {})} /> : null}
     </>

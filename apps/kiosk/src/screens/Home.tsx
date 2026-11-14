@@ -39,6 +39,10 @@ export function Home({ home, go, reload, switchChild }: Props) {
             </p>
           ) : null}
         </div>
+        <button type="button" class="link" onClick={() => go({ name: 'mine' })}>
+          <Icon name="star" />
+          Me
+        </button>
         <button type="button" class="link" onClick={() => go({ name: 'parents' })}>
           <Icon name="eye" />
           What Mum and Dad can see
@@ -414,7 +418,7 @@ function AddIdea({ path, onClose }: { path: string; onClose: () => void }) {
  * A dialog that behaves like one: its heading takes focus when it opens, Escape closes it, and
  * focus goes back to whatever opened it.
  */
-function useDialog(onClose: () => void) {
+export function useDialog(onClose: () => void) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;

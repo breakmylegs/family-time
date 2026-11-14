@@ -7,12 +7,13 @@
 import { randomUUID } from 'node:crypto';
 import { maintenance, type Db } from '@family-time/db';
 import type { LedgerPort } from '@family-time/ledger';
-import { KioskAskRequest, KioskDoneRequest, KioskIdeaRequest, KioskPairRequest, KioskPlanRequest, KioskReflectionRequest, KioskUnlockRequest } from '@family-time/schemas';
+import { KioskAskRequest, KioskDoneRequest, KioskIdeaRequest, KioskJournalRequest, KioskRuleAskRequest, KioskSkillRequest, KioskPairRequest, KioskPlanRequest, KioskReflectionRequest, KioskUnlockRequest } from '@family-time/schemas';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { RateLimiter } from '../auth/ratelimit.js';
 import { EconomyError, askRequest, planSession } from '../economy/commands.js';
 import type { Changes } from '../events.js';
+import { addJournal, addSkill, askAboutRule, ExtrasError, kioskMine } from '../family/extras.js';
 import { FamilyError, tickChallenge } from '../family/whole.js';
 import { loggerOptions, logPath } from '../logging.js';
 import { registerStatic } from '../static.js';
@@ -130,7 +131,7 @@ export async function buildKioskServer(deps: KioskServerDeps): Promise<FastifyIn
 
   app.setNotFoundHandler(async (_request, reply) => reply.code(404).send({ error: 'not_found' }));
   app.setErrorHandler(async (error: unknown, request, reply) => {
-    if (error instanceof KioskError || error instanceof EconomyError) return reply.code(error.status).send({ error: error.code, message: error.message });
+    if (error instanceof KioskError || error instanceof EconomyError || error instanceof ExtrasError) return reply.code(error.status).send({ error: error.code, message: error.message });
     if (error instanceof z.ZodError) return reply.code(400).send({ error: 'invalid', message: error.issues[0]?.message ?? 'That did not look right.' });
     const e = error as { statusCode?: number; message?: string };
     const status = e.statusCode && e.statusCode >= 400 && e.statusCode < 500 ? e.statusCode : 500;
@@ -236,6 +237,36 @@ export async function buildKioskServer(deps: KioskServerDeps): Promise<FastifyIn
     await saveReflection(db, { householdId: hh(request), childId: child, ...body }, now());
     await changed(hh(request));
     return { ok: true };
+  });
+
+  // The child's own page: what they did, what they can do, and their questions about rules.
+  app.get<{ Params: { child: string } }>('/api/children/:child/mine', device, async (request) => {
+    const { child } = Child.parse(request.params);
+    return kioskMine(db, hh(request), child, now());
+  });
+
+  app.post<{ Params: { child: string } }>('/api/children/:child/journal', device, async (request, reply) => {
+    const { child } = Child.parse(request.params);
+    const body = KioskJournalRequest.parse(request.body);
+    const id = await addJournal(db, { householdId: hh(request), childId: child, text: body.text, picture: body.picture }, now());
+    await changed(hh(request));
+    return reply.code(201).send({ id });
+  });
+
+  app.post<{ Params: { child: string } }>('/api/children/:child/skills', device, async (request, reply) => {
+    const { child } = Child.parse(request.params);
+    const body = KioskSkillRequest.parse(request.body);
+    const id = await addSkill(db, { householdId: hh(request), childId: child, title: body.title, picture: body.picture }, now());
+    await changed(hh(request));
+    return reply.code(201).send({ id });
+  });
+
+  app.post<{ Params: { child: string } }>('/api/children/:child/rule-asks', device, async (request, reply) => {
+    const { child } = Child.parse(request.params);
+    const body = KioskRuleAskRequest.parse(request.body);
+    const id = await askAboutRule(db, { householdId: hh(request), childId: child, text: body.text }, now());
+    await changed(hh(request));
+    return reply.code(201).send({ id });
   });
 
   // "We did it": once more towards the family challenge. Nothing is ever taken away.

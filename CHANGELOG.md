@@ -2,6 +2,14 @@
 
 Release notes the app shows on its System page (from Phase 8). One plain line per change, newest first.
 
+## 0.12.0 (Phase 11, from the research)
+
+- Settings and habits outside Family time, on Set-up: a short checklist for each child, such as YouTube autoplay off and a daily limit in Roblox, chosen by the child's age. Tick each one once you have done it.
+- Me on the kiosk: your child can add things they did away from screens, things they are learning, and questions about any rule. You send praise from Family, mark a skill once they can do it, and answer a question on Approvals or add it to the family review. Praise, never points.
+- Two estimates for the pilot measures, on Family: screen time Family time can't see each week, and how your child has seemed each month. The spreadsheet has both.
+- Things done away from screens count towards the variety in the pilot measures, and are cleared after 13 months like the other measures.
+- A Children's Code self-assessment and a data protection impact assessment template, in docs/privacy.
+
 ## 0.11.0 (Phase 10, Authentik sign-in)
 
 - The owner can also sign in with Authentik, once it is set up on the server and linked in Settings. Passkeys keep working as before.

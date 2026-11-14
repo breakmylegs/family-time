@@ -23,6 +23,8 @@ export function ParentsSee({ home, onDone }: { home: KioskHome; onDone: () => vo
             {home.features.economy ? <li>When you ask a grown-up: what you asked for, and when.</li> : null}
             <li>Roughly how long each app was used today. The home Wi-Fi notices when an app is busy, so it's a guess, not exact.</li>
             {home.features.goal ? <li>Your savings goal, and your answers to How was your week?</li> : null}
+            <li>What you add under Me: things you did, things you're learning, and your questions about rules.</li>
+            <li>Once a month, how Mum and Dad think your month has been, to help plan together.</li>
           </ul>
         </section>
         <section class="card">
@@ -33,7 +35,7 @@ export function ParentsSee({ home, onDone }: { home: KioskHome; onDone: () => vo
             <li>Your screen.</li>
           </ul>
         </section>
-        <p class="caption">Other grown-ups who look after you, like a grandparent, can see your jobs and any photos too. If something here doesn't seem right, talk to Mum or Dad about it.</p>
+        <p class="caption">Other grown-ups who look after you, like a grandparent, can see your jobs and any photos too, and the things you did and can do. Only Mum and Dad see your questions about rules. If something here doesn't seem right, talk to Mum or Dad about it.</p>
       </div>
     </main>
   );

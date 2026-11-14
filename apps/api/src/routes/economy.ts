@@ -20,6 +20,7 @@ import { z } from 'zod';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { can } from '../auth/capabilities.js';
 import { findChild } from '../control/commands.js';
+import { openRuleAsks } from '../family/extras.js';
 import {
   agreeStep,
   approvalsFor,
@@ -109,11 +110,14 @@ export async function economyRoutes(app: FastifyInstance, deps: EconomyRouteDeps
     const t = now();
     // Suggestions from AI and connected apps go first, newest first: they go after 30 minutes.
     const suggested = (await proposalItems(db, householdId, t)).sort((a, b) => b.sortAt - a.sortAt).map(({ sortAt: _sortAt, ...item }): ApprovalItem => item);
-    return [...suggested, ...(await approvalsFor(db, ledger, householdId, t))];
+    // Questions about rules are for parents, and never go to AI or a connected app.
+    const questions = can(request.auth!.person.role, 'rules.edit') ? await openRuleAsks(db, householdId, t) : [];
+    return [...suggested, ...questions, ...(await approvalsFor(db, ledger, householdId, t))];
   });
   app.get('/api/approvals/count', { config: { access: 'status.view' } }, async (request) => {
     const householdId = request.auth!.person.householdId;
-    return { waiting: (await waitingCount(db, householdId)) + (await waitingProposals(db, householdId, now())) };
+    const questions = can(request.auth!.person.role, 'rules.edit') ? (await openRuleAsks(db, householdId, now())).length : 0;
+    return { waiting: (await waitingCount(db, householdId)) + (await waitingProposals(db, householdId, now())) + questions };
   });
 
   app.post<Id>('/api/completions/:id/approve', { config: { access: 'approvals.decide' } }, async (request, reply) => {

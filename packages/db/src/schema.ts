@@ -91,6 +91,10 @@ export const people = pgTable(
     pronouns: text('pronouns').$type<'he' | 'she' | 'they'>(),
     /** A child's optional kiosk PIN (brief Part 8), for siblings sharing a tablet: a salted scrypt hash. */
     kioskPinHash: text('kiosk_pin_hash'),
+    /** A child's age band (research, Age bands): `5-7`, `8-10`, `11-13` or `14+`. Null until a parent sets it. */
+    ageBand: text('age_band').$type<'5-7' | '8-10' | '11-13' | '14+'>(),
+    /** A child's platform setup checklist: the ids of the items a parent has ticked. */
+    setupDone: text('setup_done').array().notNull().default(sql`'{}'::text[]`),
     createdAt: createdAt(),
     deactivatedAt: timestamp('deactivated_at', { withTimezone: true }),
   },
@@ -811,6 +815,101 @@ export const reflections = pgTable(
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex('reflections_child_week').on(t.childId, t.week)],
+);
+
+// ---------------------------------------------------------------------------------------------
+// Phase 11: enhancements from the research. Praise, never points; nothing shown to siblings.
+
+/** Something the child did away from screens, in their words. Parents may answer with praise. */
+export const journal = pgTable(
+  'journal',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    childId: uuid('child_id')
+      .notNull()
+      .references(() => people.id),
+    text: text('text').notNull(),
+    picture: text('picture').notNull().default('star'),
+    at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+    praise: text('praise'),
+    praisedBy: uuid('praised_by').references(() => people.id),
+    praisedAt: timestamp('praised_at', { withTimezone: true }),
+  },
+  (t) => [index('journal_child').on(t.childId, t.at)],
+);
+
+/** A skill the child is learning; mastered once a parent agrees. A badge, never points. */
+export const skills = pgTable(
+  'skills',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    childId: uuid('child_id')
+      .notNull()
+      .references(() => people.id),
+    title: text('title').notNull(),
+    picture: text('picture').notNull().default('star'),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+    masteredAt: timestamp('mastered_at', { withTimezone: true }),
+    confirmedBy: uuid('confirmed_by').references(() => people.id),
+    removedAt: timestamp('removed_at', { withTimezone: true }),
+  },
+  (t) => [index('skills_child').on(t.childId)],
+);
+
+/** The child asks to talk about a rule, from the kiosk. A parent answers, or puts it on the review agenda. */
+export const ruleAsks = pgTable(
+  'rule_asks',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    childId: uuid('child_id')
+      .notNull()
+      .references(() => people.id),
+    text: text('text').notNull(),
+    askedAt: timestamp('asked_at', { withTimezone: true }).notNull().defaultNow(),
+    /** `open`, `review` (on the family review agenda) or `answered`. */
+    status: text('status').$type<'open' | 'review' | 'answered'>().notNull().default('open'),
+    answer: text('answer'),
+    decidedBy: uuid('decided_by').references(() => people.id),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+  },
+  (t) => [index('rule_asks_child').on(t.childId, t.status), check('rule_asks_status', sql`${t.status} in ('open', 'review', 'answered')`)],
+);
+
+/** A parent's weekly estimate of the child's screen time on devices or networks Family time does not manage. */
+export const unmanagedTime = pgTable(
+  'unmanaged_time',
+  {
+    childId: uuid('child_id')
+      .notNull()
+      .references(() => people.id),
+    /** The household week's first day. */
+    week: text('week').notNull(),
+    minutes: integer('minutes').notNull(),
+    by: uuid('by')
+      .notNull()
+      .references(() => people.id),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.childId, t.week] })],
+);
+
+/** A parent's monthly check of how the child has seemed, 1 (not good) to 5 (very good). Not a validated scale. */
+export const moodChecks = pgTable(
+  'mood_checks',
+  {
+    childId: uuid('child_id')
+      .notNull()
+      .references(() => people.id),
+    /** `2026-11`. */
+    month: text('month').notNull(),
+    rating: smallint('rating').notNull(),
+    note: text('note'),
+    by: uuid('by')
+      .notNull()
+      .references(() => people.id),
+    at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.childId, t.month] }), check('mood_checks_rating', sql`${t.rating} between 1 and 5`)],
 );
 
 // ---------------------------------------------------------------------------------------------

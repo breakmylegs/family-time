@@ -28,6 +28,8 @@ Times are ISO 8601 in UTC. Ids are UUIDs, except audit events, which are numbere
 | `usageMinutes`, `sessionEndings` | Minutes of use per app (counts only), and how sessions ended |
 | `allowances`, `reductionPlans`, `tasks`, `completions`, `requests`, `goals`, `ideas`, `reflections` | The weekly allowance and its plan, jobs and what was done, requests for time, savings goals, ideas, and the Sunday answers |
 | `parentScreenTime`, `familyChallenges`, `challengeTicks` | The parents' own weekly screen time, as they gave it, and the family challenges with who ticked them |
+| `journal`, `skills`, `ruleAsks` | What each child said they did away from screens and the praise sent back, the things they are learning or can do, and the rules they asked about with the answers |
+| `unmanagedTime`, `moodChecks` | The parents' weekly estimate of screen time away from managed devices, and their monthly mood check for each child |
 | `ledgerEntries` | The whole points and money history, each entry with its hash |
 | `kioskDevices` | The kiosk tablets, without their tokens |
 | `helpFeedback` | Answers to "Was this helpful?" |

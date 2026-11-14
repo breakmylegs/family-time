@@ -100,6 +100,16 @@ export const ApprovalItem = z.discriminatedUnion('kind', [
     /** `parent`: an Allow or Block, which carers cannot approve. */
     needs: z.enum(['parent', 'anyone']),
   }),
+  // The child asks to talk about a rule, from the kiosk (Phase 11). Parents only.
+  z.object({
+    kind: z.literal('question'),
+    id: z.uuid(),
+    childId: z.uuid(),
+    childName: z.string(),
+    /** What the child typed, shown as it was. */
+    text: z.string(),
+    when: z.string(),
+  }),
 ]);
 export type ApprovalItem = z.infer<typeof ApprovalItem>;
 

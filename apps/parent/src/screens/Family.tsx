@@ -1,16 +1,17 @@
 // Family: one child's week in money and time, the savings goal, the family review's agenda, the
 // allowance and the reduction plan with its "agreed at the family review" switch, the history,
 // where a mistake can be put right by undoing one entry exactly, and the whole family's section.
-import type { ChildSummary, LedgerLine, WeekSummary } from '@family-time/schemas';
+import type { ChildExtras, ChildSummary, LedgerLine, WeekSummary } from '@family-time/schemas';
 import type { TopicId } from '@family-time/help-content/content';
 import { useState, type ReactNode } from 'react';
 import { api } from '../api';
 import { Sheet } from '../components/Sheet';
 import { useSheetAction } from '../components/useSheetAction';
+import { AwayFromScreens, PilotEstimates } from '../components/ChildExtras';
 import { PilotMeasures } from '../components/PilotMeasures';
 import { WeekNote } from '../components/WeekNote';
 import { WholeFamily } from '../components/WholeFamily';
-import { minutes, pence, useLedger, useWeek } from '../economy/data';
+import { minutes, pence, useFetched, useLedger, useWeek } from '../economy/data';
 import { HelpButton } from '../help/HelpButton';
 import { Icon } from '../icons';
 import { useToast } from '../toast';
@@ -58,6 +59,7 @@ function Child({ kid, canEdit }: { kid: ChildSummary; canEdit: boolean }) {
   const toast = useToast();
   const { data: week, error, reload } = useWeek(kid.id);
   const { data: lines, error: ledgerError, reload: reloadLedger } = useLedger(canEdit ? kid.id : undefined);
+  const { data: extras, reload: reloadExtras } = useFetched<ChildExtras>(`/api/children/${kid.id}/extras`);
   const [sheet, setSheet] = useState<{ kind: SheetKind; from: HTMLElement | null }>();
   const [agreeing, setAgreeing] = useState(false);
   const [shown, setShown] = useState(PAGE);
@@ -153,7 +155,7 @@ function Child({ kid, canEdit }: { kid: ChildSummary; canEdit: boolean }) {
           <h2 id={`review-${kid.id}`}>For the family review</h2>
           <HelpButton topic="family-review" label="The family review" />
         </div>
-        <ol className="group agenda">{agenda(kid.name, week)}</ol>
+        <ol className="group agenda">{agenda(kid.name, week, extras)}</ol>
         {canEdit ? <WeekNote childId={kid.id} /> : null}
       </section>
 
@@ -163,9 +165,12 @@ function Child({ kid, canEdit }: { kid: ChildSummary; canEdit: boolean }) {
             <h2 id={`measures-${kid.id}`}>Pilot measures</h2>
             <HelpButton topic="pilot-measures" label="Pilot measures" />
           </div>
+          {extras ? <PilotEstimates kid={kid} extras={extras} reload={() => void reloadExtras()} /> : null}
           <PilotMeasures childId={kid.id} childName={kid.name} />
         </section>
       ) : null}
+
+      {extras ? <AwayFromScreens kid={kid} extras={extras} canEdit={canEdit} reload={() => void reloadExtras()} /> : null}
 
       <section className="sec" aria-labelledby={`allow-${kid.id}`}>
         <div className="sec-head">
@@ -289,7 +294,7 @@ function Row({ label, value, help, action }: RowProps) {
   );
 }
 
-function agenda(name: string, w: WeekSummary): ReactNode[] {
+function agenda(name: string, w: WeekSummary, extras: ChildExtras | undefined): ReactNode[] {
   const items: ReactNode[] = [];
   items.push(
     <li key="week">
@@ -327,6 +332,22 @@ function agenda(name: string, w: WeekSummary): ReactNode[] {
       <li key="step">
         <span>
           The next step: {minutes(w.nextStep.minutes)} a week from {w.nextStep.onLabel}. {w.nextStep.agreed ? 'Agreed.' : 'Talk it through together, then turn on Agreed at the family review.'}
+        </span>
+      </li>,
+    );
+  }
+  const asks = extras?.ruleAsks.filter((a) => a.status === 'review') ?? [];
+  if (asks.length) {
+    items.push(
+      <li key="asks">
+        <span>
+          {name} asked about {asks.length === 1 ? 'a rule' : 'some rules'}:
+          {asks.map((a) => (
+            <span key={a.id} className="said">
+              &ldquo;{a.text}&rdquo;
+            </span>
+          ))}
+          {' '}Answer each one under Away from screens once you have talked.
         </span>
       </li>,
     );

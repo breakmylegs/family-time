@@ -1,7 +1,7 @@
 // Retention and backup health (Phase 8): old rows go on schedule and the sweep audits itself;
 // young rows, ledger entries and anything still waiting stay; a failed or stale backup is a
 // problem for the owners, and no backup set up yet is not.
-import { auditEvents, oauthClients, oauthTokens, proposals, sessions, settings, sweep, usageMinutes } from '@family-time/db';
+import { auditEvents, journal, oauthClients, oauthTokens, proposals, ruleAsks, sessions, settings, skills, sweep, usageMinutes } from '@family-time/db';
 import { testDb, type TestDb } from '@family-time/db/testing';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -39,9 +39,25 @@ describe('retention', () => {
       { deviceId: s.ipad.id, serviceId: s.youtube.id, minute: daysAgo(400), queries: 3 },
       { deviceId: s.ipad.id, serviceId: s.youtube.id, minute: daysAgo(10), queries: 3 },
     ]);
+    await db.insert(journal).values([
+      { childId: s.ollie.id, text: 'old', at: daysAgo(400) },
+      { childId: s.ollie.id, text: 'young', at: daysAgo(10) },
+    ]);
+    // A question still waiting stays however old it is; an answered one goes 13 months on.
+    await db.insert(ruleAsks).values([
+      { childId: s.ollie.id, text: 'answered', status: 'answered', askedAt: daysAgo(500), decidedAt: daysAgo(400) },
+      { childId: s.ollie.id, text: 'waiting', askedAt: daysAgo(500) },
+    ]);
+    await db.insert(skills).values([
+      { childId: s.ollie.id, title: 'removed', removedAt: daysAgo(91) },
+      { childId: s.ollie.id, title: 'mastered long ago', startedAt: daysAgo(900), masteredAt: daysAgo(800) },
+    ]);
 
     const counts = await sweep(db, NOW);
-    expect(counts).toEqual({ sessions: 1, oauth_tokens: 1, proposals: 1, usage_minutes: 1 });
+    expect(counts).toEqual({ sessions: 1, oauth_tokens: 1, proposals: 1, usage_minutes: 1, journal: 1, rule_asks: 1, skills: 1 });
+    expect((await db.select().from(journal)).map((x) => x.text)).toEqual(['young']);
+    expect((await db.select().from(ruleAsks)).map((x) => x.text)).toEqual(['waiting']);
+    expect((await db.select().from(skills)).map((x) => x.title)).toEqual(['mastered long ago']);
     expect((await db.select().from(sessions)).map((x) => x.idHash)).toEqual(['young']);
     expect((await db.select().from(proposals)).map((x) => x.summary)).toEqual(['waiting']);
     const [event] = await db.select().from(auditEvents).where(eq(auditEvents.action, 'retention.swept'));

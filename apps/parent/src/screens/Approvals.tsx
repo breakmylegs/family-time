@@ -43,11 +43,11 @@ export function Approvals({ me }: { me: Me }) {
     requestAnimationFrame(() => (next ? titles.current.get(next.id) : doneRef.current)?.focus({ preventScroll: true }));
   };
 
-  const decide = async (item: ApprovalItem, action: 'approve' | 'not-yet' | 'decline', body: Record<string, unknown>, done: string) => {
+  const decide = async (item: ApprovalItem, action: Action, body: Record<string, unknown>, done: string) => {
     setKept((k) => new Map(k).set(item.id, { item, at: list.findIndex((i) => i.id === item.id) }));
     focusAfter(item.id);
     setGone((g) => new Set([...g, item.id]));
-    const path = `/api/${item.kind === 'completion' ? 'completions' : item.kind === 'request' ? 'requests' : 'proposals'}/${item.id}`;
+    const path = `/api/${item.kind === 'completion' ? 'completions' : item.kind === 'request' ? 'requests' : item.kind === 'question' ? 'rule-asks' : 'proposals'}/${item.id}`;
     const back = () => {
       setGone((g) => new Set([...g].filter((x) => x !== item.id)));
       requestAnimationFrame(() => titles.current.get(item.id)?.focus({ preventScroll: true }));
@@ -55,7 +55,7 @@ export function Approvals({ me }: { me: Me }) {
     try {
       await api('POST', `${path}/${action}`, body);
       // A suggestion carried out is a change like any other: Control has its own Undo.
-      if (item.kind === 'proposal') {
+      if (item.kind === 'proposal' || item.kind === 'question') {
         toast(done);
         void reload();
         return;
@@ -106,6 +106,14 @@ export function Approvals({ me }: { me: Me }) {
                     setNote={(v) => setNotes((n) => ({ ...n, [item.id]: v }))}
                     onDecide={decide}
                   />
+                ) : item.kind === 'question' ? (
+                  <Question
+                    item={item}
+                    titleRef={(el) => void (el ? titles.current.set(item.id, el) : titles.current.delete(item.id))}
+                    note={notes[item.id] ?? ''}
+                    setNote={(v) => setNotes((n) => ({ ...n, [item.id]: v }))}
+                    onDecide={decide}
+                  />
                 ) : item.kind === 'proposal' ? (
                   <Proposal item={item} parent={parent} titleRef={(el) => void (el ? titles.current.set(item.id, el) : titles.current.delete(item.id))} onDecide={decide} />
                 ) : (
@@ -118,7 +126,7 @@ export function Approvals({ me }: { me: Me }) {
       </div>
       {items && !showing.length ? (
         <p className="empty-large done" ref={doneRef} tabIndex={-1}>
-          All done. New jobs and requests show up here.
+          All done. New jobs, requests and questions show up here.
         </p>
       ) : null}
       {items === undefined && !error ? <p className="empty-large">Loading.</p> : null}
@@ -126,7 +134,8 @@ export function Approvals({ me }: { me: Me }) {
   );
 }
 
-type Decide = (item: ApprovalItem, action: 'approve' | 'not-yet' | 'decline', body: Record<string, unknown>, done: string) => Promise<void>;
+type Action = 'approve' | 'not-yet' | 'decline' | 'answer';
+type Decide = (item: ApprovalItem, action: Action, body: Record<string, unknown>, done: string) => Promise<void>;
 type TitleRef = (el: HTMLHeadingElement | null) => void;
 
 function Completion({ item, titleRef, note, setNote, onDecide }: { item: Extract<ApprovalItem, { kind: 'completion' }>; titleRef: TitleRef; note: string; setNote: (v: string) => void; onDecide: Decide }) {
@@ -269,6 +278,44 @@ function Proposal({ item, parent, titleRef, onDecide }: { item: Extract<Approval
           Dismiss
         </button>
         <HelpButton topic="ai-suggestions" label="Suggestions from AI" />
+      </div>
+    </>
+  );
+}
+
+/** The child asks about a rule (Phase 11): answer now, or talk about it together at the family review. */
+function Question({ item, titleRef, note, setNote, onDecide }: { item: Extract<ApprovalItem, { kind: 'question' }>; titleRef: TitleRef; note: string; setNote: (v: string) => void; onDecide: Decide }) {
+  const fieldId = `answer-${item.id}`;
+  const text = note.trim();
+  return (
+    <>
+      <div className="item-top">
+        <div>
+          <h2 className="item-title" id={`t-${item.id}`} ref={titleRef} tabIndex={-1}>
+            {item.childName} asked about a rule
+          </h2>
+          <p className="item-meta">{item.when}</p>
+        </div>
+        <span className="chip suggest-chip">
+          <Icon name="help" />
+          Question
+        </span>
+      </div>
+      <blockquote className="asked">{item.text}</blockquote>
+      <div className="say">
+        <div className="say-head">
+          <label htmlFor={fieldId}>Your answer</label>
+          <HelpButton topic="rules-with-reasons" label="Rules with reasons" />
+        </div>
+        <textarea id={fieldId} value={note} maxLength={300} placeholder={`Give the reason for the rule, or what you'll change. ${item.childName} sees it on the kiosk.`} onChange={(e) => setNote(e.target.value)} />
+      </div>
+      <div className="actions req">
+        <button type="button" className="btn btn-primary" disabled={!text} onClick={() => void onDecide(item, 'answer', { action: 'answer', answer: text }, `Answered. ${item.childName} sees it on the kiosk.`)}>
+          {text ? 'Send the answer' : 'Write your answer first'}
+        </button>
+        <button type="button" className="btn btn-quiet" onClick={() => void onDecide(item, 'answer', { action: 'review' }, 'On the family review agenda, to talk about together.')}>
+          Add to the family review
+        </button>
       </div>
     </>
   );

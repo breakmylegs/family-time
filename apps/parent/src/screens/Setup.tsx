@@ -4,6 +4,7 @@
 import { DEVICE_KINDS, SCHEDULE_BLOCK_TYPES, type SetupView } from '@family-time/schemas';
 import { useRef, useState } from 'react';
 import { api } from '../api';
+import { PlatformChecklist } from '../components/PlatformChecklist';
 import { Sheet } from '../components/Sheet';
 import { useSheetAction } from '../components/useSheetAction';
 import { useFetched } from '../economy/data';
@@ -202,6 +203,8 @@ export function Setup() {
               Add a schedule
             </button>
           </section>
+
+          <PlatformChecklist />
 
           {sheet ? (
             <Sheets

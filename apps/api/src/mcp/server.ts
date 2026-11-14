@@ -147,7 +147,8 @@ export function mcpFactory(deps: McpDeps) {
           const lines = [
             // Only names and times the parents made: never a note the child typed with a request,
             // which an assistant could read as an instruction.
-            ...own.map((i) => (i.kind === 'request' ? `Request ${i.id}: ${i.childName} asks for ${i.target}, ${i.window}, ${i.minutes} minutes.` : `Job: ${i.childName}, ${i.title}, ${i.when}.`)),
+            // Questions about rules are never here: they are the child's own words.
+            ...own.flatMap((i) => (i.kind === 'request' ? [`Request ${i.id}: ${i.childName} asks for ${i.target}, ${i.window}, ${i.minutes} minutes.`] : i.kind === 'completion' ? [`Job: ${i.childName}, ${i.title}, ${i.when}.`] : [])),
             ...suggested.map((s) => `Suggestion: ${s.title}. ${s.from}.`),
           ];
           return text(lines.join('\n') || 'Nothing is waiting.');

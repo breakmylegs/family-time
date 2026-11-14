@@ -50,13 +50,17 @@ export const PilotWeek = z.object({
   label: z.string(),
   minutesByApp: z.array(z.object({ app: z.string(), minutes: z.number().int() })),
   unusedMinutesConverted: z.number().int(),
-  /** How many different jobs and ideas were done: offline variety. */
+  /** How many different jobs, new ideas and things the child said they did away from screens: offline variety. */
   offlineVariety: z.number().int(),
+  /** The parents' estimate of screen time away from managed devices, or null if not given. */
+  unmanagedMinutes: z.number().int().nullable(),
   endings: z.object({ calm: z.number().int(), grumble: z.number().int(), meltdown: z.number().int() }),
   windDownMinutes: z.number().int(),
   bedtimeMinutes: z.number().int(),
   jobsApproved: z.number().int(),
 });
 export type PilotWeek = z.infer<typeof PilotWeek>;
-export const PilotMeasures = z.object({ childId: z.uuid(), phase: z.string(), weeks: z.array(PilotWeek) });
+/** A parent's monthly mood check: 1 (not good) to 5 (very good). Not a validated scale. */
+export const MoodCheck = z.object({ month: z.string(), label: z.string(), rating: z.number().int(), note: z.string().nullable() });
+export const PilotMeasures = z.object({ childId: z.uuid(), phase: z.string(), weeks: z.array(PilotWeek), moods: z.array(MoodCheck) });
 export type PilotMeasures = z.infer<typeof PilotMeasures>;

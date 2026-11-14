@@ -106,6 +106,31 @@ test('adds an idea, and asks a grown-up for a time outside the plan', async ({ p
   await expect(page.getByText('Asked! A grown-up will say yes or not this time.')).toBeVisible();
 });
 
+test('Me: something I did, something I am learning, and a question about a rule', async ({ page }) => {
+  await open(page);
+  await page.getByRole('button', { name: 'Me', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Things I did' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Add something I did' }).click();
+  await page.getByLabel('What did you do away from screens?').fill('Built a den');
+  await page.getByRole('button', { name: 'Tent' }).click();
+  await page.getByRole('button', { name: 'Add it' }).click();
+  await expect(page.getByText('Built a den')).toBeVisible();
+
+  await page.getByRole('button', { name: "Add something I'm learning" }).click();
+  await page.getByLabel('What are you learning to do?').fill('Ride my bike');
+  await page.getByRole('button', { name: 'Add it' }).click();
+  await expect(page.getByText('Ride my bike')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Ask about a rule' }).click();
+  await page.getByLabel('Which rule would you like to talk about, and why?').fill('Could I have more time on Saturdays?');
+  await page.getByRole('button', { name: 'Send it' }).click();
+  await expect(page.getByText('Waiting for a grown-up')).toBeVisible();
+  await shot(page, 'kiosk-me-light', 'phase-11');
+  await page.getByRole('button', { name: 'Back' }).click();
+  await expect(page.getByRole('heading', { name: 'Hi Ollie' })).toBeVisible();
+});
+
 test('shows what Mum and Dad can see', async ({ page }) => {
   await open(page);
   await page.getByRole('button', { name: 'What Mum and Dad can see' }).click();
