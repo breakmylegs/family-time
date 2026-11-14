@@ -467,8 +467,10 @@ function ScheduleSheet({ schedule, view, common, busy, send }: { schedule: Sched
                   </option>
                 ))}
               </select>
-              <input className="field tnum" type="time" aria-label={`Part ${i + 1}: from`} value={b.start} onChange={(e) => setBlock(i, { start: e.target.value })} />
-              <input className="field tnum" type="time" aria-label={`Part ${i + 1}: to`} value={b.end} onChange={(e) => setBlock(i, { end: e.target.value })} />
+              <span className="block-times">
+                <input className="field tnum" type="time" aria-label={`Part ${i + 1}: from`} value={b.start} onChange={(e) => setBlock(i, { start: e.target.value })} />
+                <input className="field tnum" type="time" aria-label={`Part ${i + 1}: to`} value={b.end} onChange={(e) => setBlock(i, { end: e.target.value })} />
+              </span>
               <button type="button" className="btn btn-quiet icon-btn" aria-label={`Remove part ${i + 1}: ${BLOCK_WORDS[b.type]}`} onClick={() => removeBlock(i)}>
                 <Icon name="minus" />
               </button>
