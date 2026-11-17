@@ -2,7 +2,7 @@
 id: the-kiosk
 title: The kiosk tablet
 evidence: none
-lastReviewed: 2026-11-08
+lastReviewed: 2026-11-15
 related: [weekly-allowance, asking-for-time, people-and-roles]
 status: needs-review
 ---
@@ -19,7 +19,7 @@ status: needs-review
 
 ## How it works
 
-The kiosk can plan time, say a job is done, add ideas and ask a grown-up. It can't change rules or allow or block apps. On a tablet your children share, any of them can tap the name at the top to switch. To keep each child's screen their own, set a four-number PIN for each in Settings, Kiosk; the kiosk then asks for it before opening their home. If {child} forgets it, set a new one in the same place.
+The kiosk can plan time, say a job is done, add ideas and ask a grown-up. It can't change rules or allow or block apps. On a tablet your children share, any of them can tap the name at the top to switch. To keep each child's screen their own, set a four-number PIN for each in Settings, Kiosk; the kiosk then asks for it before opening their home. If {child} forgets it, set a new one in the same place. If you have more than one child, each child's Me page opens only with their own PIN. Me is where they add things they did and ask about rules. The kiosk calls you Mum and Dad. To change that, for example to Dad, or Nana and Grandad, go to Settings, Kiosk, What the kiosk calls you.
 
 If a tablet is lost or handed on, tap Remove this tablet. It stops working at once and needs a new code.
 

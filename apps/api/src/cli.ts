@@ -7,6 +7,7 @@ import pg from 'pg';
 import { audit } from './audit.js';
 import { CliError, ownerInvite, recoveryLink } from './cli/commands.js';
 import { addChild, addDevice, adguardSetup, allowanceFor, control, ledgerVerify, pilotPhase, resolveTarget, setChildPronouns, setupDefaults, status, syncServices } from './cli/control.js';
+import { removeChild } from './cli/children.js';
 import { ledgerCheck, ledgerDeploy, ledgerStatus } from './cli/ledger.js';
 import { ssoSetup } from './cli/sso.js';
 
@@ -23,6 +24,10 @@ First-time setup
   child-add --name "Ollie" [--pronouns he|she|they]
       Pronouns are for the app's help text about the child. Without them it says they.
   child-set --child "Ollie" --pronouns he|she|they
+  child-remove --child "Ollie" [--erase] [--yes]
+      Shows what will happen; with --yes, removes the child from the kiosk and the app. With --erase,
+      also deletes what they wrote and the parents' notes about them. The points history and the
+      audit log are kept. Remove their devices first in Settings, under Set-up.
   device-add --child "Ollie" --label "Ollie's iPad" --type ipad --id 192.168.1.50 [--id aa:bb:cc:dd:ee:ff]
   setup-defaults --child "Ollie"
       Adds the Video, Games, Social and Chat groups, the starting schedules, and blocks each group
@@ -67,7 +72,7 @@ Owner sign-in through Authentik (optional; docs/setup/authentik.md)
       Shows the setting, saves the provider's issuer and client id, or switches it off. The client
       secret goes in secrets/oidc_client_secret.`;
 
-const SWITCHES = new Set(['everything', 'yes', 'off']);
+const SWITCHES = new Set(['everything', 'yes', 'off', 'erase']);
 const REPEATABLE = new Set(['id']);
 
 function flags(args: string[]): { values: Record<string, string>; lists: Record<string, string[]>; switches: Set<string> } {
@@ -140,6 +145,9 @@ async function run(db: Db, command: string, args: ReturnType<typeof flags>): Pro
     case 'child-set':
       await setChildPronouns(db, { child: need('child'), pronouns: need('pronouns') });
       console.log(`Updated ${values.child}.`);
+      return 0;
+    case 'child-remove':
+      console.log(await removeChild(db, { child: need('child'), erase: switches.has('erase'), yes: switches.has('yes') }, now));
       return 0;
     case 'device-add': {
       const d = await addDevice(db, { child: need('child'), label: need('label'), type: values.type ?? 'other', ids: lists.id ?? [] });

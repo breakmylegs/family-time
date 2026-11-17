@@ -89,7 +89,7 @@ describe('the whole family', () => {
     expect(whole.challenge!.ticks.map((t) => t.by)).toEqual(expect.arrayContaining(['Gran', 'Ollie']));
 
     const home = KioskHome.parse((await s.kiosk.inject({ url: `/api/children/${s.child}/home`, headers: s.device })).json());
-    expect(home.family).toEqual({ challenge: { title: 'Screen-free tea', target: 2, done: 2 }, grownUps: "Grown-ups' screen time this week: 6 h" });
+    expect(home.family).toEqual({ challenge: { title: 'Screen-free tea', target: 2, done: 2 }, grownUps: "Mum and Dad's screen time this week: 6 h" });
 
     // A new challenge replaces the old one; ending it leaves none.
     await s.app.inject({ method: 'PUT', url: '/api/family/challenge', headers: s.headers.dad, payload: { title: 'Board game night', target: 1 } });

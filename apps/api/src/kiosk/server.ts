@@ -13,7 +13,7 @@ import { z } from 'zod';
 import { RateLimiter } from '../auth/ratelimit.js';
 import { EconomyError, askRequest, planSession } from '../economy/commands.js';
 import type { Changes } from '../events.js';
-import { addJournal, addSkill, askAboutRule, ExtrasError, kioskMine } from '../family/extras.js';
+import { addJournal, addSkill, askAboutRule, ExtrasError, kioskMine, oneAtATime, requireOwnPin } from '../family/extras.js';
 import { FamilyError, tickChallenge } from '../family/whole.js';
 import { loggerOptions, logPath } from '../logging.js';
 import { registerStatic } from '../static.js';
@@ -205,10 +205,13 @@ export async function buildKioskServer(deps: KioskServerDeps): Promise<FastifyIn
   app.post<{ Params: { child: string } }>('/api/children/:child/ask', device, async (request, reply) => {
     const { child } = Child.parse(request.params);
     const body = KioskAskRequest.parse(request.body);
-    if ((await openRequests(db, hh(request), child)) >= MAX_OPEN_REQUESTS) {
-      throw new KioskError('too_many', "You've asked for three things already. Wait for a grown-up to answer those first.", 409);
-    }
-    const id = await askRequest(db, { childId: child, target: body.target, start: new Date(body.start), minutes: body.minutes }, now());
+    // Counted and added under the child's lock, so a double tap can't make a fourth.
+    const id = await oneAtATime(db, child, async (tx) => {
+      if ((await openRequests(tx, hh(request), child)) >= MAX_OPEN_REQUESTS) {
+        throw new KioskError('too_many', "You've asked for three things already. Wait for a grown-up to answer those first.", 409);
+      }
+      return askRequest(tx, { childId: child, target: body.target, start: new Date(body.start), minutes: body.minutes }, now());
+    });
     await deps.queueAlert?.({ kind: 'request', id });
     await changed(hh(request));
     return reply.code(201).send({ id });
@@ -233,6 +236,8 @@ export async function buildKioskServer(deps: KioskServerDeps): Promise<FastifyIn
 
   app.post<{ Params: { child: string } }>('/api/children/:child/reflection', device, async (request) => {
     const { child } = Child.parse(request.params);
+    // How was your week? is wellbeing data: like Me, it is the child's own when siblings share.
+    await requireOwnPin(db, hh(request), child);
     const body = KioskReflectionRequest.parse(request.body);
     await saveReflection(db, { householdId: hh(request), childId: child, ...body }, now());
     await changed(hh(request));
@@ -242,11 +247,13 @@ export async function buildKioskServer(deps: KioskServerDeps): Promise<FastifyIn
   // The child's own page: what they did, what they can do, and their questions about rules.
   app.get<{ Params: { child: string } }>('/api/children/:child/mine', device, async (request) => {
     const { child } = Child.parse(request.params);
+    await requireOwnPin(db, hh(request), child);
     return kioskMine(db, hh(request), child, now());
   });
 
   app.post<{ Params: { child: string } }>('/api/children/:child/journal', device, async (request, reply) => {
     const { child } = Child.parse(request.params);
+    await requireOwnPin(db, hh(request), child);
     const body = KioskJournalRequest.parse(request.body);
     const id = await addJournal(db, { householdId: hh(request), childId: child, text: body.text, picture: body.picture }, now());
     await changed(hh(request));
@@ -255,6 +262,7 @@ export async function buildKioskServer(deps: KioskServerDeps): Promise<FastifyIn
 
   app.post<{ Params: { child: string } }>('/api/children/:child/skills', device, async (request, reply) => {
     const { child } = Child.parse(request.params);
+    await requireOwnPin(db, hh(request), child);
     const body = KioskSkillRequest.parse(request.body);
     const id = await addSkill(db, { householdId: hh(request), childId: child, title: body.title, picture: body.picture }, now());
     await changed(hh(request));
@@ -263,6 +271,7 @@ export async function buildKioskServer(deps: KioskServerDeps): Promise<FastifyIn
 
   app.post<{ Params: { child: string } }>('/api/children/:child/rule-asks', device, async (request, reply) => {
     const { child } = Child.parse(request.params);
+    await requireOwnPin(db, hh(request), child);
     const body = KioskRuleAskRequest.parse(request.body);
     const id = await askAboutRule(db, { householdId: hh(request), childId: child, text: body.text }, now());
     await changed(hh(request));

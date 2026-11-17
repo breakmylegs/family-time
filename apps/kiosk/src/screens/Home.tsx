@@ -32,7 +32,7 @@ export function Home({ home, go, reload, switchChild }: Props) {
               <>Hi {home.child.name}</>
             )}
           </h1>
-          {/* The newest note from Mum or Dad: praise for a job, or an answer to asking. */}
+          {/* The newest note from a grown-up: praise for a job, or an answer to asking. */}
           {home.notes[0] ? (
             <p class="note" role="status">
               <b>{home.notes[0].from}:</b> {home.notes[0].text}
@@ -45,7 +45,7 @@ export function Home({ home, go, reload, switchChild }: Props) {
         </button>
         <button type="button" class="link" onClick={() => go({ name: 'parents' })}>
           <Icon name="eye" />
-          What Mum and Dad can see
+          What {home.words.both} can see
         </button>
         <p class="clock">{home.clock}</p>
         {home.pill ? (
@@ -140,7 +140,7 @@ export function Home({ home, go, reload, switchChild }: Props) {
           {home.reflection && !home.reflection.answered ? (
             <section class="card reflect" aria-label="How was your week?">
               <h2>How was your week?</h2>
-              <p>Three quick questions. Mum or Dad will read your answers, then you can talk about them together.</p>
+              <p>Three quick questions. Your answers go to {home.words.either}, then you can talk about them together.</p>
               <button type="button" class="btn primary" onClick={() => go({ name: 'reflection' })}>
                 Answer the questions
               </button>
@@ -163,7 +163,7 @@ export function Home({ home, go, reload, switchChild }: Props) {
                       ) : j.status === 'waiting' ? (
                         <span class="with">
                           <Icon name="clock" />
-                          With Mum or Dad
+                          With {home.words.either}
                         </span>
                       ) : (
                         <span class="with done">
@@ -219,6 +219,7 @@ export function Home({ home, go, reload, switchChild }: Props) {
       {job ? (
         <DidIt
           job={job}
+          either={home.words.either}
           path={`${base}/jobs/${job.id}/done`}
           onClose={() => {
             setJob(undefined);
@@ -286,8 +287,8 @@ function Together({ family, path, reload }: { family: NonNullable<KioskHome['fam
   );
 }
 
-/** I did it: an optional photo, then off to Mum or Dad. */
-function DidIt({ job, path, onClose }: { job: KioskHome['jobs'][number]; path: string; onClose: () => void }) {
+/** I did it: an optional photo, then off to a grown-up. */
+function DidIt({ job, either, path, onClose }: { job: KioskHome['jobs'][number]; either: string; path: string; onClose: () => void }) {
   const [photo, setPhoto] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
@@ -314,7 +315,7 @@ function DidIt({ job, path, onClose }: { job: KioskHome['jobs'][number]; path: s
         {sent ? (
           <p class="sent" role="status" tabIndex={-1} ref={(el) => el?.focus()}>
             <Icon name="check" />
-            Sent to Mum or Dad. Nice one!
+            Sent to {either}. Nice one!
           </p>
         ) : (
           <>
@@ -329,7 +330,7 @@ function DidIt({ job, path, onClose }: { job: KioskHome['jobs'][number]; path: s
               </button>
               <button type="button" class="btn primary" disabled={busy} onClick={() => void send()}>
                 <Icon name="check" />
-                {busy ? 'Sending' : 'Send to Mum or Dad'}
+                {busy ? 'Sending' : `Send to ${either}`}
               </button>
             </div>
             {error ? (

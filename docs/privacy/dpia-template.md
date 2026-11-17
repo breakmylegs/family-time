@@ -12,7 +12,7 @@ For a household running Family time, and the starting point for V2's own DPIA. F
 
 | What | Where it comes from | How long | Who sees it |
 |---|---|---|---|
-| Names, roles, age band, pronouns | Parents | Kept; removing someone turns the profile off but keeps their records | Everyone signed in |
+| Names, roles, age band, pronouns | Parents | Kept; `child-remove --erase` deletes what a child wrote and the notes about them, keeping the points history | Everyone signed in |
 | Minutes of use per app | Home Wi-Fi's DNS records (AdGuard Home) | 13 months; AdGuard's own log 7 days | Parents, carers |
 | Schedules, rules, allowance, plan | Parents | Until changed | Everyone signed in |
 | Jobs, completions, photos of jobs | Child (kiosk), parents | Photos 30 days after a decision | Parents, carers |
@@ -35,7 +35,7 @@ The full list, table by table, is in `docs/export.md`; retention is in `packages
 |---|---|---|
 | A child feels watched or controlled | Medium, medium | What Mum and Dad can see on the kiosk; Ask about a rule; rules with reasons; nothing about content, messages or the screen itself |
 | Screen time used as punishment | Medium, high | No deductions or sanctions in the software; help topics explain why |
-| A sibling sees another child's things | Low, medium | Each child sees only their own page; kiosk PINs when a tablet is shared |
+| A sibling sees another child's things | Low, medium | Each child sees only their own page; with more than one child, Me needs the child's own kiosk PIN |
 | Someone outside the home reads the data | Low, high | Server on the home network; passkeys; default-deny routes; secrets as files; nightly backups, encrypted by restic |
 | Children's words reach an AI provider | Low, medium | AI off by default; children's own words are never sent; AI only proposes to parents |
 | Data kept longer than needed | Medium, low | Retention sweep each night, audited |

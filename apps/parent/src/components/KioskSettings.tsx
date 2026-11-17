@@ -6,6 +6,7 @@ import { api } from '../api';
 import { HelpButton } from '../help/HelpButton';
 import { Icon } from '../icons';
 import { useToast } from '../toast';
+import { KioskWordsSetting } from './KioskWordsSetting';
 import { Sheet } from './Sheet';
 
 const seen = (iso: string | null) =>
@@ -83,6 +84,7 @@ export function KioskSettings() {
           </p>
         ) : null}
       </div>
+      <KioskWordsSetting />
       {pins.length > 1 ? (
         <>
           <h3 className="sub-head">PINs for brothers and sisters</h3>
@@ -91,7 +93,7 @@ export function KioskSettings() {
               <div key={c.id} className="row">
                 <span className="row-text">
                   {c.name}
-                  <small>{c.pin ? 'Asks for a PIN on the kiosk' : 'No PIN: opens straight to their home'}</small>
+                  <small>{c.pin ? 'Asks for a PIN on the kiosk' : 'No PIN yet. Their home opens straight away, but their Me page stays closed until you set one.'}</small>
                 </span>
                 <span className="row-end">
                   <button type="button" className="btn btn-quiet row-btn" aria-label={`${c.pin ? 'Change PIN' : 'Set a PIN'} for ${c.name}`} onClick={(e) => setPinFor({ child: c, from: e.currentTarget })}>
@@ -150,7 +152,7 @@ function PinSheet({ child, from, onClose, onSaved }: { child: KioskPinChild; fro
   const save = async (value: string | null) => {
     try {
       await api('PUT', `/api/kiosks/pins/${child.id}`, { pin: value });
-      onSaved(value ? `${child.name} types the PIN on the kiosk from now on.` : `${child.name}'s PIN is off. Tapping ${child.name} on the kiosk now opens their home straight away.`);
+      onSaved(value ? `Saved. ${child.name} now types their PIN to open their home and Me page on the kiosk.` : `${child.name}'s PIN is off. Their home opens straight away on the kiosk, but their Me page stays closed until you set a new PIN.`);
     } catch (err) {
       setError((err as Error).message);
     }
@@ -162,7 +164,7 @@ function PinSheet({ child, from, onClose, onSaved }: { child: KioskPinChild; fro
       title={`${child.name}'s kiosk PIN`}
       returnFocus={from}
       error={error}
-      sub="For brothers and sisters sharing the tablet: each one types their own PIN before their home opens. Choose the four numbers together."
+      sub="For brothers and sisters sharing the tablet. Each child types their own PIN before their home opens. Their Me page, where they write their own things, needs it too. Choose the four numbers together."
       footer={
         child.pin ? (
           <button type="button" className="btn btn-quiet" onClick={() => void save(null)}>

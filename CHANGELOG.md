@@ -2,6 +2,13 @@
 
 Release notes the app shows on its System page (from Phase 8). One plain line per change, newest first.
 
+## 0.13.0 (Phase 12, privacy and every family)
+
+- When more than one child uses the kiosk, the Me page opens only with the child's own PIN, so brothers and sisters can't read each other's things or questions about rules.
+- The kiosk calls you what your children call you: Mum and Dad unless you choose other words in Settings, Kiosk, such as Dad, Mum and Mum, or Nana and Grandad.
+- The owner can remove a child from the server's command line, and with --erase delete what they wrote and your notes about them. The points history and audit log are kept.
+- The kiosk's Me page keeps to its limits, such as how many questions can wait at once, even when it's tapped quickly.
+
 ## 0.12.0 (Phase 11, from the research)
 
 - Settings and habits outside Family time, on Set-up: a short checklist for each child, such as YouTube autoplay off and a daily limit in Roblox, chosen by the child's age. Tick each one once you have done it.

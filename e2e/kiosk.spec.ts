@@ -2,6 +2,7 @@
 // setting up with a code, the home screen from the mock, planning a session (and why a time is
 // greyed), I did it, an idea, asking a grown-up, and what Mum and Dad can see.
 import { expect, test, type Page } from '@playwright/test';
+import { DEMO_PORT } from '../playwright.config';
 import { reset, sessions } from './demo';
 import { shot } from './support';
 
@@ -47,7 +48,7 @@ test('the family challenge, ticked from the kiosk', async ({ page }) => {
   const card = page.getByRole('region', { name: 'Our family' });
   await expect(card.getByRole('heading', { name: 'Our challenge: Screen-free tea' })).toBeVisible();
   await expect(card.getByText('2 of 5 times this week')).toBeVisible();
-  await expect(card.getByText("Grown-ups' screen time this week: 4 h 30")).toBeVisible();
+  await expect(card.getByText("Mum and Dad's screen time this week: 4 h 30")).toBeVisible();
   await shot(page, 'kiosk-family-light', 'phase-9');
   await card.getByRole('button', { name: 'We did it' }).click();
   await expect(card.getByRole('status')).toHaveText('Nice one! That counts for everyone.');
@@ -106,8 +107,27 @@ test('adds an idea, and asks a grown-up for a time outside the plan', async ({ p
   await expect(page.getByText('Asked! A grown-up will say yes or not this time.')).toBeVisible();
 });
 
-test('Me: something I did, something I am learning, and a question about a rule', async ({ page }) => {
+test('Me: closed without a PIN when two children share the kiosk', async ({ page }) => {
   await open(page);
+  await page.getByRole('button', { name: 'Me', exact: true }).click();
+  await expect(page.getByText('This page is just for you, so it needs your own four numbers. Ask Mum or Dad to choose them with you.')).toBeVisible();
+});
+
+test('Me: something I did, something I am learning, and a question about a rule', async ({ page, request }) => {
+  // Two children share the demo kiosk, so Me needs Ollie's own PIN: Mum sets it.
+  const s = sessions();
+  const origin = `http://localhost:${DEMO_PORT}`;
+  const set = await request.put(`${origin}/api/kiosks/pins/${s.children.ollie}`, {
+    headers: { origin, cookie: `__Host-ft_session=${s.mum.session}; __Host-ft_csrf=${s.mum.csrf}`, 'x-csrf-token': s.mum.csrf },
+    data: { pin: '4826' },
+  });
+  expect(set.ok()).toBe(true);
+  await page.addInitScript((t) => localStorage.setItem('ft-kiosk-token', t), s.kiosk);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Ollie' }).click();
+  for (const n of '4826') await page.getByRole('button', { name: n, exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Hi Ollie' })).toBeVisible();
+
   await page.getByRole('button', { name: 'Me', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Things I did' })).toBeVisible();
 

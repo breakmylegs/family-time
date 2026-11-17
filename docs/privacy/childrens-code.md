@@ -23,13 +23,12 @@ V1 is one family running Family time on its own server for its own children. Pro
 | 11 | Parental controls | Met. The child sees that parents can see their screen time, on the kiosk at all times, and can ask about any rule | Kiosk What Mum and Dad can see, Me, Ask about a rule |
 | 12 | Profiling | Met. No profiling, no recommendations, no AI that talks to the child. AI only suggests to parents, and every suggestion waits for a parent | ADR 0016 |
 | 13 | Nudge techniques | Met. No countdowns, no streaks, no variable rewards, no autoplay-style continuations. Stopping points end a session at a natural break | ADR 0013, stopping points (Phase 9) |
-| 14 | Connected toys and devices | Partly applies. The kiosk tablet shows only the child's own page, can lock with a PIN for each child, and forgets the unlock when put down | ADR 0015, kiosk PINs |
-| 15 | Online tools | Partly met. Parents can download everything Family time holds as one file. Removing a child turns the profile off, but their records stay on the server | `docs/export.md`, People |
+| 14 | Connected toys and devices | Partly applies. The kiosk tablet shows only the child's own page, can lock with a PIN for each child (Me, where a child writes their own things, needs one whenever more than one child uses the kiosk), and forgets the unlock when put down | ADR 0015, kiosk PINs |
+| 15 | Online tools | Met. Parents can download everything Family time holds as one file. The owner can remove a child and, with `child-remove --erase`, delete what they wrote and the parents' notes about them; the points history and audit log stay as the family's record | `docs/export.md`, People |
 
 ## Gaps to close before V2
 
-- A PIN required for each child when more than one child shares a kiosk (standard 14).
 - Teen mode (standard 3): a summary-only parent view for 14 and over, chosen with the teenager.
 - A child-facing privacy notice in the kiosk itself, beyond What Mum and Dad can see, written with children.
-- Erasure: a way for the owner to delete everything held about a child (today removing a child only turns the profile off), and a route for a child to ask for it, through a parent.
+- Erasure from the app itself, not only the server's command line, and a way for a child to ask for it through a parent.
 - Legal advice on the controller question above.

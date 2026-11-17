@@ -1,4 +1,4 @@
-// Me (Phase 11): things I did away from screens, with Mum and Dad's praise; things I can do and
+// Me (Phase 11): things I did away from screens, with praise from the grown-ups; things I can do and
 // things I'm learning; and asking about a rule. Only this child's own, never a brother's or sister's.
 import type { KioskHome, KioskMine } from '@family-time/schemas';
 import { useCallback, useEffect, useState } from 'preact/hooks';
@@ -39,9 +39,10 @@ export function Mine({ home, onDone }: { home: KioskHome; onDone: () => void }) 
         <h1>Me</h1>
       </header>
       {error && !mine ? (
-        <p class="error" role="alert">
-          {error}
-        </p>
+        <section class="card mine-locked" role="status">
+          <Icon name="hand" />
+          <p>{error}</p>
+        </section>
       ) : null}
       {mine ? (
         <div class="mine">

@@ -1,13 +1,14 @@
 // The parent app's side of the kiosk (ADR 0015): set one up with a pairing code, see the kiosks
 // the family has, remove one (which stops it at once), and the photo from "I did it".
 import { people, type Db } from '@family-time/db';
-import { KioskPairingRequest, KioskPinRequest, type KioskPairing, type KioskPinChild } from '@family-time/schemas';
+import { KioskPairingRequest, KioskPinRequest, KioskWordsRequest, type KioskPairing, type KioskPinChild } from '@family-time/schemas';
 import { and, asc, eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { audit } from '../audit.js';
 import { createPairing, listKiosks, photoFor, removeKiosk } from '../kiosk/commands.js';
 import { setKioskPin } from '../kiosk/pin.js';
+import { kioskWords, setKioskWords } from '../kiosk/words.js';
 import { parseBody } from './validate.js';
 
 export interface KioskRouteDeps {
@@ -23,6 +24,17 @@ export async function kioskRoutes(app: FastifyInstance, deps: KioskRouteDeps): P
   const { db, now } = deps;
 
   app.get('/api/kiosks', { config: { access: 'system.manage' } }, async (request) => listKiosks(db, request.auth!.person.householdId));
+
+  // What the kiosk calls the grown-ups: "Mum and Dad" unless the owner says otherwise.
+  app.get('/api/kiosks/words', { config: { access: 'system.manage' } }, async (request) => kioskWords(db, request.auth!.person.householdId));
+  app.put('/api/kiosks/words', { config: { access: 'system.manage' } }, async (request, reply) => {
+    const body = parseBody(KioskWordsRequest, request, reply);
+    if (!body) return reply;
+    const me = request.auth!.person;
+    const words = await setKioskWords(db, me.householdId, body.both);
+    await audit(db, { householdId: me.householdId, actor: { personId: me.id }, action: 'kiosk.words', targetType: 'household', targetId: me.householdId, after: { both: body.both } });
+    return words;
+  });
 
   // Kiosk PINs, for siblings sharing a tablet: whether each child has one, never the PIN itself.
   app.get('/api/kiosks/pins', { config: { access: 'system.manage' } }, async (request): Promise<KioskPinChild[]> => {

@@ -21,7 +21,7 @@ status: needs-review
 
 ## How it works
 
-Nothing here touches pocket money, points or time. A skill is marked only once a grown-up agrees {child} can do it, so it shows progress without a score. What {child} adds is only seen by {them} and by the grown-ups in the family, never by a brother or sister, as long as each child has a kiosk PIN when they share a tablet. The owner sets PINs in Settings, Kiosk. Each thing done counts towards the variety in the pilot measures.
+Nothing here touches pocket money, points or time. A skill is marked only once a grown-up agrees {child} can do it, so it shows progress without a score. What {child} adds is only seen by {them} and by the grown-ups in the family, never by a brother or sister. When more than one child uses the kiosk, Me opens only with the child's own PIN, which the owner sets in Settings, Kiosk. Each thing done counts towards the variety in the pilot measures.
 
 ## Why it helps
 

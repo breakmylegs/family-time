@@ -1,5 +1,5 @@
 // The Sunday reflection (brief Parts 11 and 14): three short questions about the week. The
-// answers go to the family chat on Mum and Dad's Family screen. Any of them can be left blank.
+// answers go to the family chat on the parents' Family screen. Any of them can be left blank.
 import type { KioskHome } from '@family-time/schemas';
 import { useState } from 'preact/hooks';
 import { api } from '../api';

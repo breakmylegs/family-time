@@ -76,6 +76,8 @@ export const KioskHome = z.object({
     .nullable(),
   /** Which features the pilot phase has switched on. */
   features: z.object({ economy: z.boolean(), goal: z.boolean(), ideas: z.boolean(), reflection: z.boolean() }),
+  /** What the children call their grown-ups: "Mum and Dad", and "Mum or Dad". */
+  words: z.object({ both: z.string(), either: z.string() }),
 });
 export type KioskHome = z.infer<typeof KioskHome>;
 
@@ -122,3 +124,21 @@ export type KioskDevice = z.infer<typeof KioskDevice>;
 export const KioskPairing = z.object({ code: z.string(), expires: z.string(), label: z.string(), kioskUrl: z.string().nullable() });
 export type KioskPairing = z.infer<typeof KioskPairing>;
 export const KioskPairingRequest = z.object({ label: z.string().trim().min(1).max(40).default('Kiosk') });
+
+/** The owner's choice of what the kiosk calls the grown-ups: "Mum and Dad", "Dad", "Nana and Grandad". */
+export const KioskWordsRequest = z.object({
+  both: z
+    .string()
+    .trim()
+    .min(2, 'Write what your children call you.')
+    .max(40)
+    .regex(/^[\p{L}' -]+$/u, 'Use only letters, spaces, hyphens and apostrophes, like Mum and Dad.'),
+});
+export const KioskWords = z.object({ both: z.string(), either: z.string() });
+export type KioskWords = z.infer<typeof KioskWords>;
+
+/** "Mum and Dad" becomes "Mum or Dad"; "Dad" stays "Dad". Only the last "and" changes, in any case. */
+export function eitherOf(both: string): string {
+  const m = /^(.*) and (.*)$/i.exec(both);
+  return m ? `${m[1]} or ${m[2]}` : both;
+}

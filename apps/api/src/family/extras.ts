@@ -5,9 +5,10 @@
 import { households, journal, moodChecks, people, ruleAsks, skills, unmanagedTime, type Db } from '@family-time/db';
 import { parseWeekReset, weekStarting } from '@family-time/domain';
 import { AGE_BANDS, PICTURES, type AgeBand, type ChildExtras, type KioskMine, type SetupChecklist } from '@family-time/schemas';
-import { and, asc, desc, eq, gte, inArray, isNull, isNotNull, or } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, inArray, isNull, isNotNull, or, sql } from 'drizzle-orm';
 import { audit } from '../audit.js';
 import { when } from '../economy/words.js';
+import { kioskWords } from '../kiosk/words.js';
 
 export class ExtrasError extends Error {
   constructor(
@@ -92,7 +93,7 @@ export const CHECKLIST: readonly ChecklistDef[] = [
     id: 'explain-monitoring',
     bands: ['11-13', '14+'],
     title: () => 'Explain what Family time can see',
-    detail: () => 'Show them what parents can see and why. The kiosk lists it under What Mum and Dad can see.',
+    detail: () => 'Show them what parents can see and why. The kiosk lists it under What grown-ups can see, in the words you chose in Settings, Kiosk.',
   },
 ];
 
@@ -236,10 +237,12 @@ async function skillIn(db: Db, householdId: string, skillId: string) {
 export async function addSkill(db: Db, input: { householdId: string; childId: string; title: string; picture: string }, now: Date) {
   const c = await child(db, input.householdId, input.childId);
   if (!(PICTURES as readonly string[]).includes(input.picture)) throw new ExtrasError('invalid', 'Pick one of the pictures.');
-  const live = await db.select({ id: skills.id }).from(skills).where(and(eq(skills.childId, c.id), isNull(skills.removedAt)));
-  if (live.length >= MAX_SKILLS) throw new ExtrasError('too_many', `There's room for ${MAX_SKILLS} things. Ask a grown-up to remove one you don't need any more.`, 409);
-  const [row] = await db.insert(skills).values({ childId: c.id, title: input.title, picture: input.picture, startedAt: now }).returning({ id: skills.id });
-  return row!.id;
+  return oneAtATime(db, c.id, async (tx) => {
+    const live = await tx.select({ id: skills.id }).from(skills).where(and(eq(skills.childId, c.id), isNull(skills.removedAt)));
+    if (live.length >= MAX_SKILLS) throw new ExtrasError('too_many', `There's room for ${MAX_SKILLS} things. Ask a grown-up to remove one you don't need any more.`, 409);
+    const [row] = await tx.insert(skills).values({ childId: c.id, title: input.title, picture: input.picture, startedAt: now }).returning({ id: skills.id });
+    return row!.id;
+  });
 }
 
 /** "Can do it now": a parent or carer agrees it is mastered. `mastered: false` puts it back to learning. */
@@ -249,13 +252,13 @@ export async function confirmSkill(db: Db, input: { householdId: string; skillId
     .update(skills)
     .set(input.mastered ? { masteredAt: s.masteredAt ?? now, confirmedBy: input.by } : { masteredAt: null, confirmedBy: null })
     .where(eq(skills.id, s.id));
-  await audit(db, { householdId: input.householdId, actor: { personId: input.by }, action: input.mastered ? 'skill.mastered' : 'skill.learning', targetType: 'person', targetId: s.childId, after: { title: s.title } });
+  await audit(db, { householdId: input.householdId, actor: { personId: input.by }, action: input.mastered ? 'skill.mastered' : 'skill.learning', targetType: 'person', targetId: s.childId });
 }
 
 export async function removeSkill(db: Db, input: { householdId: string; skillId: string; by: string }, now: Date) {
   const s = await skillIn(db, input.householdId, input.skillId);
   await db.update(skills).set({ removedAt: now }).where(eq(skills.id, s.id));
-  await audit(db, { householdId: input.householdId, actor: { personId: input.by }, action: 'skill.removed', targetType: 'person', targetId: s.childId, after: { title: s.title } });
+  await audit(db, { householdId: input.householdId, actor: { personId: input.by }, action: 'skill.removed', targetType: 'person', targetId: s.childId });
 }
 
 /** Answer a question about a rule, or put it on the family review's agenda to talk about together. */
@@ -290,6 +293,31 @@ export async function openRuleAsks(db: Db, householdId: string, now: Date) {
 // ---------------------------------------------------------------------------------------------
 // The kiosk: each child sees only their own
 
+/**
+ * With more than one child in the family, a child's Me page needs their own kiosk PIN: what they
+ * write there (questions about rules above all) is for them and their parents, not a brother or
+ * sister picking up the tablet. A family with one child needs no PIN.
+ */
+export async function requireOwnPin(db: Db, householdId: string, childId: string) {
+  const c = await child(db, householdId, childId);
+  const [kids] = await db.select({ n: count() }).from(people).where(and(eq(people.householdId, householdId), eq(people.role, 'child'), eq(people.active, true)));
+  if (Number(kids?.n ?? 0) < 2) return;
+  const [me] = await db.select({ pin: people.kioskPinHash }).from(people).where(eq(people.id, c.id));
+  if (!me?.pin) throw new ExtrasError('needs_pin', `This page is just for you, so it needs your own four numbers. Ask ${(await kioskWords(db, householdId)).either} to choose them with you.`, 403);
+}
+
+/**
+ * One write at a time for each child, so the limits hold even when taps arrive together. A wait
+ * longer than two seconds gives up, so a flood of taps can't hold the database's connections.
+ */
+export async function oneAtATime<T>(db: Db, childId: string, fn: (tx: Db) => Promise<T>): Promise<T> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`set local lock_timeout = '2s'`);
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${childId}))`);
+    return fn(tx as unknown as Db);
+  });
+}
+
 export async function kioskMine(db: Db, householdId: string, childId: string, now: Date): Promise<KioskMine> {
   const c = await child(db, householdId, childId);
   const tz = (await household(db, householdId)).timezone;
@@ -318,16 +346,20 @@ export async function kioskMine(db: Db, householdId: string, childId: string, no
 export async function addJournal(db: Db, input: { householdId: string; childId: string; text: string; picture: string }, now: Date) {
   const c = await child(db, input.householdId, input.childId);
   if (!(PICTURES as readonly string[]).includes(input.picture)) throw new ExtrasError('invalid', 'Pick one of the pictures.');
-  const today = await db.select({ id: journal.id }).from(journal).where(and(eq(journal.childId, c.id), gte(journal.at, new Date(now.getTime() - 86_400_000))));
-  if (today.length >= MAX_JOURNAL_PER_DAY) throw new ExtrasError('too_many', "You've added lots today. You can add more tomorrow.", 409);
-  const [row] = await db.insert(journal).values({ childId: c.id, text: input.text, picture: input.picture, at: now }).returning({ id: journal.id });
-  return row!.id;
+  return oneAtATime(db, c.id, async (tx) => {
+    const today = await tx.select({ id: journal.id }).from(journal).where(and(eq(journal.childId, c.id), gte(journal.at, new Date(now.getTime() - 86_400_000))));
+    if (today.length >= MAX_JOURNAL_PER_DAY) throw new ExtrasError('too_many', "You've added lots today. You can add more tomorrow.", 409);
+    const [row] = await tx.insert(journal).values({ childId: c.id, text: input.text, picture: input.picture, at: now }).returning({ id: journal.id });
+    return row!.id;
+  });
 }
 
 export async function askAboutRule(db: Db, input: { householdId: string; childId: string; text: string }, now: Date) {
   const c = await child(db, input.householdId, input.childId);
-  const open = await db.select({ id: ruleAsks.id }).from(ruleAsks).where(and(eq(ruleAsks.childId, c.id), inArray(ruleAsks.status, ['open', 'review'])));
-  if (open.length >= MAX_OPEN_RULE_ASKS) throw new ExtrasError('too_many', "You have three questions waiting. You can ask another once a grown-up has answered one.", 409);
-  const [row] = await db.insert(ruleAsks).values({ childId: c.id, text: input.text, askedAt: now }).returning({ id: ruleAsks.id });
-  return row!.id;
+  return oneAtATime(db, c.id, async (tx) => {
+    const open = await tx.select({ id: ruleAsks.id }).from(ruleAsks).where(and(eq(ruleAsks.childId, c.id), inArray(ruleAsks.status, ['open', 'review'])));
+    if (open.length >= MAX_OPEN_RULE_ASKS) throw new ExtrasError('too_many', 'You have three questions waiting. You can ask another once a grown-up has answered one.', 409);
+    const [row] = await tx.insert(ruleAsks).values({ childId: c.id, text: input.text, askedAt: now }).returning({ id: ruleAsks.id });
+    return row!.id;
+  });
 }

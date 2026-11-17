@@ -28,6 +28,8 @@ import { randomToken, sha256 } from '../auth/tokens.js';
 import { listTasks, logCompletion, planChecks, targetName, weekSummary } from '../economy/commands.js';
 import { minutes, pence } from '../economy/words.js';
 import { familyForKiosk } from '../family/whole.js';
+import { oneAtATime } from '../family/extras.js';
+import { kioskWords } from './words.js';
 
 /** How long a pairing code works. */
 const PAIRING_MS = 10 * 60_000;
@@ -162,6 +164,7 @@ function blocksAround(schedules: Parameters<typeof blocksOn>[0], childId: string
 
 export async function kioskHome(db: Db, ledger: LedgerPort, householdId: string, childId: string, now: Date): Promise<KioskHome> {
   const child = await kioskChild(db, householdId, childId);
+  const words = await kioskWords(db, householdId);
   const e = await loadEconomy(db, childId);
   const tz = e.timeZone;
   const f = features(e.pilotPhase);
@@ -240,8 +243,8 @@ export async function kioskHome(db: Db, ledger: LedgerPort, householdId: string,
         target: pence(w.goal.targetPence),
         line:
           w.goal.savedPence >= w.goal.targetPence
-            ? 'You did it! Talk to Mum or Dad about getting it.'
-            : `${w.features.bonus ? `Saved screen time adds to this on ${resetDay}.` : 'Jobs paid in pocket money add to this.'}${!w.goal.matchPercent ? '' : w.goal.matchPercent === 100 ? ' Mum and Dad add £1 for every £1 you earn.' : ` Mum and Dad add ${w.goal.matchPercent}p for every £1 you earn.`}`,
+            ? `You did it! Talk to ${words.either} about getting it.`
+            : `${w.features.bonus ? `Saved screen time adds to this on ${resetDay}.` : 'Jobs paid in pocket money add to this.'}${!w.goal.matchPercent ? '' : w.goal.matchPercent === 100 ? ` Matched by ${words.both}: an extra £1 for every £1 you save.` : ` Matched by ${words.both}: an extra ${w.goal.matchPercent}p for every £1 you save.`}`,
       };
     }
   }
@@ -293,7 +296,7 @@ export async function kioskHome(db: Db, ledger: LedgerPort, householdId: string,
         .limit(8)
     : [];
 
-  // Notes from Mum or Dad: praise for a job, answers to asking.
+  // Notes from the grown-ups: praise for a job, answers to asking.
   const since = new Date(now.getTime() - NOTES_DAYS * 86_400_000);
   const praised = await db
     .select({ id: completions.id, note: completions.note, at: completions.decidedAt, by: people.displayName })
@@ -340,15 +343,16 @@ export async function kioskHome(db: Db, ledger: LedgerPort, householdId: string,
     ideas: myIdeas,
     notes: notes.slice(0, 4),
     reflection,
-    family: await kioskFamily(db, householdId, now),
+    family: await kioskFamily(db, householdId, now, words),
     features: { economy: f.economy, goal: f.goal, ideas: f.goal, reflection: f.goal },
+    words,
   };
 }
 
-async function kioskFamily(db: Db, householdId: string, now: Date): Promise<KioskHome['family']> {
+async function kioskFamily(db: Db, householdId: string, now: Date, words: { both: string }): Promise<KioskHome['family']> {
   const f = await familyForKiosk(db, householdId, now);
   if (!f) return null;
-  return { challenge: f.challenge, grownUps: f.parentsMinutes === null ? null : `Grown-ups' screen time this week: ${minutes(f.parentsMinutes)}` };
+  return { challenge: f.challenge, grownUps: f.parentsMinutes === null ? null : `${words.both}'s screen time this week: ${minutes(f.parentsMinutes)}` };
 }
 
 function startOfDay(now: Date, tz: string): Date {
@@ -416,6 +420,10 @@ export async function kioskDone(db: Db, input: { householdId: string; childId: s
 
 export async function addIdea(db: Db, input: { householdId: string; childId: string; text: string; picture: string }, now: Date) {
   await kioskChild(db, input.householdId, input.childId);
+  return oneAtATime(db, input.childId, (tx) => addIdeaLocked(tx, input, now));
+}
+
+async function addIdeaLocked(db: Db, input: { childId: string; text: string; picture: string }, now: Date) {
   const count = await db.select({ id: ideas.id }).from(ideas).where(and(eq(ideas.childId, input.childId), isNull(ideas.removedAt)));
   if (!IDEA_PICTURES.includes(input.picture)) throw new KioskError('invalid', 'Pick one of the pictures.', 400);
   if (count.length >= 12) throw new KioskError('too_many', "That's 12 ideas, the most there's room for. Why not try one of them?", 409);

@@ -2,7 +2,7 @@
 // learned, questions about rules, and the parents' estimates in the pilot measures.
 import { households } from '@family-time/db';
 import { postgresLedger } from '@family-time/ledger';
-import { ApprovalItem, ChildExtras, KioskMine, KioskPairing, PilotMeasures, SetupChecklist } from '@family-time/schemas';
+import { ApprovalItem, ChildExtras, KioskHome, KioskMine, KioskPairing, PilotMeasures, SetupChecklist } from '@family-time/schemas';
 import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -150,6 +150,39 @@ describe('boundaries', () => {
     expect((await s.app.inject({ method: 'PUT', url: `/api/kiosks/pins/${s.child}`, headers: s.headers.mum, payload: { pin: '4826' } })).statusCode).toBe(200);
     expect((await s.kiosk.inject({ url: `/api/children/${s.child}/mine`, headers: s.device })).statusCode).toBe(423);
     expect((await s.kiosk.inject({ method: 'POST', url: `/api/children/${s.child}/rule-asks`, headers: s.device, payload: { text: 'Again' } })).statusCode).toBe(423);
+  });
+});
+
+describe('Me on a shared kiosk', () => {
+  it("needs the child's own PIN once there is more than one child", async () => {
+    const s = await setup();
+    // One child: no PIN needed.
+    expect((await s.kiosk.inject({ url: `/api/children/${s.child}/mine`, headers: s.device })).statusCode).toBe(200);
+    await seedPerson(s.db, s.hh, 'child', 'Jamie');
+    const locked = await s.kiosk.inject({ url: `/api/children/${s.child}/mine`, headers: s.device });
+    expect(locked.statusCode).toBe(403);
+    expect(locked.json()).toMatchObject({ error: 'needs_pin' });
+    expect((await s.kiosk.inject({ method: 'POST', url: `/api/children/${s.child}/rule-asks`, headers: s.device, payload: { text: 'Why?' } })).statusCode).toBe(403);
+    expect((await s.kiosk.inject({ method: 'POST', url: `/api/children/${s.child}/reflection`, headers: s.device, payload: { wentWell: 'Football', wasHard: '', nextGoal: '' } })).statusCode).toBe(403);
+
+    // With a PIN, the ticket from typing it opens Me.
+    await s.app.inject({ method: 'PUT', url: `/api/kiosks/pins/${s.child}`, headers: s.headers.mum, payload: { pin: '4826' } });
+    const { ticket } = (await s.kiosk.inject({ method: 'POST', url: `/api/children/${s.child}/unlock`, headers: s.device, payload: { pin: '4826' } })).json() as { ticket: string };
+    expect((await s.kiosk.inject({ url: `/api/children/${s.child}/mine`, headers: { ...s.device, 'x-kiosk-child': ticket } })).statusCode).toBe(200);
+  });
+});
+
+describe('what the kiosk calls the grown-ups', () => {
+  it('says Mum and Dad until the owner chooses other words, for any family', async () => {
+    const s = await setup();
+    const home = async () => KioskHome.parse((await s.kiosk.inject({ url: `/api/children/${s.child}/home`, headers: s.device })).json());
+    expect((await home()).words).toEqual({ both: 'Mum and Dad', either: 'Mum or Dad' });
+    const put = (both: string, who: 'mum' | 'gran' = 'mum') => s.app.inject({ method: 'PUT', url: '/api/kiosks/words', headers: s.headers[who], payload: { both } });
+    expect((await put('Dad')).json()).toEqual({ both: 'Dad', either: 'Dad' });
+    expect((await home()).words).toEqual({ both: 'Dad', either: 'Dad' });
+    expect((await put('Nana and Grandad')).json()).toEqual({ both: 'Nana and Grandad', either: 'Nana or Grandad' });
+    expect((await put('<b>Mum</b>')).statusCode).toBe(400);
+    expect((await put('Gran', 'gran')).statusCode).toBe(403);
   });
 });
 

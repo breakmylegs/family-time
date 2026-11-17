@@ -17,6 +17,7 @@
 import { AdGuard } from '@family-time/adguard-client';
 import { FakeAdGuard } from '@family-time/adguard-client/fake';
 import { answeringModel } from '@family-time/ai/testing';
+import { journal, moodChecks, people, ruleAsks, skills, unmanagedTime } from '@family-time/db';
 import { adguardSync, aiCalls, aiKeys, aiSettings, completionPhotos, devices, helpFeedback, ideas, kioskDevices, ledgerConfirmations, ledgerContracts, ledgerTx, mcpServers, oauthClients, oauthCodes, oauthTokens, overrides, policies, proposals, recordHeartbeat, schedules, serviceGroupMembers, sessionEndings, SETTING_STOPPING_POINT, settings } from '@family-time/db';
 import { activateContract, besuLedger, fakeChain, indexPass, postgresLedger, signerPass, type FakeChain } from '@family-time/ledger';
 import { eq, notInArray } from 'drizzle-orm';
@@ -171,7 +172,15 @@ if (demo) {
     await db.delete(mcpServers);
     await db.delete(settings).where(eq(settings.key, 'mcp'));
     await db.delete(settings).where(eq(settings.key, SETTING_STOPPING_POINT));
+    await db.delete(settings).where(eq(settings.key, 'kiosk_words'));
     await db.delete(helpFeedback);
+    // Phase 11: no kiosk PINs, nothing under Me, no estimates or checklist ticks.
+    await db.update(people).set({ kioskPinHash: null, ageBand: null, setupDone: [] });
+    await db.delete(journal);
+    await db.delete(skills);
+    await db.delete(ruleAsks);
+    await db.delete(unmanagedTime);
+    await db.delete(moodChecks);
     // The chain cannot forget a reference, and the reset makes the same ones again: a new chain.
     await db.delete(completionPhotos);
     for (const i of await db.select({ id: ideas.id }).from(ideas)) if (!seededIdeas.has(i.id)) await db.delete(ideas).where(eq(ideas.id, i.id));
