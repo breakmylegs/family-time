@@ -37,8 +37,12 @@ export class FakeAdGuard {
   writes: string[] = [];
   private server?: Server;
 
-  constructor(options: { configured?: boolean } = {}) {
+  /** What GET /status reports, so tests can play an older or newer AdGuard. */
+  version: string;
+
+  constructor(options: { configured?: boolean; version?: string } = {}) {
     this.configured = options.configured ?? true;
+    this.version = options.version ?? 'v0.107.79';
   }
 
   async start(): Promise<string> {
@@ -83,7 +87,7 @@ export class FakeAdGuard {
     const route = `${req.method} ${path}`;
     switch (route) {
       case 'GET /status':
-        return send(200, { version: 'v0.107.79', running: true, protection_enabled: this.protectionEnabled });
+        return send(200, { version: this.version, running: true, protection_enabled: this.protectionEnabled });
       case 'GET /clients':
         return send(200, { clients: this.clients.length ? structuredClone(this.clients) : null, auto_clients: [], supported_tags: [] });
       case 'POST /clients/add': {

@@ -26,12 +26,16 @@ case " $* " in
       echo restored-pg > "$target/opt/ft/secrets/postgres_password"
       echo restored-restic > "$target/opt/ft/secrets/restic_password"
       printf 'BACKUP_REPO=/srv/data\nBACKUP_KEYS_REPO=/srv/keys\n' > "$target/opt/ft/deploy/.state/backup.env"
+      printf 'ADGUARD_MODE=external\nADGUARD_URL=http://192.0.2.53:3000\nADGUARD_USER=familytime\nADGUARD_CA=0\nADGUARD_ALLOW_UNTESTED=0\n' > "$target/opt/ft/deploy/.state/adguard.env"
     else
       d="$target/opt/ft/backups/staging"
       mkdir -p "$d/conf"
       head -c "${SHIM_DUMP_BYTES:-20000}" /dev/zero | tr '\0' 'x' > "$d/family_time.dump"
-      echo "dns: {}" > "$d/conf/AdGuardHome.yaml"
-      tar -czf "$d/adguard-conf.tgz" -C "$d/conf" .
+      # $SHIM_NO_ADGUARD=1: a backup from an install whose AdGuard runs elsewhere (ADR 0022).
+      if [ "${SHIM_NO_ADGUARD:-0}" != 1 ]; then
+        echo "dns: {}" > "$d/conf/AdGuardHome.yaml"
+        tar -czf "$d/adguard-conf.tgz" -C "$d/conf" .
+      fi
     fi
     exit 0 ;;
 esac

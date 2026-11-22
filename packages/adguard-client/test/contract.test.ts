@@ -6,6 +6,11 @@ import { AdGuard, BEGIN, desiredClient, END, matches, newClient, withOurRules } 
 import { FakeAdGuard } from '../src/fake.js';
 
 const REAL = process.env.ADGUARD_URL;
+// These tests write clients and rules: only ever against the test project's throwaway AdGuard,
+// never the household's own, however they are started (ADR 0022).
+if (REAL && (REAL !== 'http://adguard:3000' || process.env.ADGUARD_CONTRACT_TARGET !== 'throwaway')) {
+  throw new Error(`The AdGuard contract tests run only against the test project's throwaway AdGuard at http://adguard:3000, never ${REAL}.`);
+}
 const USER = process.env.ADGUARD_USER ?? 'familytime';
 const PASS = process.env.ADGUARD_PASSWORD ?? 'contract-test-password';
 

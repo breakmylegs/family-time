@@ -1,4 +1,4 @@
-import { AdGuard } from '@family-time/adguard-client';
+import { AdGuard, adguardFetch } from '@family-time/adguard-client';
 import { connectionConfig, readSecret, schema, type Db } from '@family-time/db';
 import { besuLedger, DEFAULT_CHAIN_ID, viemChain } from '@family-time/ledger';
 import { CHANGE_CHANNEL, vapidFromFile } from '@family-time/notify';
@@ -13,11 +13,19 @@ const pool = new pg.Pool({ ...config, max: 5 });
 const db = drizzle(pool, { schema }) as unknown as Db;
 const boss = new PgBoss({ ...config, max: 5 } as ConstructorParameters<typeof PgBoss>[0]);
 
-// AdGuard's admin API, on the internal network. The password is made by init.sh and set in
-// AdGuard by ./scripts/ft.sh adguard-setup; until then the control jobs wait.
+// AdGuard's admin API: the household's own AdGuard on the home network (the default), or the
+// bundled one on the internal network (ADR 0022). ADGUARD_URL and ADGUARD_USER come from
+// deploy/.state/adguard.env, written by init.sh, with the password in secrets/adguard_password.
 const adguardPassword = readSecret('ADGUARD_PASSWORD');
+// The owner's self-signed certificate, when they opted in, trusted by the AdGuard client only.
+const adguardFetchImpl = adguardFetch(process.env.ADGUARD_CA_FILE);
 const adguard = adguardPassword
-  ? new AdGuard({ baseUrl: process.env.ADGUARD_URL ?? 'http://adguard:3000', username: process.env.ADGUARD_USER ?? 'familytime', password: adguardPassword })
+  ? new AdGuard({
+      baseUrl: process.env.ADGUARD_URL ?? 'http://adguard:3000',
+      username: process.env.ADGUARD_USER ?? 'familytime',
+      password: adguardPassword,
+      ...(adguardFetchImpl ? { fetchImpl: adguardFetchImpl } : {}),
+    })
   : undefined;
 
 // After each run, the api's open Control screens hear about it (the api LISTENs on this channel).

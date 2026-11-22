@@ -33,12 +33,18 @@ new_case() {
   echo abc123def456 > "$H/deploy/.state/current"
   echo IMAGE_TAG=abc123def456 > "$H/deploy/.state/image.env"
   echo LAN_IP=192.0.2.10 > "$H/deploy/.state/network.env"
+  # The default since ADR 0022: the household's own AdGuard elsewhere on the home network.
+  printf 'ADGUARD_MODE=external\nADGUARD_URL=http://192.0.2.53:3000\nADGUARD_USER=familytime\nADGUARD_CA=0\nADGUARD_ALLOW_UNTESTED=0\n' > "$H/deploy/.state/adguard.env"
   printf 'BACKUP_REPO=%s\nBACKUP_KEYS_REPO=%s\n' "$C/repo-data" "$C/repo-keys" > "$H/deploy/.state/backup.env"
   echo pw > "$H/secrets/postgres_password"
   echo rp > "$H/secrets/restic_password"
   echo kp > "$H/secrets/restic_keys_password"
   : > "$C/calls.log"
   CASE_OK=1
+}
+
+bundled_adguard() {
+  printf 'ADGUARD_MODE=bundled\nADGUARD_URL=http://adguard:3000\nADGUARD_USER=familytime\nADGUARD_CA=0\nADGUARD_ALLOW_UNTESTED=0\n' > "$H/deploy/.state/adguard.env"
 }
 
 # run SCRIPT [ENV=VALUE...] [-- ARGS...]: runs a script with the fakes first on PATH. Sets RC.
@@ -151,13 +157,21 @@ expect_call "stop besu"
 expect_call "start besu"
 end_case
 
-new_case "copies AdGuard and the Besu chain when they exist"
+new_case "copies the bundled AdGuard and the Besu chain when they exist"
 echo COMPOSE_PROFILES=ledger-besu > "$H/deploy/.state/ledger.env"
+bundled_adguard
 run backup.sh SHIM_VOLUMES="family-time_adguard-conf family-time_besu-data"
 expect_rc 0
 expect_call "family-time_adguard-conf:/src:ro"
 expect_call "family-time_besu-data:/src:ro"
 expect_order "stop besu" "start besu"
+end_case
+
+new_case "leaves an AdGuard that runs elsewhere to its own backups, even with an old volume about"
+run backup.sh SHIM_VOLUMES="family-time_adguard-conf"
+expect_rc 0
+expect_no_call "family-time_adguard-conf"
+expect_out "AdGuard runs elsewhere on the home network: it is backed up wherever it runs"
 end_case
 
 fi
@@ -174,6 +188,13 @@ expect_call "compose -p family-time-restore -f deploy/compose.restore.yml down -
 expect_no_call "compose -f deploy/compose.yml"
 expect_out "drill passed"
 expect_out "AdGuard's settings: readable"
+end_case
+
+new_case "the drill passes on a backup with no AdGuard copy, and says where AdGuard is kept"
+run restore.sh SHIM_MIGRATIONS=12 SHIM_NO_ADGUARD=1
+expect_rc 0
+expect_out "drill passed"
+expect_out "AdGuard's settings: not in this backup"
 end_case
 
 new_case "the drill fails when a table is missing, and still removes the scratch database"
@@ -197,6 +218,16 @@ expect_rc 0
 [ "$(cat "$H/secrets/postgres_password")" = pw ] || fail_check "an existing secret was replaced"
 [ "$(cat "$H/secrets/restic_keys_password")" = the-keys-password ] || fail_check "the keys password was not kept"
 [ -s "$H/deploy/.state/backup.env" ] || fail_check "deploy/.state/backup.env was not restored"
+grep -q '^ADGUARD_MODE=external$' "$H/deploy/.state/adguard.env" 2>/dev/null || fail_check "the AdGuard choice was not kept"
+end_case
+
+new_case "a new server gets back the AdGuard choice from the keys"
+rm "$H/secrets/restic_password" "$H/secrets/restic_keys_password" "$H/deploy/.state/backup.env" "$H/deploy/.state/adguard.env"
+RC=0
+(cd "$H" && printf 'the-keys-password\n' | env PATH="$SHIMS:$PATH" SHIM_LOG="$C/calls.log" bash scripts/restore.sh --keys --repo "$C/repo-keys" > "$C/out.log" 2>&1) || RC=$?
+expect_rc 0
+expect_out "restored deploy/.state/adguard.env"
+grep -q '^ADGUARD_URL=http://192.0.2.53:3000$' "$H/deploy/.state/adguard.env" 2>/dev/null || fail_check "deploy/.state/adguard.env was not restored"
 end_case
 
 new_case "--live refuses without a terminal to confirm in"
@@ -219,11 +250,42 @@ chmod +x "$C/probe"; }
 
 new_case "all green"
 probe_closed
+bundled_adguard
 run verify.sh FT_PORT_PROBE="$C/probe" -- --url https://family.example.com
 expect_rc 0
 expect_out "all green"
 expect_out "Postgres is not reachable on port 5432"
 expect_out "signed-out requests are refused"
+end_case
+
+new_case "with an AdGuard elsewhere, no DNS on this server is expected"
+cat > "$C/probe" <<'EOF'
+#!/usr/bin/env bash
+exit 1
+EOF
+chmod +x "$C/probe"
+run verify.sh FT_PORT_PROBE="$C/probe"
+expect_rc 0
+expect_out "AdGuard runs elsewhere on the home network \(http://192.0.2.53:3000\)"
+end_case
+
+new_case "with an AdGuard elsewhere, DNS still answering here is a finding"
+probe_closed
+run verify.sh FT_PORT_PROBE="$C/probe"
+expect_rc 1
+expect_out "FAIL  something answers DNS on 192.0.2.10:53"
+end_case
+
+new_case "with the bundled AdGuard, home DNS not answering here is a finding"
+bundled_adguard
+cat > "$C/probe" <<'EOF'
+#!/usr/bin/env bash
+exit 1
+EOF
+chmod +x "$C/probe"
+run verify.sh FT_PORT_PROBE="$C/probe"
+expect_rc 1
+expect_out "FAIL  home DNS does not answer on 192.0.2.10:53"
 end_case
 
 new_case "a database reachable from outside Docker is a finding"

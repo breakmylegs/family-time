@@ -35,6 +35,7 @@ state_file_ok() {
     backup.env) load_backup_env "$file" 2>/dev/null ;;
     network.env) grep -Eq '^LAN_IP=[0-9]{1,3}(\.[0-9]{1,3}){3}$' "$file" && ! grep -Evq '^(LAN_IP=[0-9.]+|#.*|)$' "$file" ;;
     ledger.env) ! grep -Evq '^(#.*|LEDGER_ADAPTER=(postgres|besu)|COMPOSE_PROFILES=(ledger-besu|ai-local|ledger-besu,ai-local)|)$' "$file" ;;
+    adguard.env) load_adguard_env "$file" 2>/dev/null ;;
     image.env) ! grep -Evq '^(#.*|IMAGE_TAG=[0-9a-f]{7,40}(-drill)?|)$' "$file" ;;
     ledger-admin.env) ! grep -Evq '^(#.*|LEDGER_ADMIN_USED=[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z|)$' "$file" ;;
     *) return 1 ;;

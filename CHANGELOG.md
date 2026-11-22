@@ -2,6 +2,13 @@
 
 Release notes the app shows on its System page (from Phase 8). One plain line per change, newest first.
 
+## 0.14.0 (your own AdGuard)
+
+- Family time now uses the AdGuard Home you already run on your home network, by default. Running its own AdGuard is still there as an option you choose when setting up.
+- Setting up asks for your AdGuard's address and a user for Family time, and the password without showing it. Before each update, the server checks it can reach your AdGuard, the login works and the version is one Family time supports, and says what to fix if not.
+- Before changing anything in your AdGuard, Family time shows each setting as it is now and as it would be. You can also leave your AdGuard's own settings alone and let Family time manage only its own devices and rules.
+- Nightly backups copy AdGuard only when Family time runs it. Your own AdGuard is backed up wherever it runs.
+
 ## 0.13.0 (Phase 12, privacy and every family)
 
 - When more than one child uses the kiosk, the Me page opens only with the child's own PIN, so brothers and sisters can't read each other's things or questions about rules.

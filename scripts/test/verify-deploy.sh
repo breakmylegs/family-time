@@ -34,13 +34,25 @@ make_template() {
   "${GIT[@]}" clone -q -c core.autocrlf=false "$t/origin.git" "$t/host"
   mkdir -p "$t/host/secrets" "$t/host/deploy/.state"
   echo pw > "$t/host/secrets/postgres_password"
-  echo pw > "$t/host/secrets/adguard_password"
+  # Easy to spot, so a test can show it never reaches a command line.
+  echo s3cret-adguard-pw > "$t/host/secrets/adguard_password"
   echo pem > "$t/host/secrets/vapid_private.pem"
   echo pub > "$t/host/secrets/vapid_public.txt"
   echo key > "$t/host/secrets/ledger_signer_key"
   echo key > "$t/host/secrets/besu_node_key"
   echo key > "$t/host/secrets/master_key"
   echo LAN_IP=192.0.2.10 > "$t/host/deploy/.state/network.env"
+  # The default since ADR 0022: the household's own AdGuard elsewhere on the home network.
+  external_adguard "$t/host"
+}
+
+# external_adguard HOST [URL] [CA] [ALLOW_UNTESTED] / bundled_adguard HOST: the AdGuard choice.
+external_adguard() {
+  printf 'ADGUARD_MODE=external\nADGUARD_URL=%s\nADGUARD_USER=familytime\nADGUARD_CA=%s\nADGUARD_ALLOW_UNTESTED=%s\n' \
+    "${2:-http://192.0.2.53:3000}" "${3:-0}" "${4:-0}" > "$1/deploy/.state/adguard.env"
+}
+bundled_adguard() {
+  printf 'ADGUARD_MODE=bundled\nADGUARD_URL=http://adguard:3000\nADGUARD_USER=familytime\nADGUARD_CA=0\nADGUARD_ALLOW_UNTESTED=0\n' > "$1/deploy/.state/adguard.env"
 }
 
 # new_case NAME: a fresh copy of the template. Sets C (case dir) and H (server checkout).
@@ -126,8 +138,14 @@ case_1() {
   expect_call "compose.test.yml down"
   expect_call "run --rm migrate .*IMAGE_TAG=$tag"
   expect_call "up -d api worker .*IMAGE_TAG=$tag"
-  # AdGuard is started too, and no optional service the owner has not switched on.
-  expect_call "compose -f deploy/compose.yml up -d adguard \[IMAGE_TAG"
+  # The household's own AdGuard is checked from the server, with the login on curl's standard input
+  # and never on its command line; nothing else is started: not the bundled AdGuard, and no
+  # optional service the owner has not switched on.
+  expect_call "curl .*http://192.0.2.53:3000/control/status \[login-on-stdin\]"
+  ! grep -q s3cret-adguard-pw "$C/calls.log" || fail_check "the AdGuard password reached a command line"
+  expect_out "AdGuard at http://192.0.2.53:3000: reachable, login works, version supported"
+  expect_no_call "up -d adguard"
+  expect_no_call "compose -f deploy/compose.yml up -d \[IMAGE_TAG"
   expect_out "no running database yet"
   expect_state current "$tag"
   expect_state image.env "IMAGE_TAG=$tag"
@@ -150,11 +168,113 @@ case_2() {
 }
 
 case_24() {
-  new_case "starts the optional services the owner switched on, with AdGuard"
+  new_case "starts the optional services the owner switched on, and never an external AdGuard"
   echo 'COMPOSE_PROFILES=ledger-besu,ai-local' > "$H/deploy/.state/ledger.env"
   run_update
   expect_rc 0
-  expect_call "compose -f deploy/compose.yml up -d adguard besu ollama \[IMAGE_TAG"
+  expect_call "compose -f deploy/compose.yml up -d besu ollama \[IMAGE_TAG"
+  end_case
+}
+
+case_25() {
+  new_case "the bundled AdGuard starts with the stack, and is not checked from outside"
+  bundled_adguard "$H"
+  echo 'COMPOSE_PROFILES=ledger-besu' > "$H/deploy/.state/ledger.env"
+  run_update
+  expect_rc 0
+  expect_call "compose -f deploy/compose.yml up -d adguard besu \[IMAGE_TAG"
+  expect_no_call "^curl "
+  expect_out "the bundled one"
+  end_case
+}
+
+case_26() {
+  new_case "an external AdGuard that cannot be reached stops the deploy before anything is built"
+  run_update SHIM_ADGUARD=down
+  expect_rc 10
+  expect_out "could not reach AdGuard at http://192.0.2.53:3000"
+  expect_no_call "build"
+  [ ! -e "$H/.deploy/lock" ] || fail_check "a lock was taken"
+  end_case
+}
+
+case_27() {
+  new_case "a refused AdGuard login says so, and how to replace the password"
+  run_update SHIM_ADGUARD=auth
+  expect_rc 10
+  expect_out "refused the login for user familytime"
+  expect_out "init.sh --adguard-new-password"
+  expect_no_call "build"
+  end_case
+}
+
+case_28() {
+  new_case "an AdGuard older than the tested version is refused"
+  run_update SHIM_ADGUARD_VERSION=v0.107.70
+  expect_rc 10
+  expect_out "older than v0.107.79"
+  expect_no_call "build"
+  end_case
+}
+
+case_29() {
+  new_case "a newer AdGuard series is refused unless the owner opts in"
+  run_update SHIM_ADGUARD_VERSION=v0.108.2
+  expect_rc 10
+  expect_out "newer series than the tested v0.107.79"
+  expect_out "ADGUARD_ALLOW_UNTESTED=1"
+  expect_no_call "build"
+  external_adguard "$H" http://192.0.2.53:3000 0 1
+  : > "$C/calls.log"
+  run_update SHIM_ADGUARD_VERSION=v0.108.2
+  expect_rc 0
+  expect_out "note: AdGuard is v0.108.2, a newer series"
+  end_case
+}
+
+case_30() {
+  new_case "a later patch of the tested series deploys, with a note"
+  run_update SHIM_ADGUARD_VERSION=v0.107.81
+  expect_rc 0
+  expect_out "note: AdGuard is v0.107.81, newer than the tested v0.107.79 in the same series"
+  end_case
+}
+
+case_31() {
+  new_case "an install from before the AdGuard choice is told to run init.sh again"
+  rm -f "$H/deploy/.state/adguard.env"
+  run_update
+  expect_rc 10
+  expect_out "which AdGuard to use"
+  expect_out "Run ./scripts/init.sh again"
+  expect_no_call "build"
+  end_case
+}
+
+case_32() {
+  new_case "an adguard.env that would run a command is refused, and runs nothing"
+  printf 'ADGUARD_MODE=external\nADGUARD_URL=http://x$(touch %s/pwned)\nADGUARD_USER=familytime\n' "$C" > "$H/deploy/.state/adguard.env"
+  run_update
+  expect_rc 10
+  expect_out "ADGUARD_URL is the address"
+  [ ! -e "$C/pwned" ] || fail_check "adguard.env ran a command"
+  expect_no_call "build"
+  end_case
+}
+
+case_33() {
+  new_case "a self-signed certificate is trusted only when the owner opts in"
+  external_adguard "$H" https://adguard.home.example
+  run_update SHIM_ADGUARD=tls
+  expect_rc 10
+  expect_out "certificate this server does not trust"
+  expect_out "ADGUARD_CA=1"
+  echo '-----BEGIN CERTIFICATE-----' > "$H/secrets/adguard_ca.pem"
+  external_adguard "$H" https://adguard.home.example 1
+  : > "$C/calls.log"
+  run_update
+  expect_rc 0
+  expect_call "curl .*--cacert secrets/adguard_ca.pem .*https://adguard.home.example/control/status"
   end_case
 }
 
@@ -377,7 +497,17 @@ case_21() {
   end_case
 }
 
-ALL_CASES=$(seq 1 24)
+case_34() {
+  new_case "moving to an external AdGuard removes the bundled one from before"
+  run_update SHIM_OLD_ADGUARD=1
+  expect_rc 0
+  expect_call "rm -f oldadguard0"
+  expect_out "removing the bundled AdGuard from before"
+  expect_out "warning: http://192.0.2.53:3000 is plain http"
+  end_case
+}
+
+ALL_CASES=$(seq 1 34)
 # FT_CASES="6 7 8" runs only those cases. On the Windows laptop a full run can exhaust the process
 # table, so run it there in batches; on Linux run all of them.
 SELECTED=${FT_CASES:-$ALL_CASES}

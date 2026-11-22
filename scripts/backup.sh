@@ -4,7 +4,8 @@
 #   ./scripts/backup.sh
 #
 #   1 dumps Postgres, and checks the dump is complete and big enough before it counts
-#   2 copies AdGuard's settings, and the Besu chain with Besu stopped for the copy (ledger-besu only)
+#   2 copies the bundled AdGuard's settings (an external AdGuard is backed up wherever it runs), and
+#     the Besu chain with Besu stopped for the copy (ledger-besu only)
 #   3 stores them in the data repository, and secrets/ in the keys repository (its own password)
 #   4 checks both repositories, and only then forgets old snapshots (7 daily, 4 weekly, 6 monthly)
 #   5 records the result, so the System page shows it and owners hear about a failure
@@ -102,8 +103,16 @@ copy_volume() {
   docker run --rm --network none --entrypoint tar -v "$volume:/src:ro" -v "$PWD/$STAGE:/out" "family-time:$IMAGE_TAG" -czf "/out/$out" -C /src . \
     || fail 31 "could not copy $volume"
 }
-say "2/5 copying AdGuard's settings"
-copy_volume family-time_adguard-conf adguard-conf.tgz
+ag_mode=external
+load_adguard_env 2>/dev/null && ag_mode=$ADGUARD_MODE
+if [ "$ag_mode" = bundled ]; then
+  say "2/5 copying AdGuard's settings"
+  copy_volume family-time_adguard-conf adguard-conf.tgz
+else
+  # Its settings are not Family time's to keep (ADR 0022). What Family time writes there (its ft-
+  # clients and rules block) is rebuilt from the database within a minute of a restore.
+  say "2/5 AdGuard runs elsewhere on the home network: it is backed up wherever it runs, not here"
+fi
 if grep -qsE '^COMPOSE_PROFILES=ledger-besu(,ai-local)?$' deploy/.state/ledger.env; then
   say "copying the Besu chain (Besu stops for a moment)"
   compose stop besu >/dev/null || fail 31 "could not stop Besu for the copy"

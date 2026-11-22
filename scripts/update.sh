@@ -8,7 +8,8 @@
 # path and follows it; Ctrl-C stops the following, not the deploy. `-f` runs in the foreground.
 #
 # Steps
-#   1  preflight   on a branch with an upstream, clean tree, secrets, Docker and the proxy network
+#   1  preflight   on a branch with an upstream, clean tree, secrets, Docker, the proxy network, and
+#                  an external AdGuard reachable, with a working login and a supported version
 #   2  lock        one deploy at a time
 #   3  pull        fast-forward to origin/<branch>; if this script changed, re-run the new one
 #   4  build       the test image and the runtime image, tagged with the commit
@@ -128,6 +129,31 @@ deploy() {
     || fail "$EXIT_PREFLIGHT" "this version needs new setup (the AdGuard password, the LAN address, the alerts keys, the ledger keys and the master key). Run ./scripts/init.sh again"
   # Owner sign-in through Authentik is optional: an empty secret file is off, and Compose needs the file.
   [ -e secrets/oidc_client_secret ] || (umask 077 && : > secrets/oidc_client_secret)
+  # The same for AdGuard's certificate, used only when the owner trusts a self-signed one.
+  [ -e secrets/adguard_ca.pem ] || (umask 077 && : > secrets/adguard_ca.pem)
+  # Which AdGuard (ADR 0022): the household's own on the home network, or the bundled one.
+  local ag_rc=0 ag_says
+  load_adguard_env 2>"$FT_LOG.adguard" || ag_rc=$?
+  if [ "$ag_rc" = 1 ]; then
+    rm -f "$FT_LOG.adguard"
+    fail "$EXIT_PREFLIGHT" "this version needs to know which AdGuard to use: your own on the home network, or the bundled one. Run ./scripts/init.sh again (docs/setup/network.md)"
+  elif [ "$ag_rc" != 0 ]; then
+    ag_says=$(cat "$FT_LOG.adguard")
+    rm -f "$FT_LOG.adguard"
+    fail "$EXIT_PREFLIGHT" "$ag_says"
+  fi
+  rm -f "$FT_LOG.adguard"
+  if [ "$ADGUARD_MODE" = external ]; then
+    command -v curl >/dev/null || fail "$EXIT_PREFLIGHT" "curl is not installed, so the AdGuard at $ADGUARD_URL cannot be checked. Run: sudo apt install curl"
+    ag_says=$(adguard_check) || fail "$EXIT_PREFLIGHT" "$ag_says"
+    [ -n "$ag_says" ] && log "note: ${ag_says#warn }"
+    log "AdGuard at $ADGUARD_URL: reachable, login works, version supported"
+    if [[ "$ADGUARD_URL" == http://* ]]; then
+      log "warning: $ADGUARD_URL is plain http, so the AdGuard password crosses the network unencrypted. Prefer https, a Family time user with its own password, and a wired network (docs/setup/network.md)"
+    fi
+  else
+    log "AdGuard: the bundled one, started with the stack"
+  fi
   # Never while a backup has Besu stopped or a restore is replacing the database.
   [ ! -e .deploy/backup.lock ] || fail "$EXIT_LOCKED" "a backup or restore is running (.deploy/backup.lock). Try again when it has finished"
   local proxy_net=${PROXY_NETWORK:-proxy_net}
@@ -156,7 +182,10 @@ deploy() {
   else
     local before after
     before=$(cat scripts/update.sh scripts/lib/deploy-lib.sh | sha256sum)
-    run_logged git fetch --quiet origin "$branch" || fail "$EXIT_PULL" "git fetch failed"
+    # The repository is public: no credentials are needed, and git must never wait for a password
+    # nobody can type in the background. A stale token in ~/.git-credentials fails here, fast.
+    GIT_TERMINAL_PROMPT=0 run_logged git fetch --quiet origin "$branch" \
+      || fail "$EXIT_PULL" "git fetch failed. If the log says the credentials were refused, remove the old GitHub token (docs/setup/server.md, A server set up before the repository was public)"
     run_logged git merge --ff-only "origin/$branch" || fail "$EXIT_PULL" "cannot fast-forward to origin/$branch"
     after=$(cat scripts/update.sh scripts/lib/deploy-lib.sh | sha256sum)
     if [ "$before" != "$after" ]; then
@@ -251,14 +280,30 @@ deploy() {
 # (which calls /readyz) until it is healthy, unhealthy, or three minutes pass. Not `up --wait`,
 # whose handling of a one-shot dependency like migrate has changed between Compose versions.
 start_and_wait() {
-  local tag=$1 api worker status i profiles others=(adguard)
-  # AdGuard, and the optional services the owner has switched on, first: readiness checks AdGuard.
-  # Their images are pinned in compose.yml, not built here, so a rollback leaves them as they are.
-  # Only services whose profile is on: Compose starts any service named here, profile or not.
+  local tag=$1 api worker status i profiles others=()
+  # The bundled AdGuard, if chosen, and the optional services the owner has switched on, first:
+  # readiness checks AdGuard. Their images are pinned in compose.yml, not built here, so a rollback
+  # leaves them as they are. Only services whose profile is on: Compose starts any service named
+  # here, profile or not. An external AdGuard is never started or stopped here (ADR 0022).
+  [ "${ADGUARD_MODE:-}" = bundled ] && others+=(adguard)
+  # Moved to an external AdGuard: a bundled one from before would keep answering DNS on this
+  # server with rules nobody updates any more, so it goes (its settings stay in their volume).
+  if [ "${ADGUARD_MODE:-}" = external ]; then
+    local old
+    old=$(docker ps -aq --filter label=com.docker.compose.project=family-time --filter label=com.docker.compose.service=adguard 2>>"$FT_LOG" || true)
+    if [ -n "$old" ]; then
+      log "removing the bundled AdGuard from before: Family time now uses $ADGUARD_URL"
+      # shellcheck disable=SC2086
+      run_logged docker rm -f $old || return 1
+    fi
+  fi
   profiles=$(sed -n 's/^COMPOSE_PROFILES=//p' deploy/.state/ledger.env 2>/dev/null | tail -n 1)
   [[ ",$profiles," == *,ledger-besu,* ]] && others+=(besu)
   [[ ",$profiles," == *,ai-local,* ]] && others+=(ollama)
-  IMAGE_TAG=$tag run_logged compose up -d "${others[@]}" || return 1
+  # Never a bare `up -d`, which would start every service.
+  if [ "${#others[@]}" -gt 0 ]; then
+    IMAGE_TAG=$tag run_logged compose up -d "${others[@]}" || return 1
+  fi
   IMAGE_TAG=$tag run_logged compose up -d api worker || return 1
   api=$(IMAGE_TAG=$tag compose ps -q api 2>>"$FT_LOG" || true)
   worker=$(IMAGE_TAG=$tag compose ps -q worker 2>>"$FT_LOG" || true)

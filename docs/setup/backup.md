@@ -30,7 +30,7 @@ The next backup makes the new repositories.
 
 ## Every night
 
-`backup.sh` dumps the database and checks the dump, copies AdGuard's settings (and the Besu chain, with Besu stopped for a moment, if it is switched on), stores the snapshot, copies `secrets/` into the keys repository, checks both, and only then forgets old snapshots: 7 daily, 4 weekly, 6 monthly.
+`backup.sh` dumps the database and checks the dump, copies AdGuard's settings if Family time runs AdGuard itself (and the Besu chain, with Besu stopped for a moment, if it is switched on), stores the snapshot, copies `secrets/` into the keys repository, checks both, and only then forgets old snapshots: 7 daily, 4 weekly, 6 monthly. Your own AdGuard on the home network is backed up wherever it runs, not here (ADR 0022).
 
 The System page (Settings, then System) shows the last backup. If one fails, or none has worked for a day and a half, owners get an alert on their phones.
 
@@ -42,7 +42,7 @@ sudo ./scripts/restore.sh --list             # the snapshots there are
 sudo ./scripts/restore.sh --snapshot 1a2b3c4d
 ```
 
-The drill restores into a separate, throwaway database with no network, checks the tables, the rows and the migrations, reads AdGuard's settings, checks the keys repository, and removes it. Nothing live is touched. Run it after the first backup and once a month. Paste the output into the build chat if anything says FAILED.
+The drill restores into a separate, throwaway database with no network, checks the tables, the rows and the migrations, reads AdGuard's settings if the backup has them, checks the keys repository, and removes it. Nothing live is touched. Run it after the first backup and once a month. Paste the output into the build chat if anything says FAILED.
 
 ## A new server
 

@@ -1,6 +1,19 @@
 // Setup and control from the server's command line, for Phase 2 (the app's own screens follow in
 // Phase 3 and use the same commands). Free of Fastify, like the rest of the CLI.
-import { BYPASS_RULES, HAGEZI_BYPASS_LIST, ruleDomainOf, SETTING_BYPASS_RULES, type AdGuard } from '@family-time/adguard-client';
+import {
+  AdGuardError,
+  BYPASS_RULES,
+  checkVersion,
+  HAGEZI_BYPASS_LIST,
+  hasMarkers,
+  MarkerError,
+  MARKERS_HOW_TO,
+  ruleDomainOf,
+  SETTING_ADGUARD_SCOPE,
+  SETTING_BYPASS_RULES,
+  type AdGuard,
+  type AdGuardScope,
+} from '@family-time/adguard-client';
 import { postgresLedger, type Verification } from '@family-time/ledger';
 import { setPilotPhase } from '../economy/commands.js';
 import {
@@ -283,44 +296,116 @@ export interface AdGuardSetupStep {
   to: string;
 }
 
+export interface AdGuardSetupOptions {
+  username: string;
+  password: string;
+  apply: boolean;
+  /** `external`: an AdGuard another setup runs, whose first-time setup Family time never touches. */
+  mode: 'external' | 'bundled';
+  /** `family-time-only`: leave AdGuard's global settings alone; manage only our clients and rules block. */
+  scope: AdGuardScope;
+  allowUntested?: boolean;
+}
+
+/** Why AdGuard could not be used, in words the owner can act on. */
+export function adguardProblem(err: unknown, user: string): string {
+  if (err instanceof AdGuardError && (err.status === 401 || err.status === 403)) {
+    return `AdGuard refused the login for user ${user}. Check the user in AdGuard, and the password in secrets/adguard_password (./scripts/init.sh --adguard-new-password replaces it).`;
+  }
+  if (err instanceof AdGuardError) return `AdGuard answered ${err.status} to ${err.call}. Is ADGUARD_URL in deploy/.state/adguard.env the address of its web page?`;
+  const cause = (err as { cause?: { code?: string; message?: string } }).cause;
+  const why = String(cause?.code ?? cause?.message ?? (err as Error).message);
+  if (/CERT|SELF_SIGNED|UNABLE_TO_VERIFY|ERR_TLS/i.test(why)) {
+    return `AdGuard's certificate is not trusted (${why}). To trust a self-signed certificate, put it in secrets/adguard_ca.pem and set ADGUARD_CA=1 in deploy/.state/adguard.env (docs/setup/network.md).`;
+  }
+  return `Could not reach AdGuard (${why}). Check that ADGUARD_URL in deploy/.state/adguard.env is right and that this server can reach it.`;
+}
+
 /**
- * First-time AdGuard setup and the global settings the brief asks for, applied only when the
- * owner runs this with --yes. Without it, prints the plan and changes nothing. Changes nothing on
- * the router or any device: nothing uses AdGuard until a device or the router is pointed at it.
+ * AdGuard's first-time setup (only ever for the bundled AdGuard), the global settings the brief
+ * asks for, and how much of AdGuard Family time manages, applied only with --yes. Without it,
+ * prints the plan and changes nothing. Changes nothing on the router or any device (ADR 0022).
  */
-export async function adguardSetup(db: Db, adguard: AdGuard, credentials: { username: string; password: string }, apply: boolean): Promise<AdGuardSetupStep[]> {
+export async function adguardSetup(db: Db, adguard: AdGuard, options: AdGuardSetupOptions): Promise<{ steps: AdGuardSetupStep[]; notes: string[] }> {
+  const { apply, mode, scope } = options;
+  const credentials = { username: options.username, password: options.password };
   const hh = await household(db);
   const steps: AdGuardSetupStep[] = [];
+  const notes: string[] = [];
   // Before first-time setup, AdGuard answers this without credentials; afterwards it refuses.
   const fresh = await adguard.installAddresses().then(
     () => true,
     () => false,
   );
+  if (fresh && mode === 'external') {
+    throw new CliError(
+      "This AdGuard has not been set up yet. Family time never runs the first-time setup on an AdGuard it does not run itself. Finish setup in AdGuard's own web page, add a user for Family time, then run ./scripts/init.sh --adguard external again.",
+    );
+  }
   if (fresh) {
     steps.push({ what: 'AdGuard first-time setup', from: 'not set up', to: `admin user ${credentials.username}, DNS on port 53, admin API on the internal network only` });
     if (apply) await adguard.configure({ web: { ip: '0.0.0.0', port: 3000 }, dns: { ip: '0.0.0.0', port: 53 }, ...credentials });
   }
   const read = fresh && !apply;
+  if (!read) {
+    let version: string;
+    try {
+      version = (await adguard.status()).version;
+    } catch (err) {
+      throw new CliError(adguardProblem(err, credentials.username));
+    }
+    const check = checkVersion(version, options.allowUntested);
+    if (!check.ok) throw new CliError(check.message);
+    if (check.message) notes.push(check.message);
+  }
+
+  const scopeRows = await db.select({ value: settings.value }).from(settings).where(and(eq(settings.householdId, hh.id), eq(settings.key, SETTING_ADGUARD_SCOPE)));
+  const currentScope: AdGuardScope = scopeRows[0]?.value === 'family-time-only' ? 'family-time-only' : 'all';
+  const saveScope = () =>
+    db
+      .insert(settings)
+      .values({ householdId: hh.id, key: SETTING_ADGUARD_SCOPE, value: scope })
+      .onConflictDoUpdate({ target: [settings.householdId, settings.key], set: { value: scope, updatedAt: new Date() } });
+
+  if (scope === 'family-time-only') {
+    // Our block goes only between markers the owner added: never anywhere we guessed.
+    let marked: boolean;
+    try {
+      marked = hasMarkers(await adguard.userRules());
+    } catch (err) {
+      throw new CliError(err instanceof MarkerError ? err.message : adguardProblem(err, credentials.username));
+    }
+    if (!marked) throw new CliError(`AdGuard's custom rules have no family-time markers yet. ${MARKERS_HOW_TO} Then run this again.`);
+    if (currentScope !== scope) {
+      steps.push({ what: 'What Family time manages in AdGuard', from: 'its clients, its rules block and the global settings', to: 'only its own ft- clients and the rules between its markers' });
+      if (apply) await saveScope();
+    }
+    notes.push("Left as they are: AdGuard's caching times, query log, statistics, blocklists and bypass rules. Family time works best with answers cached for a minute at most (docs/setup/network.md).");
+    if (apply && steps.length) await audit(db, { householdId: hh.id, actor: { label: 'cli' }, action: 'adguard.setup', after: { steps, scope } });
+    return { steps, notes };
+  }
+
   const dns = read ? {} : await adguard.dnsInfo();
   const ql = read ? undefined : await adguard.querylogConfig();
   const st = read ? undefined : await adguard.statsConfig();
   const filters = read ? [] : await adguard.filterUrls();
 
   const DAY = 86_400_000;
+  const kept = (c: { enabled: boolean; interval: number } | undefined) => (!c ? 'default' : c.enabled ? `${Math.round(c.interval / DAY)} days` : 'off');
   const want = { blocked_response_ttl: 10, cache_ttl_max: 60 };
   if (dns.blocked_response_ttl !== 10 || dns.cache_ttl_max !== 60) {
     steps.push({ what: 'How long devices keep a block or an answer', from: `${dns.blocked_response_ttl ?? '?'}s blocked, ${dns.cache_ttl_max ?? '?'}s max`, to: '10s blocked, 60s max, so changes reach devices within a minute' });
     if (apply) await adguard.setDnsConfig(want);
   }
   if (!ql || ql.interval !== 7 * DAY || !ql.enabled) {
-    steps.push({ what: 'Query log kept for', from: ql ? `${Math.round(ql.interval / DAY)} days` : 'default', to: '7 days (raw logs never kept longer)' });
+    steps.push({ what: 'Query log kept for', from: kept(ql), to: '7 days (raw logs never kept longer)' });
     if (apply) {
       const current = ql ?? (await adguard.querylogConfig());
       await adguard.setQuerylogConfig({ ...current, enabled: true, interval: 7 * DAY });
     }
   }
-  if (!st || st.interval !== 30 * DAY) {
-    steps.push({ what: 'Statistics kept for', from: st ? `${Math.round(st.interval / DAY)} days` : 'default', to: '30 days' });
+  if (!st || st.interval !== 30 * DAY || !st.enabled) {
+    steps.push({ what: 'Statistics kept for', from: kept(st), to: '30 days' });
     if (apply) {
       const current = st ?? (await adguard.statsConfig());
       await adguard.setStatsConfig({ ...current, enabled: true, interval: 30 * DAY });
@@ -340,8 +425,12 @@ export async function adguardSetup(db: Db, adguard: AdGuard, credentials: { user
         .onConflictDoUpdate({ target: [settings.householdId, settings.key], set: { value: true, updatedAt: new Date() } });
     }
   }
-  if (apply && steps.length) await audit(db, { householdId: hh.id, actor: { label: 'cli' }, action: 'adguard.setup', after: { steps } });
-  return steps;
+  if (currentScope !== scope) {
+    steps.push({ what: 'What Family time manages in AdGuard', from: 'only its own clients and rules block', to: 'its clients, its rules block and the global settings above' });
+    if (apply) await saveScope();
+  }
+  if (apply && steps.length) await audit(db, { householdId: hh.id, actor: { label: 'cli' }, action: 'adguard.setup', after: { steps, scope } });
+  return { steps, notes };
 }
 
 // ---------------------------------------------------------------------------------------------

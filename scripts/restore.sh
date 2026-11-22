@@ -151,6 +151,8 @@ scratch() { drill exec -T postgres "$@"; }
   if [ -f "$files/adguard-conf.tgz" ]; then
     tar -tzf "$files/adguard-conf.tgz" >/dev/null || { say "FAILED: AdGuard's settings cannot be read"; exit 41; }
     say "  AdGuard's settings: readable"
+  else
+    say "  AdGuard's settings: not in this backup (an AdGuard elsewhere on the home network is backed up wherever it runs)"
   fi
   [ -f "$files/besu-data.tgz" ] && { tar -tzf "$files/besu-data.tgz" >/dev/null || { say "FAILED: the Besu copy cannot be read"; exit 41; }; say "  Besu chain: readable"; }
   if [ -s secrets/restic_keys_password ] && [ -n "${BACKUP_KEYS_REPO:-}" ]; then
@@ -193,7 +195,13 @@ restore_volume() {
   docker run --rm --network none --entrypoint sh -v "$volume:/dest" -v "$files:/in:ro" "family-time:$IMAGE_TAG" -c "rm -rf /dest/* && tar -xzf /in/$file -C /dest" || { say "could not restore $volume"; exit 40; }
   say "restored $volume"
 }
-restore_volume family-time_adguard-conf adguard-conf.tgz adguard
+ag_mode=external
+load_adguard_env 2>/dev/null && ag_mode=$ADGUARD_MODE
+if [ "$ag_mode" = bundled ]; then
+  restore_volume family-time_adguard-conf adguard-conf.tgz adguard
+else
+  say "AdGuard runs elsewhere on the home network: restore it wherever it is backed up. Family time writes its own clients and rules block back within a minute of starting"
+fi
 restore_volume family-time_besu-data besu-data.tgz besu
 compose up -d >/dev/null
 live_stopped=0

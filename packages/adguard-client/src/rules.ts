@@ -30,8 +30,28 @@ export function splitRules(rules: string[]): Split {
   return { before: rules.slice(0, b), ours: rules.slice(b + 1, e), after: rules.slice(e + 1) };
 }
 
-/** The full rules list with our block replaced by `ours`. Everything else is kept, in order. */
-export function withOurRules(rules: string[], ours: string[]): string[] {
+/** How to add our markers by hand, for an AdGuard another setup manages (ADR 0022). */
+export const MARKERS_HOW_TO =
+  `In AdGuard, open Filters, Custom filtering rules, and add these two lines, one under the other, then Apply:\n  ${BEGIN}\n  ${END}\nFamily time then writes only between them.`;
+
+/** The household setting for how much of AdGuard Family time manages: `all` (the default) or `family-time-only`. */
+export const SETTING_ADGUARD_SCOPE = 'adguard_scope';
+export type AdGuardScope = 'all' | 'family-time-only';
+
+/** Whether the user rules hold our two markers. Throws MarkerError if they are there but broken. */
+export function hasMarkers(rules: string[]): boolean {
+  splitRules(rules);
+  return rules.some((r) => r.trim() === BEGIN);
+}
+
+/**
+ * The full rules list with our block replaced by `ours`. Everything else is kept, in order.
+ * `requireMarkers`: never add the block ourselves, for an AdGuard whose rules someone else manages.
+ */
+export function withOurRules(rules: string[], ours: string[], options: { requireMarkers?: boolean } = {}): string[] {
+  if (options.requireMarkers && !hasMarkers(rules)) {
+    throw new MarkerError(`AdGuard's custom rules have no family-time markers, so nothing was written. ${MARKERS_HOW_TO}`);
+  }
   const { before, after } = splitRules(rules);
   return [...before, BEGIN, ...ours, END, ...after];
 }

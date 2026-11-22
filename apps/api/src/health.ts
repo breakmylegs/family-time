@@ -44,7 +44,7 @@ async function run(name: string, check: Check, timeoutMs: number): Promise<Check
  * - schema: every migration this image ships has been applied. More is fine (after a rollback
  *   the previous image runs on a newer, additive schema).
  * - worker: the worker's heartbeat job ran recently, so the job queue is moving.
- * - adguard: AdGuard's admin API answers on the internal network. Any answer counts, even "not set
+ * - adguard: AdGuard's admin API answers at ADGUARD_URL. Any answer counts, even "not set
  *   up yet", so a fresh install is ready before ./scripts/ft.sh adguard-setup has run. Whether it
  *   blocks is the worker's job to watch: it alerts parents when protection is off.
  * - besu (Besu ledger only): the worker reached the node in the last two minutes. The api has no

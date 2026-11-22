@@ -47,9 +47,13 @@ check() {
   fi
 }
 
-version=$(docker compose -f deploy/compose.yml --env-file deploy/.state/image.env exec -T api node -e \
+# Through the same compose() as update.sh, which also reads which AdGuard (ADR 0022).
+# shellcheck source=lib/deploy-lib.sh
+. scripts/lib/deploy-lib.sh
+export IMAGE_TAG=$current
+version=$(compose exec -T api node -e \
   "fetch('http://127.0.0.1:3000/version').then(r=>r.text()).then(t=>process.stdout.write(t))" 2>/dev/null || true)
-ready=$(docker compose -f deploy/compose.yml --env-file deploy/.state/image.env exec -T api node -e \
+ready=$(compose exec -T api node -e \
   "fetch('http://127.0.0.1:3000/readyz').then(r=>process.stdout.write(String(r.status)))" 2>/dev/null || true)
 
 echo

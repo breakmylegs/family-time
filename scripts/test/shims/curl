@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Fake curl for scripts/test/verify-deploy.sh: plays the household's own AdGuard (ADR 0022), as
+# update.sh's preflight asks it for /control/status. Records the call in $SHIM_LOG, and whether the
+# login came on standard input (never the password itself).
+#   $SHIM_ADGUARD: ok (the default), down, tls or auth
+#   $SHIM_ADGUARD_VERSION: what /control/status reports (v0.107.79 by default)
+set -u
+out="" prev=""
+for a in "$@"; do
+  [ "$prev" = -o ] && out=$a
+  prev=$a
+done
+cfg=$(cat)
+if [[ "$cfg" == 'user = "familytime:'* ]]; then login=login-on-stdin; else login=no-login-on-stdin; fi
+echo "curl $* [$login]" >> "$SHIM_LOG"
+case ${SHIM_ADGUARD:-ok} in
+  down) echo "curl: (7) Failed to connect to 192.0.2.53 port 3000: Connection refused" >&2; exit 7 ;;
+  tls) echo "curl: (60) SSL certificate problem: self-signed certificate" >&2; exit 60 ;;
+  auth) printf 'Forbidden' > "$out"; printf '403'; exit 0 ;;
+esac
+printf '{"version":"%s","running":true,"protection_enabled":true}' "${SHIM_ADGUARD_VERSION:-v0.107.79}" > "$out"
+printf '200'

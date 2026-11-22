@@ -1,5 +1,5 @@
 // The server's command line. Run it through ./scripts/ft.sh, which starts it in the api image.
-import { AdGuard } from '@family-time/adguard-client';
+import { AdGuard, adguardFetch } from '@family-time/adguard-client';
 import { connectionConfig, readSecret, recordBackup, schema, setMaintenance, type Db } from '@family-time/db';
 import type { ChildStatus } from '@family-time/schemas';
 import { drizzle } from 'drizzle-orm/node-postgres';
@@ -18,9 +18,12 @@ First-time setup
       Prints a link, valid for 24 hours, to make the first owner's passkey.
   recovery-link [--person "Name"]
       Prints a link, valid for 30 minutes, for an owner to add a new passkey.
-  adguard-setup [--yes]
-      Shows what will change in AdGuard. With --yes, sets it up: first-time setup, short caching so
-      changes land within a minute, 7 days of query log, and the bypass rules.
+  adguard-setup [--family-time-only] [--yes]
+      Shows what will change in AdGuard, each setting as it is now and as it will be. With --yes,
+      applies it: short caching so changes land within a minute, 7 days of query log, 30 days of
+      statistics, the HaGeZi bypass list and the bypass rules. First-time setup only ever for the
+      bundled AdGuard. --family-time-only leaves AdGuard's global settings alone: Family time then
+      manages only its own ft- clients and the rules between its markers, which you add by hand.
   child-add --name "Ollie" [--pronouns he|she|they]
       Pronouns are for the app's help text about the child. Without them it says they.
   child-set --child "Ollie" --pronouns he|she|they
@@ -72,7 +75,7 @@ Owner sign-in through Authentik (optional; docs/setup/authentik.md)
       Shows the setting, saves the provider's issuer and client id, or switches it off. The client
       secret goes in secrets/oidc_client_secret.`;
 
-const SWITCHES = new Set(['everything', 'yes', 'off', 'erase']);
+const SWITCHES = new Set(['everything', 'yes', 'off', 'erase', 'family-time-only']);
 const REPEATABLE = new Set(['id']);
 
 function flags(args: string[]): { values: Record<string, string>; lists: Record<string, string[]>; switches: Set<string> } {
@@ -116,7 +119,9 @@ function adguardFromEnv(): { client: AdGuard; username: string; password: string
   const password = readSecret('ADGUARD_PASSWORD');
   if (!password) throw new CliError('No AdGuard password. Run ./scripts/init.sh, which makes secrets/adguard_password.');
   const username = process.env.ADGUARD_USER ?? 'familytime';
-  return { client: new AdGuard({ baseUrl: process.env.ADGUARD_URL ?? 'http://adguard:3000', username, password }), username, password };
+  // The owner's self-signed certificate, when they opted in, trusted by the AdGuard client only.
+  const fetchImpl = adguardFetch(process.env.ADGUARD_CA_FILE);
+  return { client: new AdGuard({ baseUrl: process.env.ADGUARD_URL ?? 'http://adguard:3000', username, password, ...(fetchImpl ? { fetchImpl } : {}) }), username, password };
 }
 
 async function run(db: Db, command: string, args: ReturnType<typeof flags>): Promise<number> {
@@ -168,13 +173,21 @@ async function run(db: Db, command: string, args: ReturnType<typeof flags>): Pro
     case 'adguard-setup': {
       const ag = adguardFromEnv();
       const apply = switches.has('yes');
-      const steps = await adguardSetup(db, ag.client, { username: ag.username, password: ag.password }, apply);
+      const { steps, notes } = await adguardSetup(db, ag.client, {
+        username: ag.username,
+        password: ag.password,
+        apply,
+        mode: process.env.ADGUARD_MODE === 'bundled' ? 'bundled' : 'external',
+        scope: switches.has('family-time-only') ? 'family-time-only' : 'all',
+        allowUntested: process.env.ADGUARD_ALLOW_UNTESTED === '1',
+      });
+      for (const n of notes) console.log(`Note: ${n}`);
       if (!steps.length) {
         console.log('AdGuard is already set up. Nothing to change.');
         return 0;
       }
-      console.log(apply ? 'Changed in AdGuard:' : 'This would change in AdGuard:');
-      for (const s of steps) console.log(`  ${s.what}: ${s.from} -> ${s.to}`);
+      console.log(apply ? 'Changed in AdGuard, for every device that uses it:' : 'This would change in AdGuard, for every device that uses it:');
+      for (const s of steps) console.log(`  ${s.what}: now ${s.from}, will be ${s.to}`);
       console.log(
         apply
           ? '\nNothing on your router or devices has changed. See docs/setup/network.md for that step.'

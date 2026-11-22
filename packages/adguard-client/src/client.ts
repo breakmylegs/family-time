@@ -86,7 +86,7 @@ export class AdGuardError extends Error {
 }
 
 export interface AdGuardOptions {
-  /** For example `http://adguard:3000`. The admin API is on the internal network only. */
+  /** The household's AdGuard, `http://192.168.1.2:3000`, or the bundled one, `http://adguard:3000` (ADR 0022). */
   baseUrl: string;
   username: string;
   password: string;

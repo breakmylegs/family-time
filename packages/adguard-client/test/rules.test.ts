@@ -8,6 +8,13 @@ describe('our block of user rules', () => {
     expect(withOurRules(theirs, ['||a.com^'])).toEqual([...theirs, BEGIN, '||a.com^', END]);
   });
 
+  it('never adds the block itself for an AdGuard someone else manages, and says how to add the markers', () => {
+    expect(() => withOurRules(theirs, ['||a.com^'], { requireMarkers: true })).toThrow(MarkerError);
+    expect(() => withOurRules(theirs, ['||a.com^'], { requireMarkers: true })).toThrow(/Custom filtering rules, and add these two lines/);
+    const marked = [...theirs, BEGIN, END];
+    expect(withOurRules(marked, ['||a.com^'], { requireMarkers: true })).toEqual([...theirs, BEGIN, '||a.com^', END]);
+  });
+
   it('replaces only what is between the markers, keeping the order around it', () => {
     const rules = ['||first^', BEGIN, '||old.com^', END, '||last^'];
     expect(withOurRules(rules, ['||new.com^', '||new2.com^'])).toEqual(['||first^', BEGIN, '||new.com^', '||new2.com^', END, '||last^']);

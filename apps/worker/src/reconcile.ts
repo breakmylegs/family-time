@@ -4,6 +4,7 @@
 import {
   AdGuard,
   BYPASS_RULES,
+  SETTING_ADGUARD_SCOPE,
   SETTING_BYPASS_RULES,
   blockRules,
   desiredClient,
@@ -52,14 +53,21 @@ export interface ReconcileResult {
 /** Set by ./scripts/ft.sh adguard-setup, after the owner has approved the bypass rules. */
 export { SETTING_BYPASS_RULES };
 
-export async function plan(db: Db, now: Date): Promise<{ timeZone: string; devices: DevicePlan[]; bypass: boolean; removed: string[] }> {
+export async function plan(db: Db, now: Date): Promise<{ timeZone: string; devices: DevicePlan[]; bypass: boolean; removed: string[]; requireMarkers: boolean }> {
   const household = (await db.select({ id: households.id, timeZone: households.timezone }).from(households).limit(1))[0];
-  if (!household) return { timeZone: 'Europe/London', devices: [], bypass: false, removed: [] };
+  if (!household) return { timeZone: 'Europe/London', devices: [], bypass: false, removed: [], requireMarkers: false };
   const bypassSetting = await db
     .select({ value: settings.value })
     .from(settings)
     .where(and(eq(settings.householdId, household.id), eq(settings.key, SETTING_BYPASS_RULES)));
   const bypass = bypassSetting[0]?.value === true;
+  // An AdGuard another setup manages (adguard-setup --family-time-only): our block only between
+  // markers the owner added by hand, never added by us (ADR 0022).
+  const scopeSetting = await db
+    .select({ value: settings.value })
+    .from(settings)
+    .where(and(eq(settings.householdId, household.id), eq(settings.key, SETTING_ADGUARD_SCOPE)));
+  const requireMarkers = scopeSetting[0]?.value === 'family-time-only';
   const deviceRows = await db
     .select({ id: devices.id, name: devices.adguardName, ids: devices.identifiers, childId: devices.childId })
     .from(devices)
@@ -86,24 +94,26 @@ export async function plan(db: Db, now: Date): Promise<{ timeZone: string; devic
     }
     out.push({ deviceId: d.id, name: d.name, ids: d.ids, blocked: blocked.sort(), rules: domains.length ? blockRules(d.name, domains) : [] });
   }
-  return { timeZone: household.timeZone, devices: out, bypass, removed };
+  return { timeZone: household.timeZone, devices: out, bypass, removed, requireMarkers };
 }
 
 export async function reconcile(deps: ReconcileDeps): Promise<ReconcileResult> {
   const { db, adguard, log } = deps;
   const now = deps.now();
-  const { timeZone, devices: plans, bypass, removed } = await plan(db, now);
+  const { timeZone, devices: plans, bypass, removed, requireMarkers } = await plan(db, now);
   if (!plans.length && !bypass && !removed.length) return { devices: 0, confirmed: 0, failed: 0 };
 
   const failures = new Map<string, string>();
   let rulesError: string | undefined;
 
   // 1. Our rules block, for every device's custom services at once.
-  const ourRules = [...(bypass ? BYPASS_RULES : []), ...plans.flatMap((p) => p.rules)];
+  // The bypass rules apply to every device on the network, so never on an AdGuard where the owner
+  // asked Family time to manage only its own clients and rules (ADR 0022).
+  const ourRules = [...(bypass && !requireMarkers ? BYPASS_RULES : []), ...plans.flatMap((p) => p.rules)];
   try {
     const current = await adguard.userRules();
     if (JSON.stringify(splitRules(current).ours) !== JSON.stringify(ourRules)) {
-      await adguard.setRules(withOurRules(current, ourRules));
+      await adguard.setRules(withOurRules(current, ourRules, { requireMarkers }));
     }
   } catch (err) {
     rulesError = (err as Error).message;

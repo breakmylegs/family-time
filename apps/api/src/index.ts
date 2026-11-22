@@ -1,4 +1,4 @@
-import { AdGuard, AdGuardError } from '@family-time/adguard-client';
+import { AdGuard, AdGuardError, adguardFetch } from '@family-time/adguard-client';
 import { connectionConfig, readSecret, schema, type Db } from '@family-time/db';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { existsSync, readFileSync } from 'node:fs';
@@ -30,8 +30,15 @@ const notifyChange = async () => {
 
 // Read-only, for the discovery helper. The api never writes to AdGuard.
 const adguardPassword = readSecret('ADGUARD_PASSWORD');
+// The owner's self-signed certificate, when they opted in, trusted by the AdGuard client only.
+const adguardFetchImpl = adguardFetch(process.env.ADGUARD_CA_FILE);
 const adguard = adguardPassword
-  ? new AdGuard({ baseUrl: process.env.ADGUARD_URL ?? 'http://adguard:3000', username: process.env.ADGUARD_USER ?? 'familytime', password: adguardPassword })
+  ? new AdGuard({
+      baseUrl: process.env.ADGUARD_URL ?? 'http://adguard:3000',
+      username: process.env.ADGUARD_USER ?? 'familytime',
+      password: adguardPassword,
+      ...(adguardFetchImpl ? { fetchImpl: adguardFetchImpl } : {}),
+    })
   : undefined;
 
 // The worker NOTIFYs after each reconcile and usage run, so "Working on his iPad now" appears on

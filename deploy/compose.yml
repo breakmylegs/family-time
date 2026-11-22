@@ -1,6 +1,6 @@
 # The production stack. Run it through scripts/update.sh, which sets IMAGE_TAG, or through the
 # systemd unit, which reads the tag update.sh last deployed from deploy/.state/image.env.
-# Memory limits are sized so the whole stack, with AdGuard and Besu added later, fits a Pi 5 with 8 GB.
+# Memory limits are sized so the whole stack, with the bundled AdGuard and Besu, fits a Pi 5 with 8 GB.
 name: family-time
 
 x-app: &app
@@ -19,9 +19,18 @@ x-app: &app
     PGUSER: family_time
     PGDATABASE: family_time
     PGPASSWORD_FILE: /run/app-secrets/postgres_password
-    ADGUARD_URL: http://adguard:3000
-    ADGUARD_USER: familytime
+    # AdGuard (ADR 0022): the household's own AdGuard on the home network (external, the default) or
+    # the bundled one (the adguard-bundled profile, http://adguard:3000). All from
+    # deploy/.state/adguard.env, which init.sh writes; scripts/lib/deploy-lib.sh checks it.
+    ADGUARD_MODE: ${ADGUARD_MODE:?ADGUARD_MODE comes from deploy/.state/adguard.env. Run ./scripts/init.sh}
+    ADGUARD_URL: ${ADGUARD_URL:?ADGUARD_URL comes from deploy/.state/adguard.env. Run ./scripts/init.sh}
+    ADGUARD_USER: ${ADGUARD_USER:?ADGUARD_USER comes from deploy/.state/adguard.env. Run ./scripts/init.sh}
     ADGUARD_PASSWORD_FILE: /run/app-secrets/adguard_password
+    ADGUARD_ALLOW_UNTESTED: ${ADGUARD_ALLOW_UNTESTED:-0}
+    # A self-signed certificate on an https AdGuard is trusted only when the owner opts in
+    # (ADGUARD_CA=1), and only by the AdGuard client: every other connection keeps the usual
+    # trust, so the certificate's key can never stand in for any other server. Empty is off.
+    ADGUARD_CA_FILE: ${ADGUARD_CA_FILE:-}
     VAPID_PRIVATE_KEY_FILE: /run/app-secrets/vapid_private.pem
     VAPID_PUBLIC_KEY_FILE: /run/app-secrets/vapid_public.txt
     # The ledger: postgres (the default), or besu with the ledger-besu profile (docs/setup/besu.md).
@@ -90,14 +99,14 @@ services:
       retries: 6
       start_period: 40s
     # Only the public half of the alerts key: the worker alone sends alerts (ADR 0017).
-    secrets: [postgres_password, adguard_password, vapid_public.txt, master_key, oidc_client_secret]
+    secrets: [postgres_password, adguard_password, adguard_ca.pem, vapid_public.txt, master_key, oidc_client_secret]
     # The kiosk (ADR 0015): its own listener in the api, published on the server's LAN address
     # only, never through Caddy. Firewall it to the tablet on the router (docs/setup/kiosk.md).
     ports:
       - "${LAN_IP}:${KIOSK_HOST_PORT:-8180}:3001"
-    # egress: out to the AI providers, an app's client metadata document, the weather service, the
-    # owner's Ollama (ADR 0016) and Authentik for owner sign-in (ADR 0019). The api only calls out
-    # once the owner switches one of them on.
+    # egress: out to the household's own AdGuard on the home network (ADR 0022), the AI providers, an
+    # app's client metadata document, the weather service, the owner's Ollama (ADR 0016) and the
+    # owner's sign-in service (ADR 0019). The api only calls the optional ones once switched on.
     # Nothing is published on it.
     # ai: the stack's own Ollama, when the ai-local profile is on.
     networks:
@@ -116,19 +125,23 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-    # egress: out to the browsers' push services (Apple, Google, Mozilla, Microsoft) for alerts.
+    # egress: out to the browsers' push services (Apple, Google, Mozilla, Microsoft) for alerts, and
+    # to the household's own AdGuard on the home network, which the worker alone writes (ADR 0010).
     # ledger: the Besu node, which only the worker reaches. Nothing is published, so nothing can
     # reach the worker from outside. The worker alone holds the ledger signer key; the ledger-*
     # commands run in this service for that reason (scripts/ft.sh).
     networks: [internal, egress, ledger]
-    secrets: [postgres_password, adguard_password, vapid_private.pem, ledger_signer_key]
+    secrets: [postgres_password, adguard_password, adguard_ca.pem, vapid_private.pem, ledger_signer_key]
     mem_limit: 256m
 
-  # Home DNS. Port 53 is published on the server's LAN address only (LAN_IP, from
-  # deploy/.state/network.env, written by init.sh), never on every address. The admin API on 3000
-  # is never published: only the api and worker reach it, over the internal network. Nothing uses
-  # this DNS until a device or the router is pointed at it (docs/setup/network.md).
+  # The bundled AdGuard, only with the adguard-bundled profile (ADR 0022): by default Family time uses
+  # an AdGuard already running elsewhere on the home network, and this never starts. When chosen,
+  # port 53 is published on the server's LAN address only (LAN_IP, from deploy/.state/network.env),
+  # never on every address. The admin API on 3000 is never published: only the api and worker reach
+  # it, over the internal network. Nothing uses this DNS until a device or the router is pointed at
+  # it (docs/setup/network.md).
   adguard:
+    profiles: [adguard-bundled]
     image: adguard/adguardhome:v0.107.79
     restart: unless-stopped
     volumes:
@@ -250,8 +263,9 @@ networks:
   # No route out. Postgres is reachable only from inside the stack.
   internal:
     internal: true
-  # The way out: AdGuard to upstream DNS (and where its port 53 is published), the worker to the
-  # push services, the api to AI providers. Outbound only; neither publishes a port on it.
+  # The way out: the api and worker to the household's own AdGuard on the LAN, the bundled AdGuard
+  # to upstream DNS (and where its port 53 is published), the worker to the push services, the api
+  # to AI providers. Outbound only; neither publishes a port on it.
   egress: {}
   # The Besu node and the worker, and nothing else. No route out.
   ledger:
@@ -269,6 +283,9 @@ secrets:
     file: ../secrets/postgres_password
   adguard_password:
     file: ../secrets/adguard_password
+  # Empty unless the owner trusts a self-signed certificate on their AdGuard (ADGUARD_CA=1).
+  adguard_ca.pem:
+    file: ../secrets/adguard_ca.pem
   vapid_private.pem:
     file: ../secrets/vapid_private.pem
   vapid_public.txt:

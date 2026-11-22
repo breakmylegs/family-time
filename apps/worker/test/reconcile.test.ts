@@ -1,4 +1,4 @@
-import { AdGuard, BEGIN, BYPASS_RULES, END } from '@family-time/adguard-client';
+import { AdGuard, BEGIN, BYPASS_RULES, END, SETTING_ADGUARD_SCOPE } from '@family-time/adguard-client';
 import { FakeAdGuard } from '@family-time/adguard-client/fake';
 import { adguardSync, devices, overrides, settings } from '@family-time/db';
 import { testDb, type TestDb } from '@family-time/db/testing';
@@ -137,5 +137,21 @@ describe('reconcile', () => {
     // Built-in blocking still went through, but the device is not confirmed: Minecraft is not blocked.
     expect(client()?.blocked_services).toEqual(['roblox', 'youtube']);
     expect((await sync(s.ipad.id))?.state).toBe('pending');
+  });
+
+  it("on an AdGuard someone else manages, writes only between markers the owner added, never adding them", async () => {
+    const s = await seedHome(handle.db);
+    await handle.db.insert(settings).values({ householdId: s.hh.id, key: SETTING_ADGUARD_SCOPE, value: 'family-time-only' });
+    // Switched on by an earlier full setup: network-wide, so left out in this mode.
+    await handle.db.insert(settings).values({ householdId: s.hh.id, key: SETTING_BYPASS_RULES, value: true });
+    fake.userRules = ['||theirs.example^'];
+    const r = await run();
+    expect(fake.userRules).toEqual(['||theirs.example^']);
+    expect(r.rulesError).toMatch(/no family-time markers/);
+    expect(r.rulesError).toMatch(/Custom filtering rules/);
+    // Once the owner adds them, our rules go between them and theirs stay where they were.
+    fake.userRules = [BEGIN, END, '||theirs.example^'];
+    await run();
+    expect(fake.userRules).toEqual([BEGIN, "||minecraft.net^$client='ft-ollieipad'", "||mojang.com^$client='ft-ollieipad'", END, '||theirs.example^']);
   });
 });

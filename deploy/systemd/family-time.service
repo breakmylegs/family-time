@@ -10,11 +10,11 @@ Wants=network-online.target
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=/opt/family-time
-EnvironmentFile=/opt/family-time/deploy/.state/network.env
-# The ledger choice, only if the owner switched the Besu ledger on (the dash makes it optional).
-EnvironmentFile=-/opt/family-time/deploy/.state/ledger.env
-ExecStart=/usr/bin/docker compose --env-file deploy/.state/image.env -f deploy/compose.yml up -d
-ExecStop=/usr/bin/docker compose --env-file deploy/.state/image.env -f deploy/compose.yml stop
+# Through the same compose() as update.sh (scripts/stack.sh), so the deploy state (the LAN
+# address, the ledger choice, which AdGuard, ADR 0022) is read and checked the same way, and the
+# bundled AdGuard starts only when it was chosen.
+ExecStart=/bin/bash /opt/family-time/scripts/stack.sh up
+ExecStop=/bin/bash /opt/family-time/scripts/stack.sh stop
 TimeoutStartSec=300
 
 [Install]

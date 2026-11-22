@@ -7,6 +7,7 @@
 #   - /healthz, every /readyz check, and /version's commit is the one update.sh deployed
 #   - the kiosk answers on the LAN address
 #   - AdGuard's admin, Besu's RPC, Postgres and the kiosk's inner port do NOT answer from outside Docker
+#   - home DNS answers on the LAN address with the bundled AdGuard (an external one serves it elsewhere)
 #   - with --url: the app over HTTPS, its security headers, and MCP saying it is off when it is
 #
 # Exit codes: 0 all green, 1 a finding, 2 the app could not be reached. Unreachable is never a pass.
@@ -19,7 +20,7 @@ url=""
 while [ $# -gt 0 ]; do
   case $1 in
     --url) url=${2:?--url needs the app address}; shift 2 ;;
-    -h | --help) sed -n '2,13p' "$0"; exit 0 ;;
+    -h | --help) sed -n '2,14p' "$0"; exit 0 ;;
     *) echo "verify.sh: unknown option $1" >&2; exit 2 ;;
   esac
 done
@@ -78,8 +79,20 @@ for p in "3000 AdGuard's admin" "8545 Besu's RPC" "5432 Postgres" "3001 the kios
   for host in "$lan" 127.0.0.1; do port_open "$host" "$port" && closed=0; done
   [ "$closed" = 1 ] && pass "$what is not reachable on port $port" || finding "$what answers on port $port from outside Docker"
 done
-# Port 53 is meant to be open on the LAN address: it is the home DNS.
-port_open "$lan" 53 && pass "home DNS answers on $lan:53" || finding "home DNS does not answer on $lan:53"
+ag_mode=external
+load_adguard_env 2>/dev/null && ag_mode=$ADGUARD_MODE
+if [ "$ag_mode" = bundled ]; then
+  # Port 53 is meant to be open on the LAN address: the bundled AdGuard is the home DNS.
+  port_open "$lan" 53 && pass "home DNS answers on $lan:53" || finding "home DNS does not answer on $lan:53"
+else
+  # The household's own AdGuard serves DNS elsewhere; /readyz above proves the api reaches it.
+  # Something answering DNS here is a bundled AdGuard left behind, with rules nobody updates.
+  if port_open "$lan" 53; then
+    finding "something answers DNS on $lan:53, but Family time uses the AdGuard at ${ADGUARD_URL:-deploy/.state/adguard.env}. A bundled AdGuard from before? ./scripts/update.sh removes it"
+  else
+    pass "AdGuard runs elsewhere on the home network (${ADGUARD_URL:-see deploy/.state/adguard.env}); nothing answers DNS here"
+  fi
+fi
 
 if [ -n "$url" ]; then
   echo "verify.sh: through Caddy at $url"

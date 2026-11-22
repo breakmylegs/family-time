@@ -19,8 +19,9 @@ services:
       retries: 30
     networks: [test]
 
-  # A fresh AdGuard Home v0.107.79, still in its first-install wizard, for the contract tests.
-  # No route out and no published port: the tests only talk to its API.
+  # A fresh AdGuard Home v0.107.79, still in its first-install wizard, for the contract tests. Always
+  # this throwaway one, whichever AdGuard the live stack uses (ADR 0022): scripts/test-pg.mjs refuses
+  # any other address. No route out and no published port: the tests only talk to its API.
   adguard:
     image: adguard/adguardhome:v0.107.79
     tmpfs:
@@ -54,6 +55,7 @@ services:
       ADGUARD_URL: http://adguard:3000
       ADGUARD_USER: familytime
       ADGUARD_PASSWORD: contract-test-password
+      ADGUARD_CONTRACT_TARGET: throwaway
       BESU_RPC_URL: http://besu:8545
     depends_on:
       postgres:

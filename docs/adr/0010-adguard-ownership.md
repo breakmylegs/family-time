@@ -1,6 +1,6 @@
 # ADR 0010: Who writes to AdGuard
 
-Status: accepted, 27 October 2026 (Phase 2)
+Status: accepted, 27 October 2026 (Phase 2). Amended by [ADR 0022](0022-external-adguard.md), 22 November 2026: by default AdGuard runs elsewhere on the home network; the bundled one below is an option. The single-writer rule is unchanged.
 
 ## Decision
 
@@ -10,7 +10,7 @@ Status: accepted, 27 October 2026 (Phase 2)
 - **One exception, run by the owner: `./scripts/ft.sh adguard-setup`.** It does AdGuard's first-time setup and the global settings (TTLs, log retention, the HaGeZi bypass list, switching the bypass rules on). Without `--yes` it only prints what it would change. The brief asks for the owner's approval of these, and they are global settings, not per-device control.
 - **The api reads the query log** for the discovery helper and never writes.
 - Devices are recognised by a client name we generate (`ft-` and 12 hex characters) and their identifiers (IP, MAC, ClientID). The name is safe inside `$client='...'` without escaping; domains and names are checked before any rule is built.
-- AdGuard runs in Compose on the internal network (admin API never published) and an egress network (upstream DNS, and port 53 published on the server's LAN address only).
+- AdGuard runs in Compose on the internal network (admin API never published) and an egress network (upstream DNS, and port 53 published on the server's LAN address only). Since ADR 0022, only when the owner chooses the bundled AdGuard; by default it is the household's own, reached over egress.
 
 ## Why
 

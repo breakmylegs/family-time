@@ -25,6 +25,19 @@ for env in deploy/.state/network.env deploy/.state/ledger.env; do
   set +a
 done
 
+# Which AdGuard (ADR 0022), read without running the file, as update.sh reads it.
+# shellcheck source=lib/deploy-lib.sh
+. scripts/lib/deploy-lib.sh
+ag_rc=0
+load_adguard_env || ag_rc=$?
+if [ "$ag_rc" = 1 ]; then
+  echo "ft.sh: deploy/.state/adguard.env is missing. Run ./scripts/init.sh, which asks which AdGuard to use." >&2
+  exit 1
+fi
+[ "$ag_rc" = 0 ] || exit 1
+export ADGUARD_MODE ADGUARD_URL ADGUARD_USER ADGUARD_ALLOW_UNTESTED ADGUARD_CA_FILE
+[ "$ADGUARD_MODE" = bundled ] && export COMPOSE_PROFILES="${COMPOSE_PROFILES:+$COMPOSE_PROFILES,}adguard-bundled"
+
 # The Besu ledger's commands run in the worker service: it alone holds the ledger signer key and
 # reaches the node. The admin key comes on standard input, so never from a bare terminal, where
 # it would be pasted and echoed.

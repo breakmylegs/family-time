@@ -1,9 +1,9 @@
-import { AdGuard, HAGEZI_BYPASS_LIST, SETTING_BYPASS_RULES } from '@family-time/adguard-client';
+import { AdGuard, BEGIN, END, HAGEZI_BYPASS_LIST, SETTING_ADGUARD_SCOPE, SETTING_BYPASS_RULES } from '@family-time/adguard-client';
 import { FakeAdGuard } from '@family-time/adguard-client/fake';
 import { allowances, devices, people, policies, schedules, serviceGroups, services, settings } from '@family-time/db';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ownerInvite } from '../src/cli/commands.js';
-import { addChild, addDevice, adguardSetup, allowanceFor, control, DEFAULT_SCHEDULES, ledgerVerify, pilotPhase, resolveTarget, setChildPronouns, setupDefaults, status, syncServices } from '../src/cli/control.js';
+import { addChild, addDevice, adguardSetup, type AdGuardSetupOptions, allowanceFor, control, DEFAULT_SCHEDULES, ledgerVerify, pilotPhase, resolveTarget, setChildPronouns, setupDefaults, status, syncServices } from '../src/cli/control.js';
 import { seedPerson } from './accounts.js';
 import { harness, type Harness } from './helpers.js';
 
@@ -96,9 +96,11 @@ describe('setting up from the command line', () => {
 });
 
 describe('adguard-setup', () => {
-  it('shows the plan and changes nothing without --yes', async () => {
+  const options = (apply: boolean, more: Partial<AdGuardSetupOptions> = {}): AdGuardSetupOptions => ({ username: 'familytime', password: 'pw', apply, mode: 'external', scope: 'all', ...more });
+
+  it('shows every global setting it would change, as it is now and as it will be, and changes nothing without --yes', async () => {
     const { db, adguard } = await home();
-    const steps = await adguardSetup(db, adguard, { username: 'familytime', password: 'pw' }, false);
+    const { steps } = await adguardSetup(db, adguard, options(false));
     expect(steps.map((s) => s.what)).toEqual([
       'How long devices keep a block or an answer',
       'Query log kept for',
@@ -106,33 +108,75 @@ describe('adguard-setup', () => {
       'Blocklist of DoH, VPN and proxy services',
       'Bypass rules',
     ]);
+    expect(steps[0]).toMatchObject({ from: '3600s blocked, 0s max' });
+    expect(steps[1]).toMatchObject({ from: '90 days', to: expect.stringMatching(/^7 days/) });
+    expect(steps[2]).toMatchObject({ from: '1 days', to: '30 days' });
     expect(fake!.writes).toEqual([]);
     expect(await db.select().from(settings).then((r) => r.filter((x) => x.key === SETTING_BYPASS_RULES))).toEqual([]);
   });
 
   it('applies everything with --yes, and then has nothing left to do', async () => {
     const { db, adguard } = await home();
-    await adguardSetup(db, adguard, { username: 'familytime', password: 'pw' }, true);
+    await adguardSetup(db, adguard, options(true));
     expect(fake!.dnsConfig).toMatchObject({ blocked_response_ttl: 10, cache_ttl_max: 60 });
     expect(fake!.querylogConfig.interval).toBe(7 * 86_400_000);
     expect(fake!.statsConfig.interval).toBe(30 * 86_400_000);
     expect(fake!.filters.map((f) => f.url)).toEqual([HAGEZI_BYPASS_LIST.url]);
     expect((await db.select().from(settings)).find((x) => x.key === SETTING_BYPASS_RULES)?.value).toBe(true);
-    expect(await adguardSetup(db, adguard, { username: 'familytime', password: 'pw' }, true)).toEqual([]);
+    expect((await adguardSetup(db, adguard, options(true))).steps).toEqual([]);
   });
 
-  it('runs AdGuard first-time setup on a fresh install, with our credentials', async () => {
+  it('runs AdGuard first-time setup on a fresh bundled install, with our credentials', async () => {
     h = await harness({ now: FREE });
     await ownerInvite(h.handle.db, { origin: 'https://family.example.com' }, FREE);
     fake = new FakeAdGuard({ configured: false });
     const url = await fake.start();
-    const steps = await adguardSetup(h.handle.db, new AdGuard({ baseUrl: url, username: 'familytime', password: 'pw' }), { username: 'familytime', password: 'pw' }, true);
+    const { steps } = await adguardSetup(h.handle.db, new AdGuard({ baseUrl: url, username: 'familytime', password: 'pw' }), options(true, { mode: 'bundled' }));
     expect(steps[0]?.what).toBe('AdGuard first-time setup');
     expect(fake.configured).toBe(true);
     expect(fake.username).toBe('familytime');
     expect(await serviceGroupsCount()).toBe(0);
   });
+
+  it('never runs the first-time setup on an external AdGuard', async () => {
+    h = await harness({ now: FREE });
+    await ownerInvite(h.handle.db, { origin: 'https://family.example.com' }, FREE);
+    fake = new FakeAdGuard({ configured: false });
+    const url = await fake.start();
+    await expect(adguardSetup(h.handle.db, new AdGuard({ baseUrl: url, username: 'familytime', password: 'pw' }), options(true))).rejects.toThrow(/never runs the first-time setup/);
+    expect(fake.configured).toBe(false);
+  });
+
+  it('refuses a wrong login or an untested AdGuard before changing anything, and says why', async () => {
+    const { db } = await home();
+    const wrong = new AdGuard({ baseUrl: await restart(), username: 'familytime', password: 'nope' });
+    await expect(adguardSetup(db, wrong, options(true))).rejects.toThrow(/refused the login for user familytime/);
+    fake!.version = 'v0.108.0';
+    const right = new AdGuard({ baseUrl: await restart(), username: fake!.username, password: fake!.password });
+    await expect(adguardSetup(db, right, options(true))).rejects.toThrow(/newer series than the tested v0\.107\.79/);
+    expect(fake!.writes).toEqual([]);
+    const ok = await adguardSetup(db, right, options(false, { allowUntested: true }));
+    expect(ok.notes.join(' ')).toMatch(/ADGUARD_ALLOW_UNTESTED=1/);
+  });
+
+  it('with --family-time-only, leaves the global settings alone and needs the markers first', async () => {
+    const { db, adguard } = await home();
+    await expect(adguardSetup(db, adguard, options(true, { scope: 'family-time-only' }))).rejects.toThrow(/no family-time markers yet[\s\S]*Custom filtering rules/);
+    fake!.userRules = ['||theirs.example^', BEGIN, END];
+    const { steps, notes } = await adguardSetup(db, adguard, options(true, { scope: 'family-time-only' }));
+    expect(steps.map((s) => s.what)).toEqual(['What Family time manages in AdGuard']);
+    expect(notes.join(' ')).toMatch(/Left as they are/);
+    expect(fake!.writes).toEqual([]);
+    expect((await db.select().from(settings)).find((x) => x.key === SETTING_ADGUARD_SCOPE)?.value).toBe('family-time-only');
+    expect(fake!.dnsConfig).toMatchObject({ blocked_response_ttl: 3600 });
+  });
 });
+
+/** The same fake on a new port, after a test changed it. */
+async function restart() {
+  await fake!.stop();
+  return fake!.start();
+}
 
 async function serviceGroupsCount() {
   return (await h!.handle.db.select().from(serviceGroups)).length;

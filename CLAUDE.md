@@ -30,6 +30,7 @@ This laptop cannot run containers and cannot reach the servers. Containers are b
 - British English. 24-hour times, stored in UTC, shown in Europe/London.
 - No em dashes or en dashes anywhere, code included. Use "to" for ranges. `scripts/check-dashes.mjs` fails the gate.
 - Secrets live in `secrets/` (git-ignored, made by `scripts/init.sh`) and are read through `NAME_FILE`. Never gitleaks.
+- The repository is public (github.com/breakmylegs/family-time), history included. Never commit personal details: the family's real names, home or IP addresses, email addresses, keys, tokens or passwords. Use made-up names and example addresses (192.0.2.x, `*.example`). `scripts/check-secrets.mjs` guards the working tree in the gate; `node scripts/check-secrets.mjs --history` checks everything ever pushed.
 - Ask before: a dependency not in brief Part 17, anything touching the home network, router, DNS or other containers.
 
 ## Layout

@@ -8,6 +8,14 @@ if (!process.env.DATABASE_URL) {
   process.exit(2);
 }
 
+// The contract tests write clients and rules, so they only ever run against the test project's own
+// throwaway AdGuard (deploy/compose.test.yml), never the household's live one (ADR 0022).
+const THROWAWAY_ADGUARD = 'http://adguard:3000';
+if (process.env.ADGUARD_URL && (process.env.ADGUARD_URL !== THROWAWAY_ADGUARD || process.env.ADGUARD_CONTRACT_TARGET !== 'throwaway')) {
+  console.error(`test-pg: the AdGuard contract tests run only against the test project's throwaway AdGuard at ${THROWAWAY_ADGUARD}, never ${process.env.ADGUARD_URL}.`);
+  process.exit(2);
+}
+
 const suites = [
   ['@family-time/db', 'test:pg'],
   ['@family-time/ledger', 'test:pg'],

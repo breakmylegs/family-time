@@ -28,7 +28,13 @@ case "$args" in
     exit 0 ;;
   *" run --rm migrate "*) fails migrate && exit 1; exit 0 ;;
   *" up -d api worker "*) printf '%s' "${IMAGE_TAG:-}" > "$SHIM_LOG.running"; exit 0 ;;
-  *" up -d adguard"*) exit 0 ;;
+  # The bundled AdGuard and the optional services, by name. A bare `up -d` has no rule: it would
+  # start every service.
+  *" up -d adguard"* | *" up -d besu"* | *" up -d ollama"*) exit 0 ;;
+  # $SHIM_OLD_ADGUARD=1: a bundled AdGuard container is left from before the move to an external one.
+  *" ps -aq --filter label=com.docker.compose.project=family-time --filter label=com.docker.compose.service=adguard "*)
+    [ "${SHIM_OLD_ADGUARD:-0}" = 1 ] && echo oldadguard0; exit 0 ;;
+  *" rm -f oldadguard0 "*) exit 0 ;;
   *" ps -q api "*) echo api0000; exit 0 ;;
   *" ps -q worker "*) echo wrk0000; exit 0 ;;
   *" inspect -f {{.State.Running}} "*) echo true; exit 0 ;;
