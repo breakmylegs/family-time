@@ -43,8 +43,10 @@ export const AuthState = z.object({
   /** `needs-owner` until the first owner has joined. */
   setup: z.enum(['needs-owner', 'ready']),
   me: Me.nullable(),
-  /** The sign-in screen offers "Sign in with Authentik": set up on the server, and an owner has linked it. */
+  /** The sign-in screen offers "Sign in with ...": set up on the server, and an owner has linked it. */
   sso: z.boolean(),
+  /** What to call it: the name the owner gave (`ft.sh sso-setup --name`), or "your sign-in service". */
+  ssoName: z.string().nullable(),
 });
 export type AuthState = z.infer<typeof AuthState>;
 

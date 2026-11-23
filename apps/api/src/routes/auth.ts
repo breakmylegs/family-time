@@ -35,8 +35,9 @@ const RP_NAME = 'Family time';
 export interface AuthRouteDeps {
   db: Db;
   now: () => Date;
-  /** Whether the sign-in screen offers Authentik: set up and linked to at least one owner. */
-  ssoOffered?: () => Promise<boolean>;
+  /** Whether the sign-in screen offers the sign-in service: set up and linked to at least one owner. */
+  /** The sign-in service's name when the sign-in screen offers it, or null. */
+  ssoOffered?: () => Promise<string | null>;
 }
 
 export async function authRoutes(app: FastifyInstance, deps: AuthRouteDeps): Promise<void> {
@@ -49,7 +50,8 @@ export async function authRoutes(app: FastifyInstance, deps: AuthRouteDeps): Pro
       ? await db.select({ id: people.id }).from(people).where(and(eq(people.householdId, household.id), eq(people.role, 'owner'), eq(people.active, true))).limit(1)
       : [];
     const me = request.auth ? await meOf(db, request.auth.person) : null;
-    return { setup: owners.length ? 'ready' : 'needs-owner', me, sso: owners.length ? ((await deps.ssoOffered?.()) ?? false) : false };
+    const ssoName = owners.length ? ((await deps.ssoOffered?.()) ?? null) : null;
+    return { setup: owners.length ? 'ready' : 'needs-owner', me, sso: ssoName !== null, ssoName };
   });
 
   app.get('/api/me', { config: { access: 'session' } }, async (request): Promise<Me> => meOf(db, request.auth!.person));

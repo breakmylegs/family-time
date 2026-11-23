@@ -4,6 +4,10 @@
 # Caddy terminates TLS here and gets its certificate automatically. The api is reached by its
 # alias on the shared proxy network, so it publishes no port. The kiosk is not served here: it is
 # LAN only (Phase 6).
+#
+# No forward_auth (Authelia, Authentik) in front of this site: Family time does its own sign-in,
+# and a gateway would break invite links, passkey sign-up, /api/events, push and /mcp. Owner sign-in
+# through those services happens inside the app (docs/setup/owner-sign-in.md).
 
 family.example.com {
 	encode zstd gzip

@@ -1,10 +1,11 @@
-// Optional owner sign-in through Authentik (brief Part 8). See auth/oidc.ts for the flow.
+// Optional owner sign-in through the household's OpenID Connect provider, such as Authentik or
+// Authelia (brief Part 8, ADR 0019, ADR 0023). See auth/oidc.ts for the flow.
 import { people, sessions, type Db } from '@family-time/db';
 import { and, eq, ne } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { audit } from '../audit.js';
 import { clearCookie, parseCookies, serializeCookie } from '../auth/cookies.js';
-import { NoPendingSignIn, Oidc, OIDC_COOKIE, OIDC_PENDING_MS, OidcUnreachable, SETTING_OWNER_SSO, type OwnerSso } from '../auth/oidc.js';
+import { NoPendingSignIn, Oidc, OIDC_COOKIE, OIDC_PENDING_MS, OidcError, OidcNotFresh, OidcUnreachable, SETTING_OWNER_SSO, ssoName, type OwnerSso } from '../auth/oidc.js';
 import { AUTH_RATE_LIMIT } from '../auth/ratelimit.js';
 import { getSetting, theHousehold, webOrigin } from '../settings.js';
 import { startSession } from './auth.js';
@@ -12,13 +13,13 @@ import { startSession } from './auth.js';
 export interface OidcRouteDeps {
   db: Db;
   now: () => Date;
-  /** Absent when secrets/oidc_client_secret is empty: sign-in through Authentik is off. */
+  /** Absent when secrets/oidc_client_secret is empty: sign-in through the provider is off. */
   oidc?: Oidc;
 }
 
 export const CALLBACK_PATH = '/api/auth/oidc/callback';
 
-/** The owner's sign-in through Authentik, when it is fully set up: the setting, the secret and the address. */
+/** The owner's sign-in through the provider, when it is fully set up: the setting, the secret and the address. */
 export async function ownerSso(db: Db, oidc: Oidc | undefined) {
   if (!oidc) return undefined;
   const household = await theHousehold(db);
@@ -41,10 +42,10 @@ export async function oidcRoutes(app: FastifyInstance, deps: OidcRouteDeps): Pro
     const s = await ownerSso(db, deps.oidc);
     const me = request.auth!.person;
     const linked = me.role === 'owner' ? Boolean((await db.select({ sub: people.oidcSubject }).from(people).where(eq(people.id, me.id)))[0]?.sub) : false;
-    return { available: Boolean(s), linked };
+    return { available: Boolean(s), linked, name: ssoName(s?.sso) };
   });
 
-  // Signing in: straight to Authentik, and back to the callback.
+  // Signing in: straight to the provider, and back to the callback.
   app.get('/api/auth/oidc/start', { config: limited }, async (request, reply) => {
     const s = await ownerSso(db, deps.oidc);
     if (!s) return reply.redirect('/?sso=off', 303);
@@ -60,15 +61,15 @@ export async function oidcRoutes(app: FastifyInstance, deps: OidcRouteDeps): Pro
   // Linking, from Settings: a POST with the CSRF token, so a page elsewhere cannot start it.
   app.post('/api/auth/oidc/link', { config: { access: 'system.manage', rateLimit: AUTH_RATE_LIMIT } }, async (request, reply) => {
     const me = request.auth!.person;
-    if (me.role !== 'owner') return reply.code(403).send({ error: 'forbidden', detail: 'Only an owner can sign in with Authentik.' });
+    if (me.role !== 'owner') return reply.code(403).send({ error: 'forbidden', detail: 'Only an owner can sign in this way.' });
     const s = await ownerSso(db, deps.oidc);
-    if (!s) return reply.code(409).send({ error: 'sso_off', detail: 'Sign-in with Authentik is not set up on the server. See docs/setup/authentik.md.' });
+    if (!s) return reply.code(409).send({ error: 'sso_off', detail: 'Owner sign-in through a sign-in service is not set up on the server. See docs/setup/owner-sign-in.md.' });
     try {
       const { url, cookie } = await deps.oidc!.start(s.sso, s.redirectUri, now().getTime(), me.id);
       return reply.header('set-cookie', pendingCookie(cookie)).send({ url: url.href });
     } catch (err) {
       request.log.warn({ event: 'oidc_start_failed', err: (err as Error).message });
-      return reply.code(502).send({ error: 'unreachable', detail: "Family time couldn't reach Authentik. Check it is running, then try again." });
+      return reply.code(502).send({ error: 'unreachable', detail: `Family time couldn't reach ${ssoName(s.sso)}. Check it is running, then try again.` });
     }
   });
 
@@ -94,14 +95,16 @@ export async function oidcRoutes(app: FastifyInstance, deps: OidcRouteDeps): Pro
       request.log.warn({ event: 'oidc_failed', err: (err as Error).message });
       // Someone calling the callback with no sign-in started is logged, not written to the audit log.
       if (!(err instanceof NoPendingSignIn)) {
-        await audit(db, { householdId: s.householdId, actor: { label: 'oidc' }, action: 'auth.oidc_failed', after: { reason: (err as Error).message.slice(0, 200) }, ip: request.ip }, request.log);
+        await audit(db, { householdId: s.householdId, actor: { label: 'oidc' }, action: 'auth.oidc_failed', after: { reason: (err as Error).message.slice(0, 200), provider: ssoName(s.sso) }, ip: request.ip }, request.log);
       }
-      return back(reply, err instanceof OidcUnreachable ? '/?sso=unreachable' : '/?sso=failed');
+      // A sign-in that was not fresh fails the same way every time: say so, never just "try again".
+      const what = err instanceof OidcUnreachable ? 'unreachable' : err instanceof OidcNotFresh ? 'stale' : 'failed';
+      return back(reply, err instanceof OidcError && err.linking ? `/settings?sso=${what}` : `/?sso=${what}`);
     }
 
     if (result.linkPersonId) {
-      // Only the owner who started it, still signed in here, still an owner, and an Authentik
-      // account no one else has.
+      // Only the owner who started it, still signed in here, still an owner, and an account at the
+      // provider no one else has.
       const refuse = async (why: string, path: string) => {
         await audit(db, { householdId: s.householdId, actor: { label: 'oidc' }, action: 'auth.oidc_link_refused', targetType: 'person', targetId: result.linkPersonId!, after: { why, account: result.username }, ip: request.ip }, request.log);
         return back(reply, path);
@@ -126,7 +129,7 @@ export async function oidcRoutes(app: FastifyInstance, deps: OidcRouteDeps): Pro
       await audit(db, { householdId: s.householdId, actor: { label: 'oidc' }, action: 'auth.oidc_unknown', after: { account: result.username }, ip: request.ip }, request.log);
       return back(reply, '/?sso=unknown');
     }
-    await audit(db, { householdId: person.householdId, actor: { personId: person.id }, action: 'auth.signed_in', after: { with: 'authentik', account: result.username }, ip: request.ip }, request.log);
+    await audit(db, { householdId: person.householdId, actor: { personId: person.id }, action: 'auth.signed_in', after: { with: 'oidc', provider: ssoName(s.sso), account: result.username }, ip: request.ip }, request.log);
     await startSession(reply, db, person.id, request.headers['user-agent'], t);
     return back(reply, '/');
   });

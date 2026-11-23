@@ -127,7 +127,7 @@ deploy() {
   # Added in later versions; init.sh is safe to run again and only adds what is missing.
   [ -s secrets/adguard_password ] && [ -s deploy/.state/network.env ] && [ -s secrets/vapid_private.pem ] && [ -s secrets/vapid_public.txt ] && [ -s secrets/ledger_signer_key ] && [ -s secrets/besu_node_key ] && [ -s secrets/master_key ] \
     || fail "$EXIT_PREFLIGHT" "this version needs new setup (the AdGuard password, the LAN address, the alerts keys, the ledger keys and the master key). Run ./scripts/init.sh again"
-  # Owner sign-in through Authentik is optional: an empty secret file is off, and Compose needs the file.
+  # Owner sign-in through a sign-in service is optional: an empty secret file is off, and Compose needs the file.
   [ -e secrets/oidc_client_secret ] || (umask 077 && : > secrets/oidc_client_secret)
   # The same for AdGuard's certificate, used only when the owner trusts a self-signed one.
   [ -e secrets/adguard_ca.pem ] || (umask 077 && : > secrets/adguard_ca.pem)

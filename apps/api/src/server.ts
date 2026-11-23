@@ -7,7 +7,7 @@ import type { Liveness, Version } from '@family-time/schemas';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { BuildInfo } from './build.js';
 import { registerAccess } from './auth/access.js';
-import type { Oidc } from './auth/oidc.js';
+import { ssoName, type Oidc } from './auth/oidc.js';
 import type { RateLimiter } from './auth/ratelimit.js';
 import { readiness } from './health.js';
 import { HEALTH_PATHS, loggerOptions, logPath } from './logging.js';
@@ -52,7 +52,7 @@ export interface ServerDeps {
   ledgerAdapter?: 'postgres' | 'besu';
   /** For readiness: asks AdGuard's admin API anything. */
   pingAdguard?: () => Promise<void>;
-  /** Owner sign-in through Authentik, when secrets/oidc_client_secret holds the client secret. */
+  /** Owner sign-in through the household's OpenID Connect provider, when secrets/oidc_client_secret holds the client secret. */
   oidc?: Oidc;
   /** The kiosk's address on the LAN, shown with a pairing code. */
   kioskUrl?: string;
@@ -126,7 +126,13 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   await authRoutes(app, {
     db: deps.db,
     now,
-    ssoOffered: async () => Boolean((await ownerSso(deps.db, deps.oidc)) && (await deps.db.select({ id: people.id }).from(people).where(isNotNull(people.oidcSubject)).limit(1)).length),
+    // The provider's name when the sign-in screen should offer it: set up, and an owner has linked it.
+    ssoOffered: async () => {
+      const s = await ownerSso(deps.db, deps.oidc);
+      if (!s) return null;
+      const linked = (await deps.db.select({ id: people.id }).from(people).where(isNotNull(people.oidcSubject)).limit(1)).length;
+      return linked ? ssoName(s.sso) : null;
+    },
   });
   await oidcRoutes(app, { db: deps.db, now, ...(deps.oidc ? { oidc: deps.oidc } : {}) });
   await peopleRoutes(app, { db: deps.db, now });

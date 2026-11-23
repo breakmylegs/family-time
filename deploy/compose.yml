@@ -41,7 +41,8 @@ x-app: &app
     KIOSK_LAN_URL: http://${LAN_IP}:${KIOSK_HOST_PORT:-8180}
     # Seals AI keys and signs MCP confirmations (ADR 0016). Only the api has the file; without it AI stays off.
     MASTER_KEY_FILE: /run/app-secrets/master_key
-    # Owner sign-in through Authentik (docs/setup/authentik.md). Empty, the init.sh default, is off.
+    # Owner sign-in through the household's sign-in service, such as Authelia or Authentik
+    # (docs/setup/owner-sign-in.md). Empty, the init.sh default, is off.
     OIDC_CLIENT_SECRET_FILE: /run/app-secrets/oidc_client_secret
     LOG_LEVEL: info
     TZ: Europe/London

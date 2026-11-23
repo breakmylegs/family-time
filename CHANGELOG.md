@@ -2,6 +2,12 @@
 
 Release notes the app shows on its System page (from Phase 8). One plain line per change, newest first.
 
+## 0.15.0 (sign in with your own service)
+
+- Owners can sign in through whichever sign-in service the home already runs, such as Authelia or Authentik, not only Authentik. The app shows its name ("Sign in with Authelia"), which you set on the server.
+- If your sign-in service doesn't ask you to sign in again, Family time now says so plainly, with what to do, instead of failing the same way each time.
+- The setup guide covers Authelia, and warns not to put a sign-in gateway in front of Family time.
+
 ## 0.14.0 (your own AdGuard)
 
 - Family time now uses the AdGuard Home you already run on your home network, by default. Running its own AdGuard is still there as an option you choose when setting up.

@@ -1,21 +1,23 @@
-// Optional owner sign-in through Authentik with OIDC (brief Part 8). Off unless the owner sets the
-// issuer and client id (`ft.sh sso-setup`) and puts the client secret in secrets/oidc_client_secret.
-// Only an owner whose Authentik account has been linked, from Settings while signed in with a
-// passkey, can sign in this way; passkeys keep working whatever happens here.
+// Optional owner sign-in through the household's own OpenID Connect provider, such as Authentik or
+// Authelia (brief Part 8, ADR 0019, ADR 0023). Off unless the owner sets the issuer and client id
+// (`ft.sh sso-setup`) and puts the client secret in secrets/oidc_client_secret. Only an owner whose
+// account there has been linked, from Settings while signed in with a passkey, can sign in this
+// way; passkeys keep working whatever happens here.
 //
-// The authorisation code flow with PKCE, state and nonce. The three are kept on the server for ten
-// minutes, keyed by a random id in an HttpOnly cookie, so a code from someone else's browser is no
-// use in this one. Every sign-in asks Authentik for a fresh one (prompt=login, max_age=0): a live
-// Authentik session on a shared tablet must never become an owner session on its own, when the
-// passkey beside it asks for Face ID every time. The ID token's signature is checked against the
-// issuer's keys, not only trusted because it came over TLS.
+// The authorisation code flow with PKCE, state and nonce, the client authenticating with
+// client_secret_basic. The three are kept on the server for ten minutes, keyed by a random id in an
+// HttpOnly cookie, so a code from someone else's browser is no use in this one. Every sign-in asks
+// the provider for a fresh one (prompt=login, max_age=0): a live session there on a shared tablet
+// must never become an owner session on its own, when the passkey beside it asks for Face ID every
+// time. The ID token's signature is checked against the issuer's keys, not only trusted because it
+// came over TLS.
 import * as client from 'openid-client';
 import { randomToken } from './tokens.js';
 
 export const SETTING_OWNER_SSO = 'owner_sso';
 export const OIDC_COOKIE = '__Host-ft_oidc';
 export const OIDC_PENDING_MS = 10 * 60_000;
-/** How old Authentik's own sign-in may be when it answers: it was asked for a fresh one. */
+/** How old the provider's own sign-in may be when it answers: it was asked for a fresh one. */
 const FRESH_SIGN_IN_SECONDS = 300;
 const MAX_PENDING = 200;
 
@@ -23,26 +25,42 @@ const MAX_PENDING = 200;
 export interface OwnerSso {
   issuer: string;
   clientId: string;
+  /** What the app calls the provider: "Authelia". Settings from before it had one show the default. */
+  name?: string;
 }
+
+/** What the app calls a provider the owner has not named. */
+export const DEFAULT_SSO_NAME = 'your sign-in service';
+export const ssoName = (sso: Pick<OwnerSso, 'name'> | undefined) => sso?.name || DEFAULT_SSO_NAME;
 
 export interface Pending {
   state: string;
   nonce: string;
   verifier: string;
-  /** Linking: the signed-in owner the Authentik account is for. Absent when signing in. */
+  /** Linking: the signed-in owner the provider's account is for. Absent when signing in. */
   linkPersonId?: string;
   expires: number;
 }
 
-export class OidcError extends Error {}
+export class OidcError extends Error {
+  /** Whether it went wrong while linking from Settings, so the answer goes back there. */
+  linking = false;
+}
 /** No sign-in was started in this browser: nothing to audit, just someone calling the callback. */
 export class NoPendingSignIn extends OidcError {}
-/** Authentik could not be reached at all. */
+/** The provider could not be reached at all. */
 export class OidcUnreachable extends OidcError {}
+/**
+ * The provider answered with a sign-in that was not fresh (an old auth_time, or none): it reused
+ * a session rather than asking again. Trying again would fail the same way, so the owner is told
+ * what to change rather than sent round a loop.
+ */
+export class OidcNotFresh extends OidcError {}
+const NOT_FRESH = /auth_time|authentication time|since the last End-User authentication/i;
 
 /**
  * What `people.oidc_subject` holds: the issuer and its subject together, so a link made with one
- * Authentik application never matches an account from another, or from a later issuer.
+ * provider's application never matches an account from another, or from a later issuer.
  */
 export const subjectKey = (issuer: string, sub: string) => `${issuer}#${sub}`;
 
@@ -61,17 +79,22 @@ export class Oidc {
     let c = this.configs.get(key);
     if (!c) {
       c = client
-        .discovery(new URL(sso.issuer), sso.clientId, this.clientSecret, undefined, { timeout: 10, ...(this.allowInsecure ? { execute: [client.allowInsecureRequests] } : {}) })
+        // client_secret_basic, said outright, so the provider's client can be set to match it
+        // (Authelia: token_endpoint_auth_method: client_secret_basic).
+        .discovery(new URL(sso.issuer), sso.clientId, undefined, client.ClientSecretBasic(this.clientSecret), {
+          timeout: 10,
+          ...(this.allowInsecure ? { execute: [client.allowInsecureRequests] } : {}),
+        })
         .then((config) => {
           client.enableNonRepudiationChecks(config);
           return config;
         });
-      // A failed discovery (Authentik restarting) is tried again next time, not remembered.
+      // A failed discovery (the provider restarting) is tried again next time, not remembered.
       c.catch(() => this.configs.delete(key));
       this.configs.set(key, c);
     }
     return c.catch((err: unknown) => {
-      throw new OidcUnreachable(`Authentik could not be reached: ${(err as Error).message}`, { cause: err });
+      throw new OidcUnreachable(`${ssoName(sso)} could not be reached: ${(err as Error).message}`, { cause: err });
     });
   }
 
@@ -107,7 +130,8 @@ export class Oidc {
     const p = cookie ? this.pending.get(cookie) : undefined;
     if (cookie) this.pending.delete(cookie);
     if (!p) throw new NoPendingSignIn('no sign-in was started in this browser');
-    if (p.expires <= now) throw new OidcError('the sign-in took more than ten minutes');
+    const fail = (e: OidcError) => Object.assign(e, { linking: Boolean(p.linkPersonId) });
+    if (p.expires <= now) throw fail(new OidcError('the sign-in took more than ten minutes'));
     let tokens;
     try {
       tokens = await client.authorizationCodeGrant(await this.config(sso), currentUrl, {
@@ -118,11 +142,14 @@ export class Oidc {
         maxAge: FRESH_SIGN_IN_SECONDS,
       });
     } catch (err) {
-      if (err instanceof OidcUnreachable) throw err;
-      throw new OidcError((err as Error).message, { cause: err });
+      if (err instanceof OidcUnreachable) throw fail(err);
+      // openid-client says "JWT timestamp claim value failed validation" and puts why in `cause`.
+      const why = `${(err as Error).message} ${(err as { cause?: { message?: string } }).cause?.message ?? ''}`.trim();
+      if (NOT_FRESH.test(why)) throw fail(new OidcNotFresh(why, { cause: err }));
+      throw fail(new OidcError((err as Error).message, { cause: err }));
     }
     const claims = tokens.claims();
-    if (!claims?.sub) throw new OidcError('the ID token has no subject');
+    if (!claims?.sub) throw fail(new OidcError('the ID token has no subject'));
     const username = typeof claims.preferred_username === 'string' ? claims.preferred_username.slice(0, 100) : null;
     return { subject: subjectKey(sso.issuer, claims.sub), username, ...(p.linkPersonId ? { linkPersonId: p.linkPersonId } : {}) };
   }

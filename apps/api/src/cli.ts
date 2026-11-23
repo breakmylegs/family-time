@@ -70,10 +70,12 @@ Operations
   backup-recorded --result ok|failed [--bytes 123456] [--snapshot abc123] [--problem "why"]
       backup.sh runs this after each backup, so the System page shows it and owners hear of a failure.
 
-Owner sign-in through Authentik (optional; docs/setup/authentik.md)
-  sso-setup [--issuer https://auth.example.com/application/o/family-time/ --client-id ID | --off]
-      Shows the setting, saves the provider's issuer and client id, or switches it off. The client
-      secret goes in secrets/oidc_client_secret.`;
+Owner sign-in through your own sign-in service, such as Authelia or Authentik (optional;
+docs/setup/owner-sign-in.md)
+  sso-setup [--issuer https://auth.example.com --client-id ID] [--name "Authelia"] | --off
+      Shows the setting, saves the service's issuer and client id, or switches it off. --name is
+      what the app calls it ("Sign in with Authelia"); without one it says "your sign-in service".
+      The client secret goes in secrets/oidc_client_secret.`;
 
 const SWITCHES = new Set(['everything', 'yes', 'off', 'erase', 'family-time-only']);
 const REPEATABLE = new Set(['id']);
@@ -283,7 +285,14 @@ async function run(db: Db, command: string, args: ReturnType<typeof flags>): Pro
       return 0;
     }
     case 'sso-setup': {
-      console.log(await ssoSetup(db, { ...(values.issuer ? { issuer: values.issuer } : {}), ...(values['client-id'] ? { clientId: values['client-id'] } : {}), off: switches.has('off') }));
+      console.log(
+        await ssoSetup(db, {
+          ...(values.issuer ? { issuer: values.issuer } : {}),
+          ...(values['client-id'] ? { clientId: values['client-id'] } : {}),
+          ...(values.name !== undefined ? { name: values.name } : {}),
+          off: switches.has('off'),
+        }),
+      );
       return 0;
     }
     default:

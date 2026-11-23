@@ -1,4 +1,5 @@
-// Owner sign-in through Authentik (brief Part 8), against a fake OpenID provider that signs real
+// Owner sign-in through the household's sign-in service, Authentik or Authelia (brief Part 8,
+// ADR 0023), against a fake OpenID provider that signs real
 // RS256 ID tokens and checks the PKCE verifier. The tests show a forged or stale token is refused,
 // so the signature, audience, auth_time, nonce and state are really checked.
 import { createHash, createSign, generateKeyPairSync, randomUUID } from 'node:crypto';
@@ -52,6 +53,14 @@ async function fakeProvider() {
     }
     if (url.pathname === '/jwks') return json({ keys: [{ ...publicKey.export({ format: 'jwk' }), kid, alg: 'RS256', use: 'sig' }] });
     if (url.pathname === '/token' && req.method === 'POST') {
+      // client_secret_basic, as Authelia's example client is set up: the secret in the header only,
+      // each half form-encoded before base64 (RFC 6749 2.3.1), decoded here as a real provider does.
+      const basic = /^Basic (.+)$/.exec(req.headers.authorization ?? '')?.[1];
+      const [id, secret] = basic ? Buffer.from(basic, 'base64').toString().split(':').map((p) => decodeURIComponent(p.replace(/\+/g, ' '))) : [];
+      if (id !== CLIENT_ID || secret !== 'client-secret') {
+        res.writeHead(401, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'invalid_client' }));
+      }
       let body = '';
       req.on('data', (c) => (body += c));
       req.on('end', () => {
@@ -138,7 +147,7 @@ const cookieFrom = (setCookie: string | string[] | undefined, name: string) => {
   return found ? found.split(';')[0]! : undefined;
 };
 
-describe('owner sign-in through Authentik', () => {
+describe('owner sign-in through a sign-in service', () => {
   it('links the signed-in owner, then signs her in, and offers the button only once linked', async () => {
     const s = await setup();
     expect(AuthState.parse((await s.app.inject({ url: '/api/auth/state' })).json()).sso).toBe(false);
@@ -173,11 +182,17 @@ describe('owner sign-in through Authentik', () => {
     const ga = op!.approve(a.url, 'authentik-mum');
     expect((await s.app.inject({ url: `/api/auth/oidc/callback?code=${ga.code}&state=${ga.state}` })).headers.location).toBe('/?sso=failed');
     // A token for Mum's account that is wrong in one way each: none of them signs her in.
-    for (const trick of [{ nonce: 'someone-elses-nonce' }, { otherKey: true }, { aud: 'another-app' }, { signedInSecondsAgo: 3600 }] satisfies Trick[]) {
+    for (const [trick, said] of [
+      [{ nonce: 'someone-elses-nonce' }, 'failed'],
+      [{ otherKey: true }, 'failed'],
+      [{ aud: 'another-app' }, 'failed'],
+      // A provider that reused an old sign-in: said plainly, so nobody tries again in a loop.
+      [{ signedInSecondsAgo: 3600 }, 'stale'],
+    ] satisfies [Trick, string][]) {
       const b = await start();
       const gb = op!.approve(b.url, 'authentik-mum', trick);
       const r = await s.app.inject({ url: `/api/auth/oidc/callback?code=${gb.code}&state=${gb.state}`, headers: { cookie: b.cookie } });
-      expect(r.headers.location, JSON.stringify(trick)).toBe('/?sso=failed');
+      expect(r.headers.location, JSON.stringify(trick)).toBe(`/?sso=${said}`);
       expect(cookieFrom(r.headers['set-cookie'], '__Host-ft_session'), JSON.stringify(trick)).toBeUndefined();
     }
     // A verified Authentik account that is not linked to an owner.
@@ -227,5 +242,22 @@ describe('owner sign-in through Authentik', () => {
     await expect(ssoSetup(db, { issuer: 'http://auth.example.com/', clientId: CLIENT_ID })).rejects.toThrow(/https/);
     expect(await ssoSetup(db, { issuer: 'https://auth.example.com/application/o/family-time/', clientId: CLIENT_ID })).toMatch(/redirect URI must be http:\/\/localhost:5174\/api\/auth\/oidc\/callback/);
     expect(await ssoSetup(db, { off: true })).toMatch(/off/);
+  });
+
+  it('shows the name the owner gave the sign-in service, keeps links when only the name changes, and sends a stale link back to Settings', async () => {
+    const s = await setup();
+    expect((await s.app.inject({ url: '/api/auth/oidc', headers: s.headers.mum })).json()).toMatchObject({ name: 'your sign-in service' });
+    await linkMum(s);
+    expect(await ssoSetup(s.db, { name: 'Authelia' })).toMatch(/Sign in with Authelia/);
+    await expect(ssoSetup(s.db, { name: '<script>' })).rejects.toThrow(/--name/);
+    // Only the name changed: Mum's link and her session are untouched.
+    expect((await s.db.select({ sub: people.oidcSubject }).from(people).where(eq(people.id, s.mum)))[0]!.sub).toBe(`${op!.issuer}#authentik-mum`);
+    expect(AuthState.parse((await s.app.inject({ url: '/api/auth/state' })).json())).toMatchObject({ sso: true, ssoName: 'Authelia' });
+    expect((await s.app.inject({ url: '/api/auth/oidc', headers: s.headers.mum })).json()).toMatchObject({ name: 'Authelia', linked: true });
+
+    const link = await s.app.inject({ method: 'POST', url: '/api/auth/oidc/link', headers: s.headers.mum });
+    const g = op!.approve((link.json() as { url: string }).url, 'authentik-mum', { signedInSecondsAgo: 3600 });
+    const r = await s.app.inject({ url: `/api/auth/oidc/callback?code=${g.code}&state=${g.state}`, headers: { cookie: `${s.headers.mum.cookie}; ${cookieFrom(link.headers['set-cookie'], '__Host-ft_oidc')!}` } });
+    expect(r.headers.location).toBe('/settings?sso=stale');
   });
 });

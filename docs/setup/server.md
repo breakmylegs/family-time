@@ -45,7 +45,7 @@ Then apply it with `--yes`, or, to leave your AdGuard's global settings as they 
 
 ## Make the first owner (once)
 
-Passkeys only work over HTTPS, so the parent app needs its Caddy site first. Add `deploy/caddy/family-time.caddy` to your Caddyfile with your hostname, and reload Caddy.
+Passkeys only work over HTTPS, so the parent app needs its Caddy site first. Add `deploy/caddy/family-time.caddy` to your Caddyfile with your hostname, and reload Caddy. Do not put Authelia's or Authentik's `forward_auth` in front of it: Family time does its own sign-in, and a gateway in front breaks invite links, passkey sign-up, live updates (`/api/events`), push and `/mcp`. To sign in through your sign-in service, see [Owner sign-in](owner-sign-in.md).
 
 Then make the first owner's link. Use the exact address the app is reached at; passkeys are tied to it and it cannot be changed later.
 

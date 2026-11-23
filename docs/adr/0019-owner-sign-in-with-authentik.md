@@ -1,6 +1,6 @@
 # ADR 0019: Owner sign-in with Authentik
 
-Status: accepted, 9 November 2026 (Phase 10)
+Status: accepted, 9 November 2026 (Phase 10). Amended by [ADR 0023](0023-provider-neutral-owner-sign-in.md), 23 November 2026: the same flow, for any OpenID Connect provider (Authelia written up beside Authentik), with a name the owner sets. Read "Authentik" below as "the household's sign-in service".
 
 ## Decision
 

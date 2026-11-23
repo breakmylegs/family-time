@@ -76,7 +76,7 @@ await listen();
 // private key, until init.sh has been run again.
 const vapidPublicKey = process.env.VAPID_PUBLIC_KEY_FILE ? vapidPublicFromFile(process.env.VAPID_PUBLIC_KEY_FILE) : vapidFromFile(process.env.VAPID_PRIVATE_KEY_FILE)?.publicKey;
 
-// Owner sign-in through Authentik (brief Part 8): on when secrets/oidc_client_secret holds the
+// Owner sign-in through the household's sign-in service (brief Part 8): on when secrets/oidc_client_secret holds the
 // client secret. init.sh leaves that file empty, which means off.
 const oidcSecretFile = process.env.OIDC_CLIENT_SECRET_FILE;
 const oidcSecret = oidcSecretFile && existsSync(oidcSecretFile) ? readFileSync(oidcSecretFile, 'utf8').trim() : '';

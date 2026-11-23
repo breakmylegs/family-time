@@ -3,17 +3,24 @@ import { useState } from 'react';
 import { signInWithPasskey } from '../passkeys';
 import { Notice, Page, Shell } from '../ui';
 
-/** What came back from Authentik, from the `sso` the api puts on the address. */
-const SSO_WORDS: Record<string, string> = {
-  failed: "Authentik didn't confirm who you are. Try again, or sign in with your passkey.",
-  unknown: 'That Authentik account is not linked to an owner here. Sign in with your passkey, then link it in Settings.',
-  unreachable: "Family time couldn't reach Authentik. Sign in with your passkey for now.",
-  off: 'Sign-in with Authentik is switched off. Sign in with your passkey.',
-};
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-export function SignIn({ setup, sso, onSignedIn }: { setup: AuthState['setup']; sso: boolean; onSignedIn: (me: Me) => void }) {
+/** What came back from the sign-in service, from the `sso` the api puts on the address. */
+export function ssoWords(name: string): Record<string, string> {
+  return {
+    failed: `${cap(name)} didn't confirm who you are. Try again, or sign in with your passkey.`,
+    // The service reused a sign-in rather than asking again: trying again fails the same way.
+    stale: `${cap(name)} didn't ask you to sign in again, so Family time can't be sure it's you. Sign out of ${name} first, then try again, or sign in with your passkey.`,
+    unknown: `That ${name} account is not linked to an owner here. Sign in with your passkey, then link it in Settings.`,
+    unreachable: `Family time couldn't reach ${name}. Sign in with your passkey for now.`,
+    off: 'Signing in through a sign-in service is switched off. Sign in with your passkey.',
+  };
+}
+
+export function SignIn({ setup, sso, ssoName, onSignedIn }: { setup: AuthState['setup']; sso: boolean; ssoName: string | null; onSignedIn: (me: Me) => void }) {
+  const name = ssoName ?? 'your sign-in service';
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | undefined>(() => SSO_WORDS[new URLSearchParams(location.search).get('sso') ?? '']);
+  const [error, setError] = useState<string | undefined>(() => ssoWords(name)[new URLSearchParams(location.search).get('sso') ?? '']);
 
   if (setup === 'needs-owner') {
     return (
@@ -48,7 +55,7 @@ export function SignIn({ setup, sso, onSignedIn }: { setup: AuthState['setup']; 
         </button>
         {sso ? (
           <a className="btn btn-quiet mt-3 w-full" href="/api/auth/oidc/start">
-            Sign in with Authentik
+            Sign in with {name}
           </a>
         ) : null}
         <Notice>{error}</Notice>
