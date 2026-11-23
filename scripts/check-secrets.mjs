@@ -27,12 +27,19 @@ const ALLOWED = new Map([]);
 // the project's own addresses are left out. Commit authors' emails are listed as well.
 if (process.argv.includes('--history')) {
   const { spawnSync } = await import('node:child_process');
+  const { tmpdir } = await import('node:os');
   const refs = process.argv.includes('--all-refs') ? ['--all'] : ['--remotes=origin'];
-  const authors = spawnSync('git', ['log', ...refs, '--format=%an <%ae>'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 1 << 26 });
+  // Run from a neutral folder with -C, so Windows never picks up a git.exe sitting in the repository.
+  const git = (args) => spawnSync('git', ['-C', ROOT, ...args], { cwd: tmpdir(), encoding: 'utf8', maxBuffer: 1 << 30 });
+  const authors = git(['log', ...refs, '--format=%an <%ae>']);
+  if (authors.status !== 0) {
+    console.error(`check-secrets: git log failed: ${authors.stderr || authors.error?.message}`);
+    process.exit(2);
+  }
   console.log(`commit authors: ${[...new Set(authors.stdout.split('\n').filter(Boolean))].join(', ')}`);
-  const log = spawnSync('git', ['log', ...refs, '-p', '--no-color', '--unified=0', '--format=commit %H'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 1 << 30 });
+  const log = git(['log', ...refs, '-p', '--no-color', '--unified=0', '--format=commit %H']);
   if (log.status !== 0) {
-    console.error(`check-secrets: git log failed: ${log.stderr}`);
+    console.error(`check-secrets: git log failed: ${log.stderr || log.error?.message}`);
     process.exit(2);
   }
   // Documentation ranges (RFC 5737), loopback, any-address, the public resolvers named in the docs.
@@ -45,15 +52,24 @@ if (process.argv.includes('--history')) {
   let file = '';
   let commits = 0;
   let added = 0;
+  // Between "diff --git" and the first "@@" are a file's headers; after it, every "+" line is
+  // content, even one that starts "++ " and so reads "+++ " in the diff.
+  let inHeader = false;
   const note = (map, value, where) => (map.has(value) ? map.get(value).count++ : map.set(value, { count: 1, first: where }));
   for (const line of log.stdout.split('\n')) {
     if (line.startsWith('commit ')) {
       commit = line.slice(7, 19);
       commits++;
+      inHeader = false;
       continue;
     }
-    if (line.startsWith('+++ ')) {
-      file = line.slice(6);
+    if (line.startsWith('diff --git ')) {
+      inHeader = true;
+      continue;
+    }
+    if (inHeader) {
+      if (line.startsWith('+++ ')) file = line.slice(6);
+      if (line.startsWith('@@')) inHeader = false;
       continue;
     }
     if (!line.startsWith('+') || file.endsWith('pnpm-lock.yaml')) continue;
