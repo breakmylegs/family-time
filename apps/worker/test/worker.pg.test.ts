@@ -31,7 +31,7 @@ describe('worker on real Postgres', () => {
         await new Promise((r) => setTimeout(r, 250));
         beat = await readHeartbeat(db);
       }
-      expect(beat).toEqual({ beatAt: at, commit: 'pgworker', chainSeenAt: null });
+      expect(beat).toEqual({ beatAt: at, commit: 'pgworker', chainSeenAt: null, adguardSeenAt: null });
     } finally {
       await worker.stop();
     }

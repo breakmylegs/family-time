@@ -1,5 +1,5 @@
 import type { AdGuard } from '@family-time/adguard-client';
-import { households, recordChainSeen, recordHeartbeat, sweep, type Db } from '@family-time/db';
+import { households, recordAdguardSeen, recordChainSeen, recordHeartbeat, sweep, type Db } from '@family-time/db';
 import { activeContract, checkAgainstChain, indexPass, postgresLedger, signerPass, type ChainClient, type LedgerPort } from '@family-time/ledger';
 import type { Send, Vapid } from '@family-time/notify';
 import type { PgBoss } from 'pg-boss';
@@ -7,6 +7,7 @@ import { sendDeviceAlerts, sendFamilyAlert, type AlertJob, type DeviceAlertKind 
 import { economyTick } from './economy.js';
 import { backupProblem } from './backups.js';
 import { prunePhotos } from './photos.js';
+import { adguardAnswered, answerDiscovery, DISCOVER_QUEUE } from './discover.js';
 import { reconcile } from './reconcile.js';
 import { adguardProblem, AdGuardWatch, reviewsDue } from './watch.js';
 import { readUsage } from './usage.js';
@@ -187,8 +188,15 @@ export async function startWorker(deps: WorkerDeps): Promise<RunningWorker> {
     });
   }
   const adguardWatch = new AdGuardWatch();
+  // The discovery helper, for the api, which holds no AdGuard password (ADR 0022).
+  if (!(await boss.getQueue(DISCOVER_QUEUE))) await boss.createQueue(DISCOVER_QUEUE);
+  await boss.work<{ id: string }>(DISCOVER_QUEUE, { pollingIntervalSeconds: 1 }, async (jobs) => {
+    for (const job of jobs) await answerDiscovery(db, adguard, job.data.id, now());
+  });
   await boss.work(RECONCILE_QUEUE, { pollingIntervalSeconds: deps.pollingIntervalSeconds ?? 2 }, async () => {
     if (!adguard) return log('debug', 'reconcile_skipped', { reason: 'AdGuard is not set up. Run ./scripts/ft.sh adguard-setup' });
+    // For the api's readiness, which cannot ask AdGuard itself: any answer counts.
+    if (await adguardAnswered(adguard)) await recordAdguardSeen(db, now());
     const problem = await adguardProblem(adguard);
     const turn = adguardWatch.observe(problem);
     if (problem) log('warn', 'adguard_unwell', { problem });

@@ -36,7 +36,7 @@ export async function harness(
     clock?: () => Date;
     vapidPublicKey?: string;
     notifyChange?: () => Promise<void>;
-    readQuerylog?: (limit: number) => Promise<QueryLogEntry[]>;
+    readQuerylog?: (limit: number, deviceId?: string) => Promise<QueryLogEntry[]>;
     aiModel?: ServerDeps['aiModel'];
     readWeather?: ServerDeps['readWeather'];
     fetchClientMetadata?: ServerDeps['fetchClientMetadata'];

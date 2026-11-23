@@ -42,8 +42,31 @@ export const workerHeartbeat = pgTable(
     commit: text('commit').notNull(),
     /** With the Besu ledger: when the worker last reached the node. Readiness reads it (the api cannot reach Besu). */
     chainSeenAt: timestamp('chain_seen_at', { withTimezone: true }),
+    /** When the worker last had any answer from AdGuard. Readiness reads it: the api holds no AdGuard password (ADR 0022). */
+    adguardSeenAt: timestamp('adguard_seen_at', { withTimezone: true }),
   },
   (t) => [check('worker_heartbeat_single_row', sql`${t.id} = 1`)],
+);
+
+/**
+ * The discovery helper's questions, answered by the worker, which alone talks to AdGuard: one
+ * device's DNS questions in the last 30 minutes. The api deletes each row once it has read it, and
+ * the retention sweep removes any left after an hour, so no query history is kept.
+ */
+export const discoveryRequests = pgTable(
+  'discovery_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    deviceId: uuid('device_id')
+      .notNull()
+      .references(() => devices.id),
+    requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().defaultNow(),
+    /** The device's questions: time, client, client name and domain only. */
+    result: jsonb('result'),
+    error: text('error'),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+  },
+  (t) => [index('discovery_requests_at').on(t.requestedAt)],
 );
 
 /** One per install in V1. Every other row hangs off a household, so V2 can hold several. */

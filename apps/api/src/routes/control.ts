@@ -21,8 +21,8 @@ export interface ControlRouteDeps {
   now: () => Date;
   /** Wakes the reconciler, so a change reaches AdGuard in seconds, not at the next minute. */
   notifyChange: () => Promise<void>;
-  /** Reads AdGuard's query log. Absent until AdGuard is set up. Read-only: the api never writes AdGuard. */
-  readQuerylog?: (limit: number) => Promise<QueryLogEntry[]>;
+  /** One device's recent DNS questions, which the worker reads from AdGuard for the api. Absent when no AdGuard is configured. */
+  readQuerylog?: (limit: number, deviceId?: string) => Promise<QueryLogEntry[]>;
   /** Tells open Control screens that something changed. */
   changes?: Changes;
 }
@@ -182,7 +182,13 @@ export async function controlRoutes(app: FastifyInstance, deps: ControlRouteDeps
     const device = (await db.select().from(devices).where(and(eq(devices.id, request.params.id), eq(devices.householdId, me.householdId))))[0];
     if (!device) return reply.code(404).send({ error: 'not_found', detail: 'That device is not in this family.' });
     const since = now().getTime() - 30 * 60_000;
-    const entries = await deps.readQuerylog(1000);
+    let entries: QueryLogEntry[];
+    try {
+      // The worker reads AdGuard for this device: the api holds no AdGuard password (ADR 0022).
+      entries = await deps.readQuerylog(1000, device.id);
+    } catch (err) {
+      return reply.code(502).send({ error: 'adguard_unreachable', detail: (err as Error).message });
+    }
     const known = await db.select({ name: services.name, domains: services.domains }).from(services).where(eq(services.householdId, me.householdId));
     const counts = new Map<string, number>();
     for (const e of entries) {

@@ -43,6 +43,10 @@ export ADGUARD_MODE ADGUARD_URL ADGUARD_USER ADGUARD_ALLOW_UNTESTED ADGUARD_CA_F
 # it would be pasted and echoed.
 service=api
 case "${1:-}" in
+  # The worker alone holds the AdGuard password (ADR 0022), so commands that talk to AdGuard run there.
+  adguard-setup | services-sync)
+    service=worker
+    ;;
   ledger-deploy | ledger-check | ledger-status)
     service=worker
     if [ "$1" = ledger-deploy ] && [ -t 0 ] && [[ " $* " != *" --admin "* ]]; then

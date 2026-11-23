@@ -142,15 +142,17 @@ describe('control', () => {
 
   it('lists the domains a device asked for in the last 30 minutes, owner only', async () => {
     const t = (min: number) => new Date(FREE.getTime() - min * 60_000).toISOString();
+    const asked: (string | undefined)[] = [];
     h = await harness({
       now: FREE,
-      readQuerylog: async () => [
+      // The worker answers for one device: the api asks with that device's id (ADR 0022).
+      readQuerylog: async (_limit, deviceId) => (asked.push(deviceId), [
         { time: t(1), client: '192.168.1.50', client_info: { name: 'ft-ipad' }, question: { name: 'cdn.newgame.example' } },
         { time: t(2), client: '192.168.1.50', client_info: { name: 'ft-ipad' }, question: { name: 'cdn.newgame.example' } },
         { time: t(3), client: '192.168.1.50', client_info: { name: 'ft-ipad' }, question: { name: 'www.roblox.com' } },
         { time: t(45), client: '192.168.1.50', client_info: { name: 'ft-ipad' }, question: { name: 'old.example' } },
         { time: t(1), client: '192.168.1.77', client_info: { name: 'someone-else' }, question: { name: 'not-ours.example' } },
-      ],
+      ]),
     });
     const s = await seed(h.handle.db);
     const res = await h.app.inject({ url: `/api/devices/${s.ipad.id}/discovery`, headers: await signedIn(h.handle.db, s.owner) });
@@ -158,8 +160,17 @@ describe('control', () => {
       { domain: 'cdn.newgame.example', queries: 2, service: null },
       { domain: 'www.roblox.com', queries: 1, service: 'Roblox' },
     ]);
+    expect(asked).toEqual([s.ipad.id]);
     const parent = await seedPerson(h.handle.db, s.hh, 'parent', 'Dad');
     expect((await h.app.inject({ url: `/api/devices/${s.ipad.id}/discovery`, headers: await signedIn(h.handle.db, parent) })).statusCode).toBe(403);
+  });
+
+  it("says so when the worker can't read AdGuard for the discovery helper", async () => {
+    h = await harness({ now: FREE, readQuerylog: async () => Promise.reject(new Error("The worker didn't answer in time. Check AdGuard is reachable, then try again.")) });
+    const s = await seed(h.handle.db);
+    const res = await h.app.inject({ url: `/api/devices/${s.ipad.id}/discovery`, headers: await signedIn(h.handle.db, s.owner) });
+    expect(res.statusCode).toBe(502);
+    expect(res.json()).toMatchObject({ error: 'adguard_unreachable', detail: expect.stringMatching(/didn't answer in time/) });
   });
 
   it('needs the right Origin like every other change', async () => {

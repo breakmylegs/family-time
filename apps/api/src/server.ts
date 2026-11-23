@@ -41,8 +41,8 @@ export interface ServerDeps {
   limiter?: RateLimiter;
   /** Wakes the reconciler after a change. A no-op in tests that do not care. */
   notifyChange?: () => Promise<void>;
-  /** Read-only access to AdGuard's query log, for the discovery helper. */
-  readQuerylog?: (limit: number) => Promise<QueryLogEntry[]>;
+  /** One device's recent DNS questions, which the worker reads from AdGuard, for the discovery helper. */
+  readQuerylog?: (limit: number, deviceId?: string) => Promise<QueryLogEntry[]>;
   /** Live updates for open Control screens. The production entry feeds it from Postgres NOTIFY. */
   changes?: Changes;
   /** The VAPID public key, when init.sh has made one. */
@@ -50,7 +50,7 @@ export interface ServerDeps {
   /** The ledger. The Postgres one unless a test or the Besu adapter says otherwise. */
   ledger?: LedgerPort;
   ledgerAdapter?: 'postgres' | 'besu';
-  /** For readiness: asks AdGuard's admin API anything. */
+  /** For readiness: whether the worker reached AdGuard recently. The api never talks to AdGuard itself. */
   pingAdguard?: () => Promise<void>;
   /** Owner sign-in through the household's OpenID Connect provider, when secrets/oidc_client_secret holds the client secret. */
   oidc?: Oidc;

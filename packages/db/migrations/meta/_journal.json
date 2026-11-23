@@ -120,6 +120,13 @@
       "when": 1794689068486,
       "tag": "0016_enhancements",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1795421631185,
+      "tag": "0017_adguard_via_worker",
+      "breakpoints": true
     }
   ]
 }

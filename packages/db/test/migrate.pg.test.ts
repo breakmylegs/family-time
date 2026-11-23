@@ -21,6 +21,6 @@ describe('on real Postgres', () => {
   it('writes and reads the heartbeat', async () => {
     const at = new Date('2026-10-26T10:00:00Z');
     await recordHeartbeat(db, 'pgtest', at);
-    expect(await readHeartbeat(db)).toEqual({ beatAt: at, commit: 'pgtest', chainSeenAt: null });
+    expect(await readHeartbeat(db)).toEqual({ beatAt: at, commit: 'pgtest', chainSeenAt: null, adguardSeenAt: null });
   });
 });

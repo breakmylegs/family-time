@@ -5,6 +5,7 @@ Release notes the app shows on its System page (from Phase 8). One plain line pe
 ## 0.15.1
 
 - Control no longer says a device is confirmed while an allow rule of your own in AdGuard lets one of its blocked apps through. It shows Not confirmed and names the rule.
+- The part of Family time that faces the internet no longer holds your AdGuard password. Only the background service that changes AdGuard has it.
 
 ## 0.15.0 (sign in with your own service)
 

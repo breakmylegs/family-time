@@ -20,9 +20,17 @@ export async function recordChainSeen(db: Db, at: Date): Promise<void> {
 /** Two minutes: a few of the signer's five-second passes, with room for a node restart. */
 export const CHAIN_STALE_AFTER_MS = 120_000;
 
-export async function readHeartbeat(db: Db): Promise<{ beatAt: Date; commit: string; chainSeenAt: Date | null } | undefined> {
+/** The worker had an answer from AdGuard just now, any answer. Only ever after a beat. */
+export async function recordAdguardSeen(db: Db, at: Date): Promise<void> {
+  await db.update(workerHeartbeat).set({ adguardSeenAt: at }).where(eq(workerHeartbeat.id, 1));
+}
+
+/** Three minutes: the worker asks AdGuard every minute, with room for one slow run. */
+export const ADGUARD_STALE_AFTER_MS = 180_000;
+
+export async function readHeartbeat(db: Db): Promise<{ beatAt: Date; commit: string; chainSeenAt: Date | null; adguardSeenAt: Date | null } | undefined> {
   const rows = await db
-    .select({ beatAt: workerHeartbeat.beatAt, commit: workerHeartbeat.commit, chainSeenAt: workerHeartbeat.chainSeenAt })
+    .select({ beatAt: workerHeartbeat.beatAt, commit: workerHeartbeat.commit, chainSeenAt: workerHeartbeat.chainSeenAt, adguardSeenAt: workerHeartbeat.adguardSeenAt })
     .from(workerHeartbeat)
     .where(eq(workerHeartbeat.id, 1));
   return rows[0];

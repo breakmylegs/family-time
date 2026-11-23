@@ -1,5 +1,6 @@
-import { AdGuard, AdGuardError, adguardFetch } from '@family-time/adguard-client';
-import { connectionConfig, readSecret, schema, type Db } from '@family-time/db';
+import type { QueryLogItem } from '@family-time/adguard-client';
+import { ADGUARD_STALE_AFTER_MS, connectionConfig, discoveryRequests, readHeartbeat, schema, type Db } from '@family-time/db';
+import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -28,18 +29,10 @@ const notifyChange = async () => {
   await boss.send('reconcile', {}, { singletonKey: 'change' });
 };
 
-// Read-only, for the discovery helper. The api never writes to AdGuard.
-const adguardPassword = readSecret('ADGUARD_PASSWORD');
-// The owner's self-signed certificate, when they opted in, trusted by the AdGuard client only.
-const adguardFetchImpl = adguardFetch(process.env.ADGUARD_CA_FILE);
-const adguard = adguardPassword
-  ? new AdGuard({
-      baseUrl: process.env.ADGUARD_URL ?? 'http://adguard:3000',
-      username: process.env.ADGUARD_USER ?? 'familytime',
-      password: adguardPassword,
-      ...(adguardFetchImpl ? { fetchImpl: adguardFetchImpl } : {}),
-    })
-  : undefined;
+// The api holds no AdGuard password (ADR 0022): it faces the internet, and that password controls
+// the home's DNS. The worker talks to AdGuard; the api reads when the worker last reached it, for
+// readiness, and asks the worker for a device's recent questions, for the discovery helper.
+const adguardInUse = Boolean(process.env.ADGUARD_MODE);
 
 // The worker NOTIFYs after each reconcile and usage run, so "Working on his iPad now" appears on
 // open Control screens without a refresh. One client holds the LISTEN; it reconnects if dropped.
@@ -98,7 +91,7 @@ const app = await buildServer({
   logLevel: process.env.LOG_LEVEL ?? 'info',
   trustedProxyHops: Number(process.env.TRUSTED_PROXY_HOPS ?? 1),
   notifyChange,
-  ...(adguard ? { readQuerylog: async (limit: number) => (await adguard.querylog({ limit })).data, pingAdguard: () => pingAdguard(adguard) } : {}),
+  ...(adguardInUse ? { readQuerylog: (_limit: number, deviceId?: string) => askWorkerForQueries(deviceId), pingAdguard: () => workerReachedAdguard() } : {}),
   ...(existsSync(join(staticDir, 'index.html')) ? { staticDir } : {}),
   ...(oidc ? { oidc } : {}),
 });
@@ -128,22 +121,34 @@ function kioskLog(event: string, error: string) {
   kiosk.log.error({ event, error });
 }
 
+/** Readiness: the worker had an answer from AdGuard in the last three minutes (any answer counts). */
+async function workerReachedAdguard(): Promise<void> {
+  const seen = (await readHeartbeat(db))?.adguardSeenAt;
+  if (!seen) throw new Error('the worker has not reached AdGuard yet');
+  if (Date.now() - seen.getTime() > ADGUARD_STALE_AFTER_MS) throw new Error(`the worker last reached AdGuard at ${seen.toISOString()}`);
+}
+
 /**
- * Any HTTP answer means AdGuard is up, including "sign in first" before adguard-setup. One real call
- * every ten seconds at most, however often /readyz is asked.
+ * The discovery helper: one device's DNS questions in the last 30 minutes, which the worker reads
+ * from AdGuard. Waits up to 15 seconds, then deletes the answer, so no query history is kept.
  */
-let lastPing: { at: number; result: Promise<void> } | undefined;
-function pingAdguard(a: AdGuard): Promise<void> {
-  if (lastPing && Date.now() - lastPing.at < 10_000) return lastPing.result;
-  const result = a.status().then(
-    () => undefined,
-    (err: unknown) => {
-      if (err instanceof AdGuardError) return;
-      throw new Error(`AdGuard's admin API is not answering: ${(err as Error).message}`, { cause: err });
-    },
-  );
-  lastPing = { at: Date.now(), result };
-  return result;
+async function askWorkerForQueries(deviceId: string | undefined): Promise<QueryLogItem[]> {
+  if (!deviceId) return [];
+  const [req] = await db.insert(discoveryRequests).values({ deviceId }).returning({ id: discoveryRequests.id });
+  try {
+    await boss.send('discover', { id: req!.id }, { expireInSeconds: 60 });
+    for (let i = 0; i < 30; i++) {
+      await new Promise((r) => setTimeout(r, 500));
+      const [row] = await db.select().from(discoveryRequests).where(eq(discoveryRequests.id, req!.id));
+      if (row?.finishedAt) {
+        if (row.error) throw new Error(row.error);
+        return (row.result ?? []) as QueryLogItem[];
+      }
+    }
+    throw new Error("The worker didn't answer in time. Check AdGuard is reachable, then try again.");
+  } finally {
+    await db.delete(discoveryRequests).where(eq(discoveryRequests.id, req!.id));
+  }
 }
 
 const shutdown = async (signal: string) => {

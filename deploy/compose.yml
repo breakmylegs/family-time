@@ -100,14 +100,16 @@ services:
       retries: 6
       start_period: 40s
     # Only the public half of the alerts key: the worker alone sends alerts (ADR 0017).
-    secrets: [postgres_password, adguard_password, adguard_ca.pem, vapid_public.txt, master_key, oidc_client_secret]
+    # No AdGuard password (ADR 0022): the api faces the internet, and that password controls the home's
+    # DNS. The worker talks to AdGuard; ft.sh runs adguard-setup and services-sync in the worker.
+    secrets: [postgres_password, vapid_public.txt, master_key, oidc_client_secret]
     # The kiosk (ADR 0015): its own listener in the api, published on the server's LAN address
     # only, never through Caddy. Firewall it to the tablet on the router (docs/setup/kiosk.md).
     ports:
       - "${LAN_IP}:${KIOSK_HOST_PORT:-8180}:3001"
-    # egress: out to the household's own AdGuard on the home network (ADR 0022), the AI providers, an
-    # app's client metadata document, the weather service, the owner's Ollama (ADR 0016) and the
-    # owner's sign-in service (ADR 0019). The api only calls the optional ones once switched on.
+    # egress: out to the AI providers, an app's client metadata document, the weather service, the
+    # owner's Ollama (ADR 0016) and the owner's sign-in service (ADR 0019). The api only calls them
+    # once switched on. It never talks to AdGuard: the worker does (ADR 0022).
     # Nothing is published on it.
     # ai: the stack's own Ollama, when the ai-local profile is on.
     networks:

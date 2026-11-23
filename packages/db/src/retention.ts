@@ -35,6 +35,7 @@ export const RETENTION: RetentionRule[] = [
   { table: 'help_feedback', what: 'Help feedback, after 12 months', days: 365, statement: (b) => sql`delete from help_feedback where created_at < ${b}` },
   { table: 'usage_minutes', what: 'Minutes of use per app (the pilot measures), after 13 months', days: 396, statement: (b) => sql`delete from usage_minutes where minute < ${b}` },
   { table: 'session_endings', what: 'How sessions ended, after 13 months', days: 396, statement: (b) => sql`delete from session_endings where ended_at < ${b}` },
+  { table: 'discovery_requests', what: 'Discovery helper answers, an hour after they were asked for', days: 1 / 24, statement: (b) => sql`delete from discovery_requests where requested_at < ${b}` },
   { table: 'journal', what: 'Things done away from screens, and the praise, after 13 months', days: 396, statement: (b) => sql`delete from journal where at < ${b}` },
   { table: 'rule_asks', what: 'Questions about rules, 13 months after they are answered', days: 396, statement: (b) => sql`delete from rule_asks where status = 'answered' and decided_at < ${b}` },
   { table: 'skills', what: 'Skills that were removed, after 90 days', days: 90, statement: (b) => sql`delete from skills where removed_at < ${b}` },

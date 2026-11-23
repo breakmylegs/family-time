@@ -11,7 +11,7 @@ export interface ReadinessDeps {
   build: BuildInfo;
   now: () => Date;
   timeoutMs?: number;
-  /** Asks AdGuard's admin API anything. Absent until AdGuard has a password (init.sh). */
+  /** Whether the worker reached AdGuard recently. Absent when no AdGuard is configured. */
   pingAdguard?: () => Promise<void>;
   /** With the Besu ledger, the node must be reachable from the worker. */
   ledgerAdapter?: 'postgres' | 'besu';
@@ -44,7 +44,8 @@ async function run(name: string, check: Check, timeoutMs: number): Promise<Check
  * - schema: every migration this image ships has been applied. More is fine (after a rollback
  *   the previous image runs on a newer, additive schema).
  * - worker: the worker's heartbeat job ran recently, so the job queue is moving.
- * - adguard: AdGuard's admin API answers at ADGUARD_URL. Any answer counts, even "not set
+ * - adguard: the worker had an answer from AdGuard in the last three minutes (the api holds no
+ *   AdGuard password, ADR 0022). Any answer counts, even "not set
  *   up yet", so a fresh install is ready before ./scripts/ft.sh adguard-setup has run. Whether it
  *   blocks is the worker's job to watch: it alerts parents when protection is off.
  * - besu (Besu ledger only): the worker reached the node in the last two minutes. The api has no
