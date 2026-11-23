@@ -38,7 +38,15 @@ export interface DevicePlan {
   blocked: string[];
   /** Our `$client` rules for custom services. */
   rules: string[];
+  /** One domain of each blocked service, to ask AdGuard whether any allow rule lets it through. */
+  probes: string[];
+  /** The device's IP address or ClientID, which AdGuard's check_host accepts (a MAC it does not). */
+  probeClient?: string;
 }
+
+/** At most this many probes a device each run, so a long block list never floods AdGuard. */
+const MAX_PROBES = 12;
+const MAC = /^([0-9a-f]{2}[:-]){5}[0-9a-f]{2}$/i;
 
 export interface ReconcileResult {
   devices: number;
@@ -86,13 +94,24 @@ export async function plan(db: Db, now: Date): Promise<{ timeZone: string; devic
     const decisions = decisionsByChild.get(childId)!;
     const blocked: string[] = [];
     const domains: string[] = [];
+    const probes: string[] = [];
     for (const [serviceId, decision] of decisions) {
       if (decision.state === 'allowed') continue;
       const s = byId.get(serviceId)!;
       if (s.source === 'adguard') blocked.push(s.adguardId!);
       else domains.push(...s.domains);
+      if (s.domains[0]) probes.push(s.domains[0]);
     }
-    out.push({ deviceId: d.id, name: d.name, ids: d.ids, blocked: blocked.sort(), rules: domains.length ? blockRules(d.name, domains) : [] });
+    const probeClient = d.ids.find((id) => !MAC.test(id));
+    out.push({
+      deviceId: d.id,
+      name: d.name,
+      ids: d.ids,
+      blocked: blocked.sort(),
+      rules: domains.length ? blockRules(d.name, domains) : [],
+      probes: [...new Set(probes)].sort().slice(0, MAX_PROBES),
+      ...(probeClient ? { probeClient } : {}),
+    });
   }
   return { timeZone: household.timeZone, devices: out, bypass, removed, requireMarkers };
 }
@@ -168,6 +187,7 @@ export async function reconcile(deps: ReconcileDeps): Promise<ReconcileResult> {
     let problem = failures.get(p.deviceId);
     if (!problem && !matches(readBack.find((c) => c.name === p.name), wanted.get(p.deviceId)!)) problem = 'AdGuard does not hold what was written';
     if (!problem && p.rules.length && !rulesHeld) problem = rulesError ?? 'AdGuard does not hold our custom rules';
+    if (!problem) problem = await allowedThrough(adguard, p, log);
     const failuresNow = await record(db, p, problem, now);
     if (problem) log('warn', 'device_not_confirmed', { device: p.name, problem });
     else confirmed++;
@@ -180,6 +200,30 @@ export async function reconcile(deps: ReconcileDeps): Promise<ReconcileResult> {
     ...(rulesError ? { rulesError } : {}),
     ...(notConfirmed.length ? { notConfirmed } : {}),
   };
+}
+
+/**
+ * Whether an allow rule in AdGuard, outside anything Family time wrote, lets one of this device's
+ * blocked services through (ADR 0022): on an AdGuard others also manage, "confirmed" must not hide
+ * that. Only an explicit allow counts (NotFilteredWhiteList); any other answer, or no answer, is no
+ * finding, so a quirk of AdGuard's check never marks a device wrongly.
+ */
+async function allowedThrough(adguard: AdGuard, p: DevicePlan, log: Log): Promise<string | undefined> {
+  if (!p.probeClient) return undefined;
+  for (const domain of p.probes) {
+    try {
+      const r = await adguard.checkHost(domain, p.probeClient);
+      if (r.reason === 'NotFilteredWhiteList') {
+        // Only the characters a rule has: this came from AdGuard and goes to Control.
+        const rule = (r.rules?.[0]?.text ?? '').replace(/[^\x20-\x7e]/g, '').slice(0, 120);
+        return `An allow rule in AdGuard lets ${domain} through for this device${rule ? ` ("${rule}")` : ''}. Family time cannot block it while that rule is there.`;
+      }
+    } catch (err) {
+      log('debug', 'check_host_failed', { device: p.name, domain, error: (err as Error).message });
+      return undefined;
+    }
+  }
+  return undefined;
 }
 
 /** Records the outcome. Returns the failures in a row, so the caller can alert on the third. */

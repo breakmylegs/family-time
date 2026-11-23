@@ -139,6 +139,18 @@ describe('reconcile', () => {
     expect((await sync(s.ipad.id))?.state).toBe('pending');
   });
 
+  it("is not confirmed while someone's own allow rule lets a blocked service through, and says which", async () => {
+    const s = await seedHome(handle.db);
+    // Outside Family time's markers, as another setup managing the same AdGuard might write it.
+    fake.userRules = ['@@||roblox.com^'];
+    const r = await run();
+    expect(r).toMatchObject({ devices: 1, confirmed: 0, failed: 1 });
+    expect((await sync(s.ipad.id))?.lastError).toMatch(/allow rule in AdGuard lets roblox\.com through for this device \("@@\|\|roblox\.com\^"\)/);
+    // An allow rule for another device, or none at all, is no finding.
+    fake.userRules = ["@@||roblox.com^$client='ft-someoneelse'"];
+    expect(await run()).toMatchObject({ confirmed: 1, failed: 0 });
+  });
+
   it("on an AdGuard someone else manages, writes only between markers the owner added, never adding them", async () => {
     const s = await seedHome(handle.db);
     await handle.db.insert(settings).values({ householdId: s.hh.id, key: SETTING_ADGUARD_SCOPE, value: 'family-time-only' });

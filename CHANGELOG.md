@@ -2,6 +2,10 @@
 
 Release notes the app shows on its System page (from Phase 8). One plain line per change, newest first.
 
+## 0.15.1
+
+- Control no longer says a device is confirmed while an allow rule of your own in AdGuard lets one of its blocked apps through. It shows Not confirmed and names the rule.
+
 ## 0.15.0 (sign in with your own service)
 
 - Owners can sign in through whichever sign-in service the home already runs, such as Authelia or Authentik, not only Authentik. The app shows its name ("Sign in with Authelia"), which you set on the server.

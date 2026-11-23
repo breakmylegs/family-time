@@ -59,7 +59,7 @@ Then choose one:
 
 ### What "confirmed" means here
 
-When Control says a device is confirmed, AdGuard holds Family time's client for it and Family time's rules block, read back after writing. It does not yet check every other rule in your AdGuard: an allow rule of your own outside the markers (such as `@@||youtube.com^`) still wins. Keep allow rules for the children's devices out of your own rules.
+When Control says a device is confirmed, AdGuard holds Family time's client for it and Family time's rules block, read back after writing, and AdGuard says no allow rule lets any of that device's blocked services through. An allow rule of your own outside the markers (such as `@@||youtube.com^`) still wins in AdGuard, so Family time asks AdGuard about one address of each blocked service for each device, every minute. If an allow rule lets one through, the device shows Not confirmed, naming the rule, until you remove it or limit it to other devices (for example `@@||youtube.com^$client='Dad laptop'`). It checks the device by its IP address or ClientID, so a device known only by its MAC address is not checked this way.
 
 ### Backups
 

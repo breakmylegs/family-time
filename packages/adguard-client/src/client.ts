@@ -11,6 +11,7 @@ export const CALLS = [
   { method: 'post', path: '/clients/delete', schema: 'ClientDelete' },
   { method: 'get', path: '/blocked_services/all' },
   { method: 'get', path: '/filtering/status' },
+  { method: 'get', path: '/filtering/check_host' },
   { method: 'post', path: '/filtering/set_rules', schema: 'SetRulesRequest' },
   { method: 'post', path: '/filtering/add_url', schema: 'AddUrlRequest' },
   { method: 'get', path: '/querylog' },
@@ -161,6 +162,14 @@ export class AdGuard {
   /** Replaces every user rule. Use rules.ts to change only our managed block. */
   setRules(rules: string[]) {
     return this.call<void>('POST', '/filtering/set_rules', { rules });
+  }
+
+  /**
+   * How AdGuard would answer `name` for one client (a ClientID or IP address): `NotFilteredWhiteList`
+   * means an allow rule lets it through, whatever else blocks it.
+   */
+  checkHost(name: string, client?: string) {
+    return this.call<{ reason: string; rules?: { text: string; filter_list_id?: number }[] }>('GET', '/filtering/check_host', undefined, { name, ...(client ? { client } : {}) });
   }
 
   addFilterUrl(name: string, url: string) {

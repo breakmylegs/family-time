@@ -104,6 +104,16 @@ describe(`AdGuard contract (${REAL ? 'real container' : 'fake'})`, () => {
     await ag.setRules(before);
   });
 
+  it('says when an allow rule lets a name through for a client, which the reconciler reports', async () => {
+    const before = await ag.userRules();
+    await ag.setRules([...before, '@@||contract-allowed.example^', '||contract-blocked.example^']);
+    // 192.0.2.10 is the contract client above: check_host answers for it.
+    expect((await ag.checkHost('contract-allowed.example', '192.0.2.10')).reason).toBe('NotFilteredWhiteList');
+    expect((await ag.checkHost('www.contract-allowed.example', '192.0.2.10')).reason).toBe('NotFilteredWhiteList');
+    expect((await ag.checkHost('contract-blocked.example', '192.0.2.10')).reason).not.toBe('NotFilteredWhiteList');
+    await ag.setRules(before);
+  });
+
   it('serves the query log newest first, in the shape we read', async () => {
     const log = await ag.querylog({ limit: 10 });
     expect(Array.isArray(log.data)).toBe(true);

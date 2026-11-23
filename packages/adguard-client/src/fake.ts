@@ -119,6 +119,25 @@ export class FakeAdGuard {
         return send(200, { blocked_services: FAKE_SERVICES, groups: [{ id: 'video' }, { id: 'gaming' }, { id: 'social_network' }] });
       case 'GET /filtering/status':
         return send(200, { enabled: true, interval: 24, user_rules: this.userRules, filters: this.filters, whitelist_filters: null });
+      case 'GET /filtering/check_host': {
+        // Simple rules only: `||domain^` and `@@||domain^`, with an optional $client, matching the
+        // domain and the ones above it. An allow rule wins, as in AdGuard.
+        const name = (url.searchParams.get('name') ?? '').toLowerCase();
+        const who = url.searchParams.get('client');
+        const clientName = who ? this.clients.find((c) => c.ids.includes(who))?.name : undefined;
+        const parents = name.split('.').map((_, i, all) => all.slice(i).join('.'));
+        const applies = (rule: string) => {
+          const m = /^(@@)?\|\|([a-z0-9.-]+)\^(?:\$client='([^']+)')?$/i.exec(rule.trim());
+          if (!m || !parents.includes(m[2]!.toLowerCase())) return undefined;
+          if (m[3] && m[3] !== clientName) return undefined;
+          return m[1] ? 'allow' : 'block';
+        };
+        const allow = this.userRules.find((r) => applies(r) === 'allow');
+        if (allow) return send(200, { reason: 'NotFilteredWhiteList', rules: [{ text: allow, filter_list_id: 0 }] });
+        const block = this.userRules.find((r) => applies(r) === 'block');
+        if (block) return send(200, { reason: 'FilteredBlackList', rules: [{ text: block, filter_list_id: 0 }] });
+        return send(200, { reason: 'NotFilteredNotFound', rules: [] });
+      }
       case 'POST /filtering/set_rules':
         this.writes.push(route);
         this.userRules = [...body.rules];
