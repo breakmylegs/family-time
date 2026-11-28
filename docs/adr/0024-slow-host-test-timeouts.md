@@ -30,3 +30,7 @@ The tests are slow there, not wrong:
 - The deploy gate can pass on a slow server. On a normal machine nothing changes, as no test comes near 30 s.
 - A db test that grows slow is noticed later. If the db suite itself becomes slow, share one migrated PGlite per file (a template database or `beforeAll` with a reset) instead of raising the timeout again.
 - The real-Postgres tests (`vitest.pg.config.ts`) keep 30 s. They did not run on 26 November, because the gate stops first; if they time out on that server too, the same reasoning applies.
+
+## Addendum, 28 November 2026: every PGlite package
+
+Once db and domain passed (ADR 0025), the api package's PGlite tests hit the same 30 s limit on the same server. The 12:16 run had every api test passing except one stale expectation (fixed in `61dbf87`). The 12:48 run, with that fixed, timed out on five different api tests: `MCP > stops working the moment the owner removes the app`, two in `kiosk.test.ts`, two in `parent-app.test.ts`. No assertion failed, and the set of slow tests changed between runs, as it did for db. So `apps/api`, `apps/worker` and `packages/ledger`, which start PGlite and apply every migration in the same way, now have the same 120 s limits as db. Tests, assertions and workers are unchanged; the packages without PGlite keep theirs.
