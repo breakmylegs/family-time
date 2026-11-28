@@ -5,15 +5,19 @@
 //   corepack pnpm gate:full              on the laptop, plus the update.sh scenarios (slow here)
 //   node scripts/gate.mjs --in-image     inside the test stage (run by update.sh)
 import { spawnSync } from 'node:child_process';
+import { availableParallelism } from 'node:os';
 
 const inImage = process.argv.includes('--in-image');
+// Each package's vitest already runs up to 3 workers. Two packages at once on a small machine starve the
+// CPU-heavy property tests into timeouts, so below 8 CPUs the packages are tested one after another (ADR 0025).
+const testConcurrency = process.env.GATE_TEST_CONCURRENCY ?? (availableParallelism() >= 8 ? '2' : '1');
 const withDeploy = inImage || process.argv.includes('--with-deploy');
 
 const steps = [
   ['lint', ['exec', 'eslint', '.', '--max-warnings=0']],
   ['dashes', ['run', 'check:dashes']],
   ['secrets', ['run', 'check:secrets']],
-  ['test', ['exec', 'turbo', 'run', 'test', '--concurrency=2', '--output-logs=errors-only']],
+  ['test', ['exec', 'turbo', 'run', 'test', `--concurrency=${testConcurrency}`, '--output-logs=errors-only']],
   ['build', ['exec', 'turbo', 'run', 'build', '--output-logs=errors-only']],
   // Browsers drive the real api on PGlite. The image has no browsers, so this runs here only.
   ...(inImage ? [] : [['e2e', ['exec', 'playwright', 'test']]]),
